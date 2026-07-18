@@ -60,6 +60,16 @@ const STATUS_BADGE: Record<Status, string> = {
   Fetching: "border-current bg-muted text-muted-foreground",
 }
 
+// Icon color per status. State-action icons use the status they produce (resume =
+// Downloading, pause = Paused); the reveal icon follows the row's current status. Delete is
+// always destructive, so it isn't here.
+const STATUS_ICON: Record<Status, string> = {
+  Downloading: "text-blue-600 dark:text-blue-400",
+  Completed: "text-green-600 dark:text-green-400",
+  Paused: "text-muted-foreground",
+  Fetching: "text-muted-foreground",
+}
+
 // Human labels for the Columns dropdown so it matches the table headers exactly.
 const COLUMN_LABELS: Record<string, string> = {
   name: "Name",
@@ -145,7 +155,7 @@ function RowActions({ torrent: t }: { torrent: Torrent }) {
           title="Resume"
           onClick={() => resume.mutate()}
         >
-          <RiPlayFill className="size-4 text-blue-600 dark:text-blue-400" />
+          <RiPlayFill className={cn("size-4", STATUS_ICON.Downloading)} />
         </Button>
       ) : (
         <Button
@@ -155,7 +165,7 @@ function RowActions({ torrent: t }: { torrent: Torrent }) {
           title="Pause"
           onClick={() => pause.mutate()}
         >
-          <RiPauseFill className="text-muted-foreground size-4" />
+          <RiPauseFill className={cn("size-4", STATUS_ICON.Paused)} />
         </Button>
       )}
       {/* Reveal slot - placeholder before files exist so delete stays in a fixed column. */}
@@ -167,7 +177,7 @@ function RowActions({ torrent: t }: { torrent: Torrent }) {
           title="Reveal in folder"
           onClick={() => reveal.mutate()}
         >
-          <RiFolderOpenFill className="size-4 text-amber-600 dark:text-amber-400" />
+          <RiFolderOpenFill className={cn("size-4", STATUS_ICON[torrentStatus(t)])} />
         </Button>
       ) : (
         <Button size="icon-sm" variant="ghost" className="invisible" tabIndex={-1} aria-hidden>
