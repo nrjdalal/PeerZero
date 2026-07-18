@@ -1,0 +1,121 @@
+# PeerZero
+
+> [!IMPORTANT]
+> **For educational and personal use only.** PeerZero is a local-only tool for learning
+> about BitTorrent, peer-to-peer networking, and web development. Only download content
+> you are legally entitled to - Linux distributions, public-domain works, Creative Commons
+> media, and files you own or have permission to share. You alone are responsible for what
+> you download and for complying with copyright law where you live. The maintainers do not
+> endorse or facilitate copyright infringement and will honor valid legal notices.
+
+A local-only **BitTorrent client** in one web UI. Search, paste a magnet link, or add a
+`.torrent`, and watch it download with live progress - all on your own machine. No account,
+no cloud, nothing hosted.
+
+---
+
+## Get started
+
+### 1. Install the prerequisites (one-time)
+
+Install these two yourself first - each link has a normal installer:
+
+- **Bun** - runs the app · [bun.sh](https://bun.sh)
+- **Node.js** - runs the download engine, pick the **LTS** build · [nodejs.org](https://nodejs.org)
+
+### 2. Get the project and start it
+
+Open your terminal and run these, one at a time:
+
+```bash
+bunx gitpick nrjdalal/PeerZero   # download the project (no git needed)
+cd PeerZero
+cp .env.example .env             # Windows: copy .env.example .env
+bun install
+bun run dev
+```
+
+When it's ready it prints a URL - open it in your browser:
+
+**→ http://peerzero.localhost:1355**
+
+Press `Ctrl+C` to stop; run `bun run dev` again to restart.
+
+### Updating later
+
+Re-download the latest code with `bunx gitpick nrjdalal/PeerZero`, then `bun install`. You
+rarely need to - the app keeps its trackers and indexes fresh on its own in the background
+(see **How updates work** below).
+
+---
+
+## What it does
+
+- **Search** across public indexes from the **Search** tab, or paste a magnet link / drop a
+  `.torrent`.
+- **Download** with a real [WebTorrent](https://webtorrent.io) client over the normal
+  TCP/uTP/DHT swarm. Pause, resume, remove, and watch live progress (speed, peers, ETA)
+  stream over a WebSocket into the **Transfers** tab.
+- **Stays a downloader.** Completed torrents auto-stop instead of seeding.
+- **Runs entirely locally.** Nothing is uploaded to a server; downloads land in
+  `.downloads/` at the project root.
+
+---
+
+## How it works
+
+Three processes start together with `bun run dev`:
+
+| Service              | Runtime  | Role                                                     |
+| -------------------- | -------- | -------------------------------------------------------- |
+| `web/next`           | Bun      | Next.js UI                                               |
+| `api/hono`           | Bun      | API layer + proxy to the download engine                 |
+| `api/torrent-engine` | **Node** | WebTorrent download engine behind a small local HTTP API |
+
+The engine is a **Node sidecar** (not Bun) because WebTorrent's `node-datachannel` native
+addon can't load under Bun. It is pinned to `webtorrent@2.8.5` (the 3.0.x line crashes
+mid-download). The Bun API talks to it over plain HTTP on `127.0.0.1:4444`, so the engine
+could later be swapped for another client behind the same seam
+(`api/hono/src/lib/torrent/engine.ts`).
+
+Dev URLs are named `.localhost` hosts served by [portless](https://www.npmjs.com/package/portless)
+(`bunx portless list` shows them). `PORTLESS=0 bun run dev` uses plain ports instead
+(web `:3000`, api `:4000`).
+
+### How updates work
+
+The app reads its provider/tracker/directory data from a committed, encoded **registry**
+(`api/hono/src/lib/torrent/registry.json`). In the background - once at startup, then every
+few hours - it refreshes that data, in order of preference:
+
+1. **Locally**, straight from the upstream lists (freshest).
+2. If those are blocked on your network, from the **canary mirror**, which a scheduled job
+   keeps up to date from an unblocked environment.
+3. Otherwise it keeps the last good copy it had.
+
+All of this is non-blocking: the UI is always served instantly from the in-memory copy while
+refreshes happen in the background. No git pull required to stay current.
+
+---
+
+## Configuration
+
+Everything works out of the box; `.env` is only for tweaks. Highlights:
+
+| Variable               | Default       | What it does                                                                       |
+| ---------------------- | ------------- | ---------------------------------------------------------------------------------- |
+| `TORRENT_DOWNLOAD_DIR` | `.downloads/` | Where finished files land                                                          |
+| `TORRENT_MAX_CONNS`    | `50`          | Per-torrent connection cap (kept low to be gentle on home routers)                 |
+| `REGISTRY_SYNC_URL`    | canary mirror | Where background refresh falls back to; set to any non-URL (e.g. `off`) to disable |
+
+See `.env.example` for the full list.
+
+---
+
+Built on top of [ZeroStarter](https://zerostarter.dev).
+
+> [!IMPORTANT]
+> **Reminder:** BitTorrent is a neutral transport; how it's used is up to you. Use PeerZero
+> only for content you have the legal right to download (for example Linux ISOs,
+> public-domain and Creative Commons media, or files you own). You are solely responsible
+> for your downloads and for obeying the law in your jurisdiction.

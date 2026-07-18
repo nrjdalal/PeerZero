@@ -1,0 +1,15 @@
+{
+  "name": "@api/torrent-engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Node sidecar that runs the WebTorrent download engine and exposes a small local HTTP API. Runs under Node (not Bun) because webtorrent's node-datachannel native addon can't load under Bun.",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.mjs",
+    "start": "node src/index.mjs",
+    "check-types": "true"
+  },
+  "dependencies": {
+    "webtorrent": "catalog:"
+  }
+}

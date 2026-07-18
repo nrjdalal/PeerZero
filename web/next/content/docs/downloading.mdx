@@ -1,0 +1,64 @@
+---
+slug: /docs/downloading
+title: Downloading & transfers
+description: Add a torrent and manage it on the Transfers tab.
+---
+
+The **Transfers** tab lists everything you've added and streams live progress from
+the download engine over a WebSocket, so speeds, peers, and progress update in real
+time without refreshing.
+
+## Adding a torrent
+
+Paste a **magnet link** into the box and add it, or drop in a `.torrent` file. New
+torrents appear at the top of Transfers (the table sorts by **Added** by default).
+
+A torrent first has to fetch its metadata from peers before it can download - until
+then its status is **Fetching**.
+
+## The Transfers table
+
+| Column                         | What it means                                                   |
+| ------------------------------ | --------------------------------------------------------------- |
+| **Name**                       | The torrent title.                                              |
+| **Progress**                   | A bar with the exact percentage.                                |
+| **Status**                     | `Fetching`, `Downloading`, `Completed`, or `Paused`.            |
+| **Down / Up**                  | Current download and upload speed. (`Up` is hidden by default.) |
+| **ETA**                        | Estimated time remaining.                                       |
+| **Added**                      | When you added it.                                              |
+| **Size**, **Peers**, **Seeds** | Total size and the current swarm.                               |
+
+### Statuses
+
+- **Fetching** - resolving metadata / finding peers. If it stays here, the torrent
+  likely has no seeders (see [Troubleshooting](/docs/troubleshooting)).
+- **Downloading** - actively transferring.
+- **Completed** - finished. PeerZero **does not seed**, so it auto-stops here.
+- **Paused** - you paused it (or it completed and auto-stopped).
+
+## Managing a download
+
+Each row has action buttons at the end:
+
+- **Pause / Resume** - stop or restart a download.
+- **Remove** - a dialog lets you either **keep the downloaded files** or **delete
+  them from disk**.
+
+Finished files live in the engine's download directory (`.downloads` by default;
+override with `TORRENT_DOWNLOAD_DIR`).
+
+## Filtering and preferences
+
+The toolbar's **Filter by name** narrows the list (and is focused automatically when
+you open the tab), **Status** filters by state, and **Columns** toggles which columns
+show. Your **sort order** and **visible columns** are saved and restored across
+reloads.
+
+## Why don't downloads seed?
+
+By design. When a torrent finishes, PeerZero pauses it instead of uploading to
+others - it stays a pure downloader. This does **not** affect download speed;
+stopping at 100% is expected behaviour.
+
+If downloads are slow or stall partway, that's almost always your network - see
+[Troubleshooting](/docs/troubleshooting).

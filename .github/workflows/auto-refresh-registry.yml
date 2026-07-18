@@ -1,0 +1,58 @@
+name: auto-refresh-registry
+
+# Refresh the committed registry (the magnet tracker list + the directory) and write it
+# straight to canary, so a running app never fetches these at runtime and the canary mirror
+# stays current. It commits only when the data actually changed, so unchanged runs are no-ops.
+#
+# Triggers (all write to canary):
+#   - schedule: every 6 hours.
+#   - pull_request into canary: refresh + commit on each PR too.
+#   - workflow_dispatch: manual run.
+#
+# Note: for the `schedule` trigger to fire, this file must exist on the repository's
+# default branch (GitHub only schedules workflows from the default branch).
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
+  pull_request:
+    branches: [canary]
+  workflow_dispatch: {}
+
+concurrency:
+  group: auto-refresh-registry
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    name: Refresh registry
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout canary
+        uses: actions/checkout@v6
+        with:
+          ref: canary
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Refresh registry
+        run: bun run .github/scripts/refresh-registry.ts
+
+      - name: Commit and push to canary if changed
+        run: |
+          if [[ -z "$(git status --porcelain api/hono/src/lib/torrent/registry.json)" ]]; then
+            echo "Registry unchanged; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/hono/src/lib/torrent/registry.json
+          git commit -m "chore(registry): refresh committed data"
+          git pull --rebase --autostash origin canary
+          git push origin canary

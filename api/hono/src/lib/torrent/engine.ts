@@ -1,0 +1,102 @@
+// Thin HTTP client to the Node WebTorrent sidecar (api/torrent-engine): a separate
+// process because the library can't load under Bun. One module so the backend is swappable.
+
+import { env } from "@packages/env/api-hono"
+
+const BASE = env.TORRENT_ENGINE_URL.replace(/\/$/, "")
+
+export type TorrentFile = {
+  name: string
+  path: string
+  length: number
+  downloaded: number
+  progress: number
+}
+
+export type TorrentSnapshot = {
+  infoHash: string
+  name: string
+  magnetURI: string
+  length: number
+  downloaded: number
+  uploaded: number
+  downloadSpeed: number
+  uploadSpeed: number
+  progress: number
+  numPeers: number
+  seeders: number
+  timeRemaining: number | null
+  ratio: number
+  done: boolean
+  ready: boolean
+  paused: boolean
+  addedAt: number // unix seconds the torrent was added, 0 if unknown
+  downloadDir: string
+  files: TorrentFile[]
+}
+
+export class EngineError extends Error {
+  constructor(
+    message: string,
+    readonly status = 502,
+  ) {
+    super(message)
+  }
+}
+
+async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, init)
+  } catch {
+    throw new EngineError("torrent engine unreachable (is the sidecar running?)", 503)
+  }
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+  if (!res.ok) {
+    const message = typeof body.error === "string" ? body.error : `engine ${res.status}`
+    throw new EngineError(message, res.status)
+  }
+  return body as T
+}
+
+export const engine = {
+  async health(): Promise<boolean> {
+    try {
+      await call("/health")
+      return true
+    } catch {
+      return false
+    }
+  },
+  async list(): Promise<TorrentSnapshot[]> {
+    const { torrents } = await call<{ torrents: TorrentSnapshot[] }>("/torrents")
+    return torrents
+  },
+  async add(magnet: string): Promise<TorrentSnapshot> {
+    const { torrent } = await call<{ torrent: TorrentSnapshot }>("/torrents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ magnet }),
+    })
+    return torrent
+  },
+  async pause(infoHash: string): Promise<TorrentSnapshot> {
+    const { torrent } = await call<{ torrent: TorrentSnapshot }>(`/torrents/${infoHash}/pause`, {
+      method: "POST",
+    })
+    return torrent
+  },
+  async resume(infoHash: string): Promise<TorrentSnapshot> {
+    const { torrent } = await call<{ torrent: TorrentSnapshot }>(`/torrents/${infoHash}/resume`, {
+      method: "POST",
+    })
+    return torrent
+  },
+  async remove(infoHash: string, destroyStore: boolean): Promise<boolean> {
+    const { ok } = await call<{ ok: boolean }>(
+      `/torrents/${infoHash}?destroyStore=${destroyStore ? "true" : "false"}`,
+      { method: "DELETE" },
+    )
+    return ok
+  },
+}
