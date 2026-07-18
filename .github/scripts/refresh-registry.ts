@@ -47,7 +47,7 @@ const entries = parseDirectory(directoryMd)
 if (!trackers.length) throw new Error("upstream returned no trackers")
 if (!entries.length) throw new Error("upstream returned no directory entries")
 
-const next = {
+const next: Record<string, unknown> = {
   ...current,
   trackers: { source: trackerUrl, list: trackers },
   directory: { source: directoryUrl, entries },
