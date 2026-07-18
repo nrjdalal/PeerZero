@@ -20,8 +20,9 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { apiClient, unwrap } from "@/lib/api/client"
 
-// Download-location settings. The location applies to new torrents only; existing torrents
-// keep whatever folder they were added with (the engine stores each torrent's own path).
+// Download-location settings. The folder is changed only through the native OS picker
+// (Browse) - there is no free-text path to type or save. Applies to new torrents only;
+// existing torrents keep whatever folder they were added with.
 export function SettingsDialog() {
   const [open, setOpen] = useState(false)
   const [dir, setDir] = useState("")
@@ -37,26 +38,10 @@ export function SettingsDialog() {
     },
   })
 
-  // Seed the input from the loaded setting once it arrives.
+  // Show the current folder once it loads (and after Browse updates it).
   useEffect(() => {
     if (data?.downloadDir) setDir(data.downloadDir)
   }, [data?.downloadDir])
-
-  const save = useMutation({
-    mutationFn: async (downloadDir: string) => {
-      const { data, error } = await unwrap(
-        apiClient.torrents.settings.$put({ json: { downloadDir } }),
-      )
-      if (error) throw new Error(error.message)
-      return data
-    },
-    onSuccess: (data) => {
-      setDir(data.downloadDir)
-      queryClient.invalidateQueries({ queryKey: ["torrent-settings"] })
-      toast.success("Download folder updated")
-    },
-    onError: (e) => toast.error(e.message),
-  })
 
   const openFolder = useMutation({
     mutationFn: async () => {
@@ -66,7 +51,7 @@ export function SettingsDialog() {
     onError: (e) => toast.error(e.message),
   })
 
-  // Native OS folder picker (via the engine); sets the download folder on selection.
+  // Native OS folder picker - the only way to change the download folder.
   const browse = useMutation({
     mutationFn: async () => {
       const { data, error } = await unwrap(apiClient.torrents["choose-dir"].$post())
@@ -82,8 +67,6 @@ export function SettingsDialog() {
     },
     onError: (e) => toast.error(e.message),
   })
-
-  const dirty = dir.trim() !== "" && dir.trim() !== data?.downloadDir
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -114,17 +97,14 @@ export function SettingsDialog() {
           <Field>
             <FieldLabel htmlFor="download-dir">Download folder</FieldLabel>
             <div className="flex gap-2">
-              <Input
-                id="download-dir"
-                value={dir}
-                onChange={(e) => setDir(e.target.value)}
-                placeholder="~/Downloads/PeerZero"
-              />
+              <Input id="download-dir" value={dir} readOnly />
               <Button variant="outline" onClick={() => browse.mutate()} disabled={browse.isPending}>
                 {browse.isPending ? <Spinner /> : "Browse…"}
               </Button>
             </div>
-            <FieldDescription>Applies to new torrents only.</FieldDescription>
+            <FieldDescription>
+              Choose a folder with Browse. Applies to new torrents only.
+            </FieldDescription>
           </Field>
         )}
         <DialogFooter>
@@ -135,9 +115,6 @@ export function SettingsDialog() {
           >
             <RiFolderOpenFill className="size-4" />
             Open folder
-          </Button>
-          <Button onClick={() => save.mutate(dir.trim())} disabled={save.isPending || !dirty}>
-            {save.isPending ? <Spinner /> : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>

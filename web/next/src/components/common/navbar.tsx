@@ -14,6 +14,7 @@ import { useState } from "react"
 
 import { Logo } from "@/components/common/logo"
 import { ModeToggle } from "@/components/common/mode-toggle"
+import { OpenFolderButton } from "@/components/torrents/open-folder-button"
 import { SettingsDialog } from "@/components/torrents/settings-dialog"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -141,6 +142,7 @@ export function Navbar() {
             <SocialLinks />
           </div>
 
+          <OpenFolderButton />
           <SettingsDialog />
           <ModeToggle />
 
