@@ -1,5 +1,5 @@
-// Thin HTTP client to the Node WebTorrent sidecar (api/torrent-engine): a separate
-// process because the library can't load under Bun. One module so the backend is swappable.
+// Thin HTTP client to the WebTorrent sidecar (api/torrent-engine): a separate Bun process
+// so a crashing torrent can't take the backend down. One module so the backend is swappable.
 
 import { env } from "@packages/env/api-hono"
 
