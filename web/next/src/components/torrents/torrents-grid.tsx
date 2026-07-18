@@ -428,7 +428,9 @@ const columns: ColumnDef<Torrent>[] = [
     size: 80,
     meta: { align: "right" },
     accessorFn: (t) => t.timeRemaining ?? Number.POSITIVE_INFINITY,
-    header: () => <div className="text-right">ETA</div>,
+    header: ({ column, table }) => (
+      <SortHeader column={column} table={table} label="ETA" align="right" />
+    ),
     // Blank (not "-") when there's no live ETA: paused, completed, or stalled.
     cell: ({ row }) => {
       const ms = row.original.timeRemaining
