@@ -1,6 +1,6 @@
 "use client"
 
-import { RiRefreshLine } from "@remixicon/react"
+import { RiRefreshFill } from "@remixicon/react"
 import { useEffect } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -33,7 +33,7 @@ export function RouteError({
       </EmptyHeader>
       <EmptyContent>
         <Button variant="outline" onClick={() => reset()}>
-          <RiRefreshLine />
+          <RiRefreshFill />
           Try again
         </Button>
       </EmptyContent>

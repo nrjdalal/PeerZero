@@ -1,7 +1,7 @@
 "use client"
 
 import type { SearchResult } from "@api/hono"
-import { RiCheckLine, RiDownloadLine, RiSearchLine } from "@remixicon/react"
+import { RiCheckFill, RiDownloadFill, RiSearchFill } from "@remixicon/react"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ColumnDef, SortingState, VisibilityState } from "@tanstack/react-table"
 import Link from "next/link"
@@ -62,9 +62,9 @@ function AddAction({ result }: { result: SearchResult }) {
         onClick={() => add.mutate()}
       >
         {added ? (
-          <RiCheckLine className="text-success size-4" />
+          <RiCheckFill className="text-success size-4" />
         ) : (
-          <RiDownloadLine className="size-4" />
+          <RiDownloadFill className="size-4" />
         )}
       </Button>
     </div>
@@ -145,8 +145,8 @@ const columns: ColumnDef<SearchResult>[] = [
   },
   {
     id: "actions",
-    size: 96,
-    minSize: 96,
+    size: 128,
+    minSize: 128,
     enableHiding: false,
     header: () => <span className="sr-only">Get</span>,
     cell: ({ row }) => <AddAction result={row.original} />,
@@ -216,7 +216,7 @@ export function SearchView({ initialQuery = "" }: { initialQuery?: string }) {
   const empty = isMagnet ? (
     <div className="flex h-64 items-center justify-center">
       <Button onClick={() => addMagnet.mutate(query.trim())}>
-        <RiDownloadLine className="size-4" />
+        <RiDownloadFill className="size-4" />
         Add this magnet link
       </Button>
     </div>
@@ -228,7 +228,7 @@ export function SearchView({ initialQuery = "" }: { initialQuery?: string }) {
     <Empty>
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <RiSearchLine />
+          <RiSearchFill />
         </EmptyMedia>
         <EmptyTitle>{debounced.length < 2 ? "No search yet" : "No torrents found"}</EmptyTitle>
         <EmptyDescription>
@@ -251,7 +251,7 @@ export function SearchView({ initialQuery = "" }: { initialQuery?: string }) {
       columnLabels={COLUMN_LABELS}
       getRowId={(r) => r.infoHash}
       storageKey="search"
-      tableClassName="min-w-[44rem]"
+      tableClassName="min-w-256"
       initialSorting={DEFAULT_SORTING}
       initialColumnVisibility={HIDDEN_COLUMNS}
       search={{ value: query, onChange: setQuery, pending: isFetching }}

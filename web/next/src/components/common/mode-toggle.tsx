@@ -1,6 +1,6 @@
 "use client"
 
-import { RiMoonLine, RiSunLine } from "@remixicon/react"
+import { RiMoonFill, RiSunFill } from "@remixicon/react"
 import { useTheme } from "next-themes"
 
 import { Button } from "@/components/ui/button"
@@ -31,8 +31,8 @@ export function ModeToggle() {
       size="sm"
       variant="outline"
     >
-      <RiSunLine className="dark:hidden" aria-hidden="true" />
-      <RiMoonLine className="hidden dark:block" aria-hidden="true" />
+      <RiSunFill className="dark:hidden" aria-hidden="true" />
+      <RiMoonFill className="hidden dark:block" aria-hidden="true" />
     </Button>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { RiCheckLine, RiFileCopyLine } from "@remixicon/react"
+import { RiCheckFill, RiFileCopyFill } from "@remixicon/react"
 import { useState } from "react"
 import { toast } from "sonner"
 
@@ -56,7 +56,7 @@ export function CopyAsMarkdown({ url }: CopyAsMarkdownProps) {
           />
         }
       >
-        {isCopied ? <RiCheckLine className="size-4" /> : <RiFileCopyLine className="size-4" />}
+        {isCopied ? <RiCheckFill className="size-4" /> : <RiFileCopyFill className="size-4" />}
       </TooltipTrigger>
       <TooltipContent>{isCopied ? "Copied as markdown" : "Copy as markdown"}</TooltipContent>
     </Tooltip>

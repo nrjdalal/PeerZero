@@ -1,7 +1,7 @@
 "use client"
 
 import { env } from "@packages/env/web-next"
-import { RiArrowRightSLine, RiSearchLine } from "@remixicon/react"
+import { RiArrowRightSFill, RiSearchFill } from "@remixicon/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
@@ -135,7 +135,7 @@ function NavTreeGroup({
     >
       <CollapsibleTrigger render={<Trigger {...(sub ? {} : { tooltip: group.label })} />}>
         <span>{group.label}</span>
-        <RiArrowRightSLine className="ml-auto transition-transform duration-200 group-data-[open]:rotate-90" />
+        <RiArrowRightSFill className="ml-auto transition-transform duration-200 group-data-[open]:rotate-90" />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <SidebarMenuSub className="mr-0 gap-y-0.5 pr-0 pl-2">
@@ -251,7 +251,7 @@ export function DocsSearch() {
 
   return (
     <div className="relative">
-      <RiSearchLine className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2" />
+      <RiSearchFill className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2" />
       <SidebarInput
         placeholder="Search"
         onClick={handleClick}

@@ -2,10 +2,10 @@
 
 import { features, type Feature, site } from "@packages/config/site"
 import {
-  RiArrowRightUpLine,
+  RiArrowRightUpFill,
   RiDiscordFill,
   RiGithubFill,
-  RiMenuLine,
+  RiMenuFill,
   RiTwitterXFill,
 } from "@remixicon/react"
 import Link from "next/link"
@@ -14,6 +14,7 @@ import { useState } from "react"
 
 import { Logo } from "@/components/common/logo"
 import { ModeToggle } from "@/components/common/mode-toggle"
+import { SettingsDialog } from "@/components/torrents/settings-dialog"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -100,7 +101,7 @@ export function Navbar() {
                     className="text-foreground/60 hover:text-foreground/80 font-medium transition-colors"
                   >
                     {link.label}
-                    <RiArrowRightUpLine className="-mt-3 inline size-3.5" />
+                    <RiArrowRightUpFill className="-mt-3 inline size-3.5" />
                   </a>
                 )
               }
@@ -120,7 +121,7 @@ export function Navbar() {
           </nav>
         </div>
 
-        {/* Right: docs + social links + theme toggle + mobile menu */}
+        {/* Right: docs + social links + settings + theme toggle + mobile menu */}
         <div className="flex items-center gap-3.5">
           {features.docs && (
             <Link
@@ -140,6 +141,7 @@ export function Navbar() {
             <SocialLinks />
           </div>
 
+          <SettingsDialog />
           <ModeToggle />
 
           {/* Mobile Navigation */}
@@ -154,7 +156,7 @@ export function Navbar() {
                 />
               }
             >
-              <RiMenuLine aria-hidden="true" />
+              <RiMenuFill aria-hidden="true" />
             </SheetTrigger>
             <SheetContent side="right">
               <SheetHeader>
@@ -185,7 +187,7 @@ export function Navbar() {
                         onClick={() => setIsOpen(false)}
                       >
                         {link.label}
-                        <RiArrowRightUpLine className="-mt-3 inline size-3.5" />
+                        <RiArrowRightUpFill className="-mt-3 inline size-3.5" />
                       </a>
                     )
                   }
