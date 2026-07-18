@@ -1,0 +1,5 @@
+# Preload the WebRTC stub before anything imports webtorrent, so the node-datachannel
+# native addon (which crashes Bun via an unsupported libuv function) is never loaded.
+# See src/webrtc-stub.mjs for the full rationale. Applies to every `bun` invocation in
+# this package (dev, start, or a bare `bun src/index.mjs`).
+preload = ["./src/webrtc-stub.mjs"]
