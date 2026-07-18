@@ -6,18 +6,20 @@ description: The three processes behind PeerZero and why it's built this way.
 
 PeerZero runs three processes locally, started together by `bun run dev`:
 
-| Service    | Runtime           | Role                                               |
-| ---------- | ----------------- | -------------------------------------------------- |
-| **Web**    | Next.js (Bun)     | The web UI you interact with.                      |
-| **API**    | Hono (Bun)        | A thin seam in front of the download engine.       |
-| **Engine** | Node + WebTorrent | The actual BitTorrent client that downloads files. |
+| Service    | Runtime          | Role                                               |
+| ---------- | ---------------- | -------------------------------------------------- |
+| **Web**    | Next.js (Bun)    | The web UI you interact with.                      |
+| **API**    | Hono (Bun)       | A thin seam in front of the download engine.       |
+| **Engine** | Bun + WebTorrent | The actual BitTorrent client that downloads files. |
 
 ## Why a separate download engine?
 
-The download engine is a small **Node process**, not part of the Bun API. WebTorrent
-depends on a native addon (`node-datachannel`) that crashes under Bun, so it runs in
-its own Node sidecar and exposes a tiny local HTTP API that the Hono backend proxies
-to. WebTorrent is also pinned to a version known to complete downloads cleanly.
+The download engine is a small **Bun process** separate from the Bun API, so a crashing
+torrent can't take the backend down. It exposes a tiny local HTTP API that the Hono
+backend proxies to. WebTorrent pulls in two native addons that crash Bun (an unsupported
+libuv function): WebRTC (`node-datachannel`) is neutralized by a preload stub and uTP
+(`utp-native`) is turned off, leaving peer discovery over the DHT plus udp/http trackers
+on TCP, which is all a local client needs.
 
 Keeping the engine behind one seam (`api/hono/src/lib/torrent/engine.ts`) means the
 rest of the app doesn't care how downloading works - a different backend could be

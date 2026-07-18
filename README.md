@@ -20,8 +20,8 @@ no cloud, nothing hosted.
 
 Install these two yourself first - each link has a normal installer:
 
-- **Bun** - runs the app · [bun.sh](https://bun.sh)
-- **Node.js** - runs the download engine, pick the **LTS** build · [nodejs.org](https://nodejs.org)
+- **Bun** - runs the app, including the download engine · [bun.sh](https://bun.sh)
+- **Node.js** - runs the dev tooling (turbo, Next.js), pick the **LTS** build · [nodejs.org](https://nodejs.org)
 
 ### 2. Get the project and start it
 
@@ -66,17 +66,20 @@ rarely need to - the app keeps its trackers and indexes fresh on its own in the 
 
 Three processes start together with `bun run dev`:
 
-| Service              | Runtime  | Role                                                     |
-| -------------------- | -------- | -------------------------------------------------------- |
-| `web/next`           | Bun      | Next.js UI                                               |
-| `api/hono`           | Bun      | API layer + proxy to the download engine                 |
-| `api/torrent-engine` | **Node** | WebTorrent download engine behind a small local HTTP API |
+| Service              | Runtime | Role                                                     |
+| -------------------- | ------- | -------------------------------------------------------- |
+| `web/next`           | Bun     | Next.js UI                                               |
+| `api/hono`           | Bun     | API layer + proxy to the download engine                 |
+| `api/torrent-engine` | Bun     | WebTorrent download engine behind a small local HTTP API |
 
-The engine is a **Node sidecar** (not Bun) because WebTorrent's `node-datachannel` native
-addon can't load under Bun. It is pinned to `webtorrent@2.8.5` (the 3.0.x line crashes
-mid-download). The Bun API talks to it over plain HTTP on `127.0.0.1:4444`, so the engine
-could later be swapped for another client behind the same seam
-(`api/hono/src/lib/torrent/engine.ts`).
+The engine runs under Bun like the rest of the stack. WebTorrent's two Bun-incompatible
+native addons are kept out of the process: WebRTC (`node-datachannel`) is neutralized by a
+preload stub (`api/torrent-engine/src/webrtc-stub.mjs`, wired via `bunfig.toml`) and uTP
+(`utp-native`) is disabled with `{ utp: false }`; both otherwise crash Bun on an unsupported
+libuv function. Peers are found via the DHT plus udp/http trackers over TCP. It stays a
+separate process so a crashing torrent can't take the backend down. The Bun API talks to it
+over plain HTTP on `127.0.0.1:4444`, so the engine could later be swapped for another client
+behind the same seam (`api/hono/src/lib/torrent/engine.ts`).
 
 Dev URLs are named `.localhost` hosts served by [portless](https://www.npmjs.com/package/portless)
 (`bunx portless list` shows them). `PORTLESS=0 bun run dev` uses plain ports instead
