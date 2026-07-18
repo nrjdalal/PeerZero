@@ -87,6 +87,61 @@ export const torrentsRouter = new Hono()
       })
     },
   )
+  .get(
+    "/settings",
+    describeRoute({ tags: ["Torrents"], description: "Get the current download folder." }),
+    async (c) => {
+      try {
+        return c.json({ data: await engine.getSettings() })
+      } catch (err) {
+        return handleEngineError(c, err)
+      }
+    },
+  )
+  .put(
+    "/settings",
+    describeRoute({
+      tags: ["Torrents"],
+      description:
+        "Set the download folder for new torrents; existing torrents keep their own folder.",
+    }),
+    sValidator("json", z.object({ downloadDir: z.string().trim().min(1) }), onInvalid),
+    async (c) => {
+      try {
+        return c.json({ data: await engine.setSettings(c.req.valid("json").downloadDir) })
+      } catch (err) {
+        return handleEngineError(c, err)
+      }
+    },
+  )
+  .post(
+    "/open",
+    describeRoute({
+      tags: ["Torrents"],
+      description: "Open the download folder in the OS file manager.",
+    }),
+    async (c) => {
+      try {
+        return c.json({ data: { ok: await engine.openDir() } })
+      } catch (err) {
+        return handleEngineError(c, err)
+      }
+    },
+  )
+  .post(
+    "/choose-dir",
+    describeRoute({
+      tags: ["Torrents"],
+      description: "Open a native folder picker on the host and set the chosen download folder.",
+    }),
+    async (c) => {
+      try {
+        return c.json({ data: await engine.chooseDir() })
+      } catch (err) {
+        return handleEngineError(c, err)
+      }
+    },
+  )
   // One shared poller (lib/torrent/live.ts) caches the snapshot and broadcasts it
   // synchronously. The web app pushes each frame into its Query cache, polling while down.
   .get(
@@ -150,6 +205,20 @@ export const torrentsRouter = new Hono()
       try {
         const torrent = await engine.resume(c.req.param("infoHash"))
         return c.json({ data: { torrent } })
+      } catch (err) {
+        return handleEngineError(c, err)
+      }
+    },
+  )
+  .post(
+    "/:infoHash/reveal",
+    describeRoute({
+      tags: ["Torrents"],
+      description: "Reveal a torrent's downloaded folder in the OS file manager.",
+    }),
+    async (c) => {
+      try {
+        return c.json({ data: { ok: await engine.reveal(c.req.param("infoHash")) } })
       } catch (err) {
         return handleEngineError(c, err)
       }

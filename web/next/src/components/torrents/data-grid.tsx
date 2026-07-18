@@ -1,12 +1,13 @@
 "use client"
 
 import {
-  RiArrowDownLine,
-  RiArrowUpLine,
-  RiExpandUpDownLine,
-  RiFilter3Line,
-  RiFilterLine,
-  RiSearchLine,
+  RiArrowDownFill,
+  RiArrowUpFill,
+  RiCornerDownLeftFill,
+  RiExpandUpDownFill,
+  RiFilter3Fill,
+  RiFilterFill,
+  RiSearchFill,
 } from "@remixicon/react"
 import {
   type Column,
@@ -68,11 +69,11 @@ export function SortHeader<T>({
   const sorted: false | "asc" | "desc" = entry ? (entry.desc ? "desc" : "asc") : false
   const icon =
     sorted === "asc" ? (
-      <RiArrowUpLine className="size-3.5" />
+      <RiArrowUpFill className="size-3.5" />
     ) : sorted === "desc" ? (
-      <RiArrowDownLine className="size-3.5" />
+      <RiArrowDownFill className="size-3.5" />
     ) : (
-      <RiExpandUpDownLine className="text-muted-foreground size-3.5" />
+      <RiExpandUpDownFill className="text-muted-foreground size-3.5" />
     )
   const justify =
     align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"
@@ -189,7 +190,7 @@ export function DataGrid<T>({
 
   const searchInput = (
     <>
-      <RiSearchLine className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+      <RiSearchFill className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
       <Input
         value={search.value}
         onChange={(e) => search.onChange(e.target.value)}
@@ -197,10 +198,19 @@ export function DataGrid<T>({
         className="h-8 w-full pl-9 sm:w-64"
         autoFocus={primaryInput === "search"}
       />
-      {search.pending && (
+      {search.pending ? (
         <span className="absolute top-1/2 right-3 -translate-y-1/2">
           <Spinner />
         </span>
+      ) : (
+        // Enter-to-search hint: only when this box submits (Transfers) and has a query, so
+        // it's clear that pressing Enter runs the search over on the Search page.
+        search.onSubmit &&
+        search.value.trim() !== "" && (
+          <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2">
+            <RiCornerDownLeftFill className="size-4" />
+          </span>
+        )
       )}
     </>
   )
@@ -221,7 +231,7 @@ export function DataGrid<T>({
   // Client-side name filter for the current rows.
   const filterSlot = (
     <div className="relative">
-      <RiFilterLine className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+      <RiFilterFill className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
       <Input
         value={nameFilter}
         onChange={(e) => table.getColumn("name")?.setFilterValue(e.target.value)}
@@ -269,7 +279,7 @@ export function DataGrid<T>({
               disabled={facet.options.length === 0}
               render={
                 <Button variant="outline" size="sm" className="h-8">
-                  <RiFilter3Line className="size-4" />
+                  <RiFilter3Fill className="size-4" />
                   {facet.label}
                   {facetValue.length > 0 && <Badge variant="secondary">{facetValue.length}</Badge>}
                 </Button>

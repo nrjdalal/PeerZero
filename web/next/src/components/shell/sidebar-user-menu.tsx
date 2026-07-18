@@ -2,12 +2,12 @@
 
 import { env } from "@packages/env/web-next"
 import {
-  RiArrowRightSLine,
-  RiDashboardLine,
-  RiHome4Line,
-  RiLogoutBoxLine,
-  RiMessage2Line,
-  RiTerminalBoxLine,
+  RiArrowRightSFill,
+  RiDashboardFill,
+  RiHome4Fill,
+  RiLogoutBoxFill,
+  RiMessage2Fill,
+  RiTerminalBoxFill,
 } from "@remixicon/react"
 import { type User } from "better-auth/types"
 import Link from "next/link"
@@ -35,9 +35,9 @@ export function SidebarUserMenu({ user, area }: { user: User; area?: "dashboard"
   // The user menu is shared, so the cross-link points at the other workspace: dashboard -> console, console -> dashboard.
   const crossLink =
     area === "dashboard"
-      ? { label: "Console", href: "/console", icon: <RiTerminalBoxLine /> }
+      ? { label: "Console", href: "/console", icon: <RiTerminalBoxFill /> }
       : area === "console"
-        ? { label: "Dashboard", href: "/dashboard", icon: <RiDashboardLine /> }
+        ? { label: "Dashboard", href: "/dashboard", icon: <RiDashboardFill /> }
         : null
 
   const avatar = (
@@ -53,15 +53,15 @@ export function SidebarUserMenu({ user, area }: { user: User; area?: "dashboard"
       <SidebarDropdownMenu trigger={identity} header={identity} align="end" mobileSide="top">
         {/* The sidebar brand stays inside the app, so this is the one way back to the landing page. */}
         <DropdownMenuItem render={<Link href="/" className="cursor-pointer" />}>
-          <RiHome4Line />
+          <RiHome4Fill />
           Home
-          <RiArrowRightSLine className="text-muted-foreground ml-auto size-4" />
+          <RiArrowRightSFill className="text-muted-foreground ml-auto size-4" />
         </DropdownMenuItem>
         {crossLink && (
           <DropdownMenuItem render={<Link href={crossLink.href} className="cursor-pointer" />}>
             {crossLink.icon}
             {crossLink.label}
-            <RiArrowRightSLine className="text-muted-foreground ml-auto size-4" />
+            <RiArrowRightSFill className="text-muted-foreground ml-auto size-4" />
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
@@ -76,7 +76,7 @@ export function SidebarUserMenu({ user, area }: { user: User; area?: "dashboard"
               />
             }
           >
-            <RiMessage2Line />
+            <RiMessage2Fill />
             Feedback
           </DropdownMenuItem>
         )}
@@ -94,7 +94,7 @@ export function SidebarUserMenu({ user, area }: { user: User; area?: "dashboard"
             }
           }}
         >
-          <RiLogoutBoxLine />
+          <RiLogoutBoxFill />
           Log out
         </DropdownMenuItem>
       </SidebarDropdownMenu>

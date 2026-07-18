@@ -1,7 +1,13 @@
 "use client"
 
 import type { TorrentSnapshot } from "@api/hono"
-import { RiDeleteBinLine, RiInboxLine, RiPauseLine, RiPlayLine } from "@remixicon/react"
+import {
+  RiDeleteBinFill,
+  RiFolderOpenFill,
+  RiInboxFill,
+  RiPauseFill,
+  RiPlayFill,
+} from "@remixicon/react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { ColumnDef, SortingState, VisibilityState } from "@tanstack/react-table"
 import Link from "next/link"
@@ -26,7 +32,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
-import { Progress } from "@/components/ui/progress"
 import { Spinner } from "@/components/ui/spinner"
 import { apiClient, unwrap } from "@/lib/api/client"
 import { formatAge, formatBytes, formatEta, formatPercent, formatSpeed } from "@/lib/format"
@@ -42,11 +47,17 @@ const DEFAULT_COLUMN_VISIBILITY: VisibilityState = { uploadSpeed: false }
 const STATUSES = ["Downloading", "Completed", "Paused", "Fetching"] as const
 type Status = (typeof STATUSES)[number]
 
-const STATUS_DOT: Record<Status, string> = {
-  Downloading: "bg-primary",
-  Completed: "bg-success",
-  Paused: "bg-muted-foreground",
-  Fetching: "bg-muted-foreground animate-pulse",
+// Status shown as a shadcn "Custom Colors" badge (ui.shadcn.com/docs/components/base/
+// badge#custom-colors): a soft palette fill with matching text, paired light/dark. This is
+// the one documented exception to semantic-tokens-only (see the design skill); Paused stays
+// neutral on the muted token.
+// border-current makes each badge's border match its text color (see the design skill).
+const STATUS_BADGE: Record<Status, string> = {
+  Downloading: "border-current bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+  Completed: "border-current bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300",
+  Paused: "border-current bg-muted text-muted-foreground",
+  // Same muted look as Paused; the pulse (added in the cell) is what sets Fetching apart.
+  Fetching: "border-current bg-muted text-muted-foreground",
 }
 
 // Human labels for the Columns dropdown so it matches the table headers exactly.
@@ -54,7 +65,6 @@ const COLUMN_LABELS: Record<string, string> = {
   name: "Name",
   addedAt: "Added",
   progress: "Progress",
-  status: "Status",
   length: "Size",
   numPeers: "Peers",
   seeders: "Seeds",
@@ -111,38 +121,64 @@ function RowActions({ torrent: t }: { torrent: Torrent }) {
     },
     onError: (e) => toast.error(e.message),
   })
-  const busy = pause.isPending || resume.isPending || remove.isPending
+  const reveal = useMutation({
+    mutationFn: run(() =>
+      unwrap(apiClient.torrents[":infoHash"].reveal.$post({ param: { infoHash: t.infoHash } })),
+    ),
+    onError: (e) => toast.error(e.message),
+  })
+  const busy = pause.isPending || resume.isPending || remove.isPending || reveal.isPending
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   return (
     <div className="flex justify-end gap-1">
-      {!t.done &&
-        (t.paused ? (
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            disabled={busy}
-            title="Resume"
-            onClick={() => resume.mutate()}
-          >
-            <RiPlayLine className="size-4" />
-          </Button>
-        ) : (
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            disabled={busy}
-            title="Pause"
-            onClick={() => pause.mutate()}
-          >
-            <RiPauseLine className="size-4" />
-          </Button>
-        ))}
+      {/* Pause/resume slot - a hidden placeholder keeps the columns aligned when done. */}
+      {t.done ? (
+        <Button size="icon-sm" variant="ghost" className="invisible" tabIndex={-1} aria-hidden>
+          <RiPauseFill className="size-4" />
+        </Button>
+      ) : t.paused ? (
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          disabled={busy}
+          title="Resume"
+          onClick={() => resume.mutate()}
+        >
+          <RiPlayFill className="size-4 text-blue-600 dark:text-blue-400" />
+        </Button>
+      ) : (
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          disabled={busy}
+          title="Pause"
+          onClick={() => pause.mutate()}
+        >
+          <RiPauseFill className="text-muted-foreground size-4" />
+        </Button>
+      )}
+      {/* Reveal slot - placeholder before files exist so delete stays in a fixed column. */}
+      {t.ready ? (
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          disabled={busy}
+          title="Reveal in folder"
+          onClick={() => reveal.mutate()}
+        >
+          <RiFolderOpenFill className="size-4 text-amber-600 dark:text-amber-400" />
+        </Button>
+      ) : (
+        <Button size="icon-sm" variant="ghost" className="invisible" tabIndex={-1} aria-hidden>
+          <RiFolderOpenFill className="size-4" />
+        </Button>
+      )}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogTrigger
           render={<Button size="icon-sm" variant="ghost" disabled={busy} title="Remove" />}
         >
-          <RiDeleteBinLine className="size-4" />
+          <RiDeleteBinFill className="text-destructive size-4" />
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -193,40 +229,31 @@ const columns: ColumnDef<Torrent>[] = [
   },
   {
     id: "progress",
-    size: 220,
+    size: 176,
     minSize: 160,
     meta: { align: "center" },
     accessorFn: (t) => t.progress,
     header: ({ column, table }) => (
       <SortHeader column={column} table={table} label="Progress" align="center" />
     ),
-    cell: ({ row }) => (
-      <div className="relative">
-        <Progress
-          value={row.original.progress * 100}
-          className="[&_[data-slot=progress-indicator]]:bg-green-400 dark:[&_[data-slot=progress-indicator]]:bg-green-700 [&_[data-slot=progress-track]]:h-5 [&_[data-slot=progress-track]]:border [&_[data-slot=progress-track]]:bg-transparent"
-        />
-        <span className="absolute inset-0 flex items-center justify-center font-mono text-xs font-medium tabular-nums">
-          {formatPercent(row.original.progress)}
-        </span>
-      </div>
-    ),
-  },
-  {
-    id: "status",
-    size: 130,
-    minSize: 110,
-    meta: { align: "center" },
-    accessorFn: torrentStatus,
-    header: () => <div className="text-center">Status</div>,
-    filterFn: (row, id, value: string[]) =>
-      !value?.length || value.includes(row.getValue(id) as string),
-    cell: ({ getValue }) => {
-      const s = getValue() as Status
+    // Progress doubles as Status: the Status facet filters this column by stage.
+    filterFn: (row, _id, value: string[]) =>
+      !value?.length || value.includes(torrentStatus(row.original)),
+    cell: ({ row }) => {
+      const t = row.original
+      const s = torrentStatus(t)
+      // Percent while downloading; the stage word otherwise (Fetching / Paused / Completed).
+      const label = s === "Downloading" ? formatPercent(t.progress) : s
       return (
-        <Badge variant="outline" className="gap-1.5 font-normal">
-          <span className={cn("size-1.5 rounded-full", STATUS_DOT[s])} aria-hidden />
-          {s}
+        <Badge
+          className={cn(
+            // Fixed width so every stage badge is equal width and lines up down the column.
+            "w-36 justify-center border-[0.5px] font-normal tabular-nums",
+            STATUS_BADGE[s],
+            s === "Fetching" && "animate-pulse",
+          )}
+        >
+          {label}
         </Badge>
       )
     },
@@ -238,9 +265,11 @@ const columns: ColumnDef<Torrent>[] = [
     header: ({ column, table }) => (
       <SortHeader column={column} table={table} label="Down" align="right" />
     ),
-    cell: ({ getValue }) => (
-      <span className="font-mono text-xs tabular-nums">{formatSpeed(getValue() as number)}</span>
-    ),
+    // Hide the value when idle (paused/completed/stalled) instead of showing "0 B/s".
+    cell: ({ getValue }) => {
+      const v = getValue() as number
+      return <span className="font-mono text-xs tabular-nums">{v > 0 ? formatSpeed(v) : null}</span>
+    },
   },
   {
     accessorKey: "uploadSpeed",
@@ -249,11 +278,14 @@ const columns: ColumnDef<Torrent>[] = [
     header: ({ column, table }) => (
       <SortHeader column={column} table={table} label="Up" align="right" />
     ),
-    cell: ({ getValue }) => (
-      <span className="text-muted-foreground font-mono text-xs tabular-nums">
-        {formatSpeed(getValue() as number)}
-      </span>
-    ),
+    cell: ({ getValue }) => {
+      const v = getValue() as number
+      return (
+        <span className="text-muted-foreground font-mono text-xs tabular-nums">
+          {v > 0 ? formatSpeed(v) : null}
+        </span>
+      )
+    },
   },
   {
     id: "eta",
@@ -261,11 +293,16 @@ const columns: ColumnDef<Torrent>[] = [
     meta: { align: "right" },
     accessorFn: (t) => t.timeRemaining ?? Number.POSITIVE_INFINITY,
     header: () => <div className="text-right">ETA</div>,
-    cell: ({ row }) => (
-      <span className="text-muted-foreground font-mono text-xs tabular-nums">
-        {formatEta(row.original.timeRemaining)}
-      </span>
-    ),
+    // Blank (not "-") when there's no live ETA: paused, completed, or stalled.
+    cell: ({ row }) => {
+      const ms = row.original.timeRemaining
+      const hasEta = ms != null && Number.isFinite(ms) && ms > 0
+      return (
+        <span className="text-muted-foreground font-mono text-xs tabular-nums">
+          {hasEta ? formatEta(ms) : null}
+        </span>
+      )
+    },
   },
   {
     accessorKey: "addedAt",
@@ -302,9 +339,11 @@ const columns: ColumnDef<Torrent>[] = [
     header: ({ column, table }) => (
       <SortHeader column={column} table={table} label="Peers" align="right" />
     ),
-    cell: ({ getValue }) => (
-      <span className="font-mono text-xs tabular-nums">{getValue() as number}</span>
-    ),
+    // Peers/Seeds matter only while active; show the live count (even 0), hide once completed.
+    cell: ({ row }) => {
+      const t = row.original
+      return <span className="font-mono text-xs tabular-nums">{t.done ? null : t.numPeers}</span>
+    },
   },
   {
     accessorKey: "seeders",
@@ -313,14 +352,19 @@ const columns: ColumnDef<Torrent>[] = [
     header: ({ column, table }) => (
       <SortHeader column={column} table={table} label="Seeds" align="right" />
     ),
-    cell: ({ getValue }) => (
-      <span className="text-success font-mono text-xs tabular-nums">{getValue() as number}</span>
-    ),
+    cell: ({ row }) => {
+      const t = row.original
+      return (
+        <span className="text-success font-mono text-xs tabular-nums">
+          {t.done ? null : t.seeders}
+        </span>
+      )
+    },
   },
   {
     id: "actions",
-    size: 96,
-    minSize: 96,
+    size: 128,
+    minSize: 128,
     enableResizing: false,
     enableHiding: false,
     header: () => <span className="sr-only">Actions</span>,
@@ -342,7 +386,7 @@ export function TorrentsGrid() {
       <Empty>
         <EmptyHeader>
           <EmptyMedia variant="icon">
-            <RiInboxLine />
+            <RiInboxFill />
           </EmptyMedia>
           <EmptyTitle>
             {torrents.length === 0 ? "No torrents yet" : "Nothing matches your filters"}
@@ -362,7 +406,7 @@ export function TorrentsGrid() {
       getRowId={(t) => t.infoHash}
       storageKey="transfers"
       primaryInput="filter"
-      tableClassName="min-w-[66rem]"
+      tableClassName="min-w-256"
       initialSorting={DEFAULT_SORTING}
       initialColumnVisibility={DEFAULT_COLUMN_VISIBILITY}
       search={{
@@ -373,7 +417,7 @@ export function TorrentsGrid() {
           router.push(q ? `/search?q=${encodeURIComponent(q)}` : "/search")
         },
       }}
-      facet={{ columnId: "status", label: "Status", options: STATUSES }}
+      facet={{ columnId: "progress", label: "Status", options: STATUSES }}
       empty={empty}
     />
   )
