@@ -19,6 +19,16 @@ import { buildMagnet } from "@/lib/torrent/trackers"
 const BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
+// Cloudflare / DDoS-Guard interstitials answer 200 with a JS challenge page, not results.
+// Treat that as a failure (throw) so the source is marked down and backed off, instead of
+// silently reporting zero results forever. Cloudflare gates on IP reputation, so a source
+// blocked from one network may still work from another; the health canary re-probes it.
+const CHALLENGE_RE =
+  /just a moment\.\.\.|challenge-platform|cf-browser-verification|_cf_chl|enable javascript and cookies|ddos-guard/i
+function assertNotBlocked(body: string, name: string): void {
+  if (CHALLENGE_RE.test(body.slice(0, 4000))) throw new Error(`${name} blocked (challenge page)`)
+}
+
 // A field is a JSON dot-path (json kind) or an XML tag name (rss kind).
 type Field = string
 
@@ -177,6 +187,7 @@ async function runRss(
   })
   if (!res.ok) throw new Error(`${def.name} ${res.status}`)
   const xml = await res.text()
+  assertNotBlocked(xml, def.name)
   const item = def.item ?? "item"
   const chunks = xml.split(`<${item}>`).slice(1)
   const f = def.fields
@@ -217,6 +228,7 @@ async function runHtml(
   })
   if (!res.ok) throw new Error(`${def.name} ${res.status}`)
   let html = await res.text()
+  assertNotBlocked(html, def.name)
   if (def.collapse) html = html.replace(/\s+/g, " ")
   const re = new RegExp(def.pattern, def.dotAll ? "gs" : "g")
   const out: SearchResult[] = []
