@@ -1,6 +1,6 @@
 "use client"
 
-import { RiExternalLinkLine, RiListCheck2 } from "@remixicon/react"
+import { RiExternalLinkFill, RiListCheck2 } from "@remixicon/react"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 
@@ -164,7 +164,7 @@ export function SourcesDialog() {
                             {entry.starred ? "⭐ " : ""}
                             {entry.name}
                           </span>
-                          <RiExternalLinkLine className="text-muted-foreground size-3 shrink-0 self-center" />
+                          <RiExternalLinkFill className="text-muted-foreground size-3 shrink-0 self-center" />
                           {entry.description && (
                             <span className="text-muted-foreground truncate text-xs">
                               {entry.description}

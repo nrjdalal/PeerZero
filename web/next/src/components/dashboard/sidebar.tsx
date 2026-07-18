@@ -1,7 +1,7 @@
 "use client"
 
 import { features } from "@packages/config/site"
-import { RiAddLine, RiBookLine, RiBuildingLine } from "@remixicon/react"
+import { RiAddFill, RiBookFill, RiBuildingFill } from "@remixicon/react"
 import { useForm } from "@tanstack/react-form"
 import { type User } from "better-auth/types"
 import Link from "next/link"
@@ -126,7 +126,7 @@ export function OrgSwitcher() {
         trigger={{
           leading: (
             <div className="bg-sidebar-accent text-sidebar-accent-foreground flex aspect-square size-8 items-center justify-center rounded-md">
-              <RiBuildingLine className="size-4" />
+              <RiBuildingFill className="size-4" />
             </div>
           ),
           primary: isOrgLoading ? "" : (activeOrg?.name ?? "Select Organization"),
@@ -136,7 +136,7 @@ export function OrgSwitcher() {
         header={{
           leading: (
             <div className="bg-sidebar-accent text-sidebar-accent-foreground flex size-8 items-center justify-center rounded-md">
-              <RiBuildingLine className="size-4" />
+              <RiBuildingFill className="size-4" />
             </div>
           ),
           primary: activeOrg?.name ?? "No organization",
@@ -152,12 +152,12 @@ export function OrgSwitcher() {
               disabled={isOrgTransitioning}
               onClick={() => handleSetActive(org.id)}
             >
-              <RiBuildingLine />
+              <RiBuildingFill />
               {org.name}
             </DropdownMenuItem>
           ))}
         <DropdownMenuItem disabled={isOrgTransitioning} onClick={() => setCreateDialogOpen(true)}>
-          <RiAddLine />
+          <RiAddFill />
           Create organization
         </DropdownMenuItem>
       </SidebarDropdownMenu>
@@ -240,7 +240,7 @@ export function DashboardFooter({
       {features.docs && (
         <SidebarMenuItem>
           <SidebarMenuButton render={<Link href="/docs" onClick={close} />}>
-            <RiBookLine />
+            <RiBookFill />
             <span>Documentation</span>
             <span className="text-muted-foreground ml-auto text-xs">v{config.app.version}</span>
           </SidebarMenuButton>

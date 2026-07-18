@@ -99,4 +99,28 @@ export const engine = {
     )
     return ok
   },
+  async getSettings(): Promise<{ downloadDir: string }> {
+    return call<{ downloadDir: string }>("/settings")
+  },
+  async setSettings(downloadDir: string): Promise<{ downloadDir: string }> {
+    return call<{ downloadDir: string }>("/settings", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ downloadDir }),
+    })
+  },
+  // Open the download folder in the OS file manager.
+  async openDir(): Promise<boolean> {
+    const { ok } = await call<{ ok: boolean }>("/open", { method: "POST" })
+    return ok
+  },
+  // Reveal (select) a torrent's downloaded folder/file in the OS file manager.
+  async reveal(infoHash: string): Promise<boolean> {
+    const { ok } = await call<{ ok: boolean }>(`/torrents/${infoHash}/reveal`, { method: "POST" })
+    return ok
+  },
+  // Open a native folder picker on the host; returns the chosen (and now-active) folder.
+  async chooseDir(): Promise<{ downloadDir: string; chosen: boolean }> {
+    return call<{ downloadDir: string; chosen: boolean }>("/choose-dir", { method: "POST" })
+  },
 }

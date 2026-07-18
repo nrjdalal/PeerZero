@@ -1,6 +1,6 @@
 "use client"
 
-import { RiCodeLine } from "@remixicon/react"
+import { RiCodeFill } from "@remixicon/react"
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools/production"
 import { useEffect, useState } from "react"
 
@@ -50,7 +50,7 @@ export function DevTools() {
         aria-label="Toggle devtools"
         onClick={() => setExpandDevtools(!expandDevtools)}
       >
-        <RiCodeLine className="size-8 p-1.5" />
+        <RiCodeFill className="size-8 p-1.5" />
       </button>
     </div>
   )

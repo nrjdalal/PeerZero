@@ -1,6 +1,6 @@
 "use client"
 
-import { RiExpandUpDownLine } from "@remixicon/react"
+import { RiExpandUpDownFill } from "@remixicon/react"
 import { type ReactNode } from "react"
 
 import {
@@ -63,7 +63,7 @@ export function SidebarDropdownMenu({
           secondary={trigger.secondary}
           secondaryClassName={trigger.secondaryClassName}
         />
-        <RiExpandUpDownLine className="ml-auto size-4" />
+        <RiExpandUpDownFill className="ml-auto size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         className={cn(

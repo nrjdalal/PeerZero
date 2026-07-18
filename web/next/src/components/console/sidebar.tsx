@@ -1,7 +1,7 @@
 "use client"
 
 import { features } from "@packages/config/site"
-import { RiBookLine, RiDashboardLine } from "@remixicon/react"
+import { RiBookFill, RiDashboardFill } from "@remixicon/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -21,7 +21,7 @@ const mainItems = [
   {
     title: "Documentation",
     url: "/console/docs",
-    icon: RiBookLine,
+    icon: RiBookFill,
     exact: false,
     feature: "internalDocs",
   },
@@ -47,7 +47,7 @@ export function ConsoleHeader() {
               className="data-active:font-normal"
               render={<Link href="/console" onClick={close} />}
             >
-              <RiDashboardLine />
+              <RiDashboardFill />
               <span>Dashboard</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
