@@ -77,8 +77,6 @@ const rootName = JSON.parse(await Bun.file("package.json").text()).name
 const nodeSizes: Record<string, number> = {
   "@api/hono": bundleSize,
   "@web/next": standaloneSize + staticSize,
-  "@packages/auth": await dirSize("packages/auth/dist", "*.d.mts"),
-  "@packages/db": await dirSize("packages/db/dist", "*.d.mts"),
   "@packages/env": await dirSize("packages/env/dist", "*.d.mts"),
   "@packages/config": 0,
 }
