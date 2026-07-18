@@ -3,11 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", ".source/**", "bundle/**", "dist/**"]
-    },
-    "build:vercel": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", "vercel-bundle/**"]
+      "outputs": [".next/**", "!.next/cache/**", "bundle/**", "dist/**"]
     },
     "check-types": {
       "dependsOn": ["^build"]
@@ -32,28 +28,20 @@
     "SKIP_ENV_VALIDATION_SERVER",
     // Server variables
     "NODE_ENV",
-    "BETTER_AUTH_SECRET",
-    "GITHUB_CLIENT_ID",
-    "GITHUB_CLIENT_SECRET",
-    "GOOGLE_CLIENT_ID",
-    "GOOGLE_CLIENT_SECRET",
     "HONO_APP_URL",
     "HONO_PORT",
     "HONO_RATE_LIMIT",
     "HONO_RATE_LIMIT_WINDOW_MS",
     "HONO_TRUSTED_ORIGINS",
-    "HONO_WEB_URL",
     "INTERNAL_API_URL",
-    "POSTGRES_URL",
+    "REGISTRY_SYNC_URL",
     "TORRENT_ENGINE_URL",
     "TORRENT_ENGINE_PORT",
     "TORRENT_DOWNLOAD_DIR",
+    "TORRENT_MAX_CONNS",
     // Client variables
     "NEXT_PUBLIC_API_URL",
-    "NEXT_PUBLIC_APP_URL",
-    "NEXT_PUBLIC_POSTHOG_HOST",
-    "NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN",
-    "NEXT_PUBLIC_USERJOT_URL"
+    "NEXT_PUBLIC_APP_URL"
   ],
   "globalPassThroughEnv": ["PORTLESS", "PORTLESS_HTTPS", "PORTLESS_PORT", "PORTLESS_SYNC_HOSTS"]
 }
