@@ -293,7 +293,7 @@
     "tw-animate-css": "^1.4.0",
     "typescript": "^7.0.2",
     "vaul": "^1.1.2",
-    "webtorrent": "2.8.5",
+    "webtorrent": "3.0.16",
     "ws": "^8.21.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.8",
@@ -1221,7 +1221,7 @@
 
     "better-call": ["better-call@1.3.7", "", { "dependencies": { "@better-auth/utils": "^0.4.0", "@better-fetch/fetch": "^1.1.21", "rou3": "^0.7.12", "set-cookie-parser": "^3.0.1" }, "peerDependencies": { "zod": "^4.0.0" }, "optionalPeers": ["zod"] }, "sha512-Al51/hjp2SSp6CRTa3F2ptcx4yQVS1xWKoY6jcVXqNYOap6mHFP2jUBn5EwIL4iIed1/Sq4hlQ+Umm6EflZG+w=="],
 
-    "bitfield": ["bitfield@4.2.0", "", {}, "sha512-kUTatQb/mBd8uhvdLrUkouGDBUQiJaIOvPlptUwOWp6MFqih4d1MiVf0m3ATxfZSzu+LjW/awFeABltYa62uIA=="],
+    "bitfield": ["bitfield@5.0.1", "", {}, "sha512-81mvFHCa0L1HsDdKVCTkPKZZ6KFdyXgfQNoneFT7Qk5/PZeBWdPkTFa4KttbR8uHszfjiqOJbeahLOPfCqw4cw=="],
 
     "bittorrent-dht": ["bittorrent-dht@11.0.12", "", { "dependencies": { "bencode": "^4.0.1", "debug": "^4.4.3", "k-bucket": "^5.1.0", "k-rpc": "^5.1.0", "last-one-wins": "^1.0.4", "lru": "^3.1.0", "randombytes": "^2.1.0", "record-cache": "^1.2.0" } }, "sha512-bFmQq874HMIBon/6KNMf/U1OG+UxJ0UzI9oPra2IRlZLuPA7VwBiA7uEpWaO2ww8G76OFjxB1p1XCOS94FuCPQ=="],
 
@@ -1229,7 +1229,7 @@
 
     "bittorrent-peerid": ["bittorrent-peerid@2.0.2", "", {}, "sha512-V2iUvbtv31uLA8XFxbhB3f/fKTxWGaa6FI/3wSm93YAS/DS8IkeRWCyYGQ13Xbc9ajR40nsxNjGtVt7OHB3VOQ=="],
 
-    "bittorrent-protocol": ["bittorrent-protocol@4.1.21", "", { "dependencies": { "bencode": "^4.0.0", "bitfield": "^4.2.0", "debug": "^4.4.3", "rc4": "^0.1.5", "streamx": "^2.22.1", "throughput": "^1.0.2", "uint8-util": "^2.2.5", "unordered-array-remove": "^1.0.2" } }, "sha512-CcuPt6BL7gXa8BF+0GckYcQmr44ARfSPM0rYwMeYgWg+jftekWgy5vuxX6wJDpC5bKFvqNG+74bPBjyM7Swxrw=="],
+    "bittorrent-protocol": ["bittorrent-protocol@5.0.6", "", { "dependencies": { "bencode": "^4.0.1", "bitfield": "^5.0.1", "debug": "^4.4.3", "streamx": "^2.26.0", "throughput": "^1.0.2", "uint8-util": "^2.2.6", "unordered-array-remove": "^1.0.2" } }, "sha512-qI0PeZpMBQyhvMGvsw0aJjUSMJwMNc6lLzD1TX3Q1MmzA3s3fNZrk/PKHpzrjyR9xNGBZeQ5ZuT3Stym6AUq+Q=="],
 
     "bittorrent-tracker": ["bittorrent-tracker@11.2.3", "", { "dependencies": { "@thaunknown/simple-peer": "^10.0.8", "@thaunknown/simple-websocket": "^9.1.3", "bencode": "^4.0.0", "bittorrent-peerid": "^2.0.0", "chrome-dgram": "^3.0.6", "compact2string": "^1.4.1", "cross-fetch-ponyfill": "^1.0.3", "debug": "^4.3.4", "ip": "^2.0.1", "lru": "^3.1.0", "minimist": "^1.2.8", "once": "^1.4.0", "queue-microtask": "^1.2.3", "random-iterate": "^1.0.1", "run-parallel": "^1.2.0", "run-series": "^1.1.9", "socks": "^2.8.3", "string2compact": "^2.0.1", "uint8-util": "^2.2.5", "unordered-array-remove": "^1.0.2", "ws": "^8.17.0" }, "optionalDependencies": { "bufferutil": "^4.0.8", "utf-8-validate": "^6.0.4" }, "bin": { "bittorrent-tracker": "bin/cmd.js" } }, "sha512-i9pWOf1YAQWyTjDnpWwcTfEYDi5XwqD6f48pKmIHByb7x2XU86CqK+IsyMy1buKkDZ3rDKht2jIeKCZf1Dmd8g=="],
 
@@ -2203,8 +2203,6 @@
 
     "rc": ["rc@1.2.8", "", { "dependencies": { "deep-extend": "^0.6.0", "ini": "~1.3.0", "minimist": "^1.2.0", "strip-json-comments": "~2.0.1" }, "bin": { "rc": "./cli.js" } }, "sha512-y3bGgqKj3QBdxLbLkomlohkvsA8gdAiUQlSBJnBhfn+BPxg4bc62d8TcBW15wavDfgexCgccckhcZvywyQYPOw=="],
 
-    "rc4": ["rc4@0.1.5", "", {}, "sha512-xdDTNV90z5x5u25Oc871Xnvu7yAr4tV7Eluh0VSvrhUkry39q1k+zkz7xroqHbRq+8PiazySHJPArqifUvz9VA=="],
-
     "rc9": ["rc9@3.0.1", "", { "dependencies": { "defu": "^6.1.6", "destr": "^2.0.5" } }, "sha512-gMDyleLWVE+i6Sgtc0QbbY6pEKqYs97NGi6isHQPqYlLemPoO8dxQ3uGi0f4NiP98c+jMW6cG1Kx9dDwfvqARQ=="],
 
     "react": ["react@19.2.7", "", {}, "sha512-HNe9WslTbXmFK8o8cmwgAeJFSBvt1bPdHCVKtaaV+WlAN36mpT4hcRpwbf3fY56ar2oIXzsBpOAiIRHAdY0OlQ=="],
@@ -2381,7 +2379,7 @@
 
     "stdin-discarder": ["stdin-discarder@0.2.2", "", {}, "sha512-UhDfHmA92YAlNnCfhmq0VeNL5bDbiZGg7sZ2IvPsXubGkiNa9EC+tUTsjBRsYUAz87btI6/1wf4XoVvQ3uRnmQ=="],
 
-    "streamx": ["streamx@2.22.1", "", { "dependencies": { "fast-fifo": "^1.3.2", "text-decoder": "^1.1.0" }, "optionalDependencies": { "bare-events": "^2.2.0" } }, "sha512-znKXEBxfatz2GBNK02kRnCXjV+AA4kjZIUxeWSr3UGirZMJfTE9uiwKHobnbgxWyL/JWro8tTq+vOqAK1/qbSA=="],
+    "streamx": ["streamx@2.25.0", "", { "dependencies": { "events-universal": "^1.0.0", "fast-fifo": "^1.3.2", "text-decoder": "^1.1.0" } }, "sha512-0nQuG6jf1w+wddNEEXCF4nTg3LtufWINB5eFEN+5TNZW7KWJp6x87+JFL43vaAUPyCfH1wID+mNVyW6OHtFamg=="],
 
     "string-argv": ["string-argv@0.3.2", "", {}, "sha512-aqD2Q0144Z+/RqG52NeHEkZauTAUWJO8c6yTftGJKO3Tja5tUgIfmIl6kExvhtxSDP7fXB6DvzkfMpCd/F3G+Q=="],
 
@@ -2459,7 +2457,7 @@
 
     "torrent-discovery": ["torrent-discovery@11.0.21", "", { "dependencies": { "bittorrent-dht": "^11.0.12", "bittorrent-lsd": "^2.0.3", "bittorrent-tracker": "^11.2.3", "debug": "^4.4.3", "run-parallel": "^1.2.0" } }, "sha512-x+RGu60qJp2u4S7B7XglyYCrfDJWKB0RIexODlA5dpBpMh94q4MbmRjusdbvxN+XD4NHhpwEfub/CRA9pUXjEQ=="],
 
-    "torrent-piece": ["torrent-piece@3.0.2", "", { "dependencies": { "uint8-util": "^2.1.9" } }, "sha512-K1A5tZ3BolFrUtnBpk9iDg8av1na0OgQ7E0IlA9tj0bcsPhLhzvln+oMtMmtkqAwmUsbNCilRm2ymUdZg0rVbQ=="],
+    "torrent-piece": ["torrent-piece@4.0.1", "", { "dependencies": { "uint8-util": "^2.1.9" } }, "sha512-bL5lLm0CknuXMJ3c8Xw+27etPTH7P1vLXwEASQ3bktZlWV2ZEkCW1l0ssV6Y9EHpcUlf0aqB9x49bkgMA4JrHw=="],
 
     "tree-kill": ["tree-kill@1.2.2", "", { "bin": { "tree-kill": "cli.js" } }, "sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A=="],
 
@@ -2535,9 +2533,9 @@
 
     "use-sync-external-store": ["use-sync-external-store@1.6.0", "", { "peerDependencies": { "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-Pp6GSwGP/NrPIrxVFAIkOQeyw8lFenOHijQWkUTrDvrF4ALqylP2C/KCkeS9dpUM3KvYRQhna5vt7IL95+ZQ9w=="],
 
-    "ut_metadata": ["ut_metadata@4.0.3", "", { "dependencies": { "bencode": "^4.0.0", "bitfield": "^4.0.0", "debug": "^4.2.0", "uint8-util": "^2.1.3" } }, "sha512-2tovup0VDYpT8t8+EhhhKBmbgIyiYyJQZ+Hf+/61+SvjuRS2MEeA5CiSARP4q+9/83Wu09OsGrUre/Zv6OI5NA=="],
+    "ut_metadata": ["ut_metadata@5.0.1", "", { "dependencies": { "bencode": "^4.0.0", "bitfield": "^5.0.0", "debug": "^4.2.0", "uint8-util": "^2.1.3" } }, "sha512-V+6jKXXvkH8YQDFeSpvjSkn7Yiz7Juz3LhIkA1QhxuvOjhrqwlZKJfRMOjVSEW/mPa9Bpk4hvFOCim98tzR04w=="],
 
-    "ut_pex": ["ut_pex@4.0.4", "", { "dependencies": { "bencode": "^4.0.0", "compact2string": "^1.4.1", "string2compact": "^2.0.1" } }, "sha512-isVTbp2TKGoMOu+4Zh/i6ijpYr0VG83xjRPgCXaUjKzgXXndjCMWg32/9kZjubD+kxEXcmXMkoS8IttS9FZE8g=="],
+    "ut_pex": ["ut_pex@5.0.2", "", { "dependencies": { "bencode": "^4.0.1", "compact2string": "^1.4.1", "string2compact": "^2.0.2" } }, "sha512-tPWnEmFIpn47IgZ3CyMzA4onr6zGtBrR+DVtRGoyCpC59OgqELvj9jkzLuisCwIH5FdUQiwqtXtsiAWwpUfrKw=="],
 
     "utf-8-validate": ["utf-8-validate@6.0.6", "", { "dependencies": { "node-gyp-build": "^4.3.0" } }, "sha512-q3l3P9UtEEiAHcsgsqTgf9PPjctrDWoIXW3NpOHFdRDbLvu4DLIcxHangJ4RLrWkBcKjmcs/6NkerI8T/rE4LA=="],
 
@@ -2567,7 +2565,7 @@
 
     "webrtc-polyfill": ["webrtc-polyfill@1.2.2", "", { "dependencies": { "node-datachannel": "^0.32.3" } }, "sha512-t/H2OySa7lZSq2f5j4whmr+IWCl5TqF4daGotE8VhPP7U+E4x5x8MK1wqOkqlb4xxRlag4kBB9enU4oxNk//+g=="],
 
-    "webtorrent": ["webtorrent@2.8.5", "", { "dependencies": { "@silentbot1/nat-api": "^0.4.9", "@thaunknown/simple-peer": "^10.0.11", "@webtorrent/http-node": "^1.3.0", "addr-to-ip-port": "^2.0.0", "bitfield": "^4.2.0", "bittorrent-dht": "^11.0.10", "bittorrent-protocol": "^4.1.20", "cache-chunk-store": "^3.2.2", "chunk-store-iterator": "^1.0.4", "cpus": "^1.0.3", "create-torrent": "^6.1.0", "cross-fetch-ponyfill": "^1.0.3", "debug": "^4.4.1", "escape-html": "^1.0.3", "fs-chunk-store": "^5.0.0", "fsa-chunk-store": "^1.3.0", "immediate-chunk-store": "^2.2.0", "join-async-iterator": "^1.1.1", "load-ip-set": "^3.0.1", "lt_donthave": "^2.0.5", "memory-chunk-store": "^1.3.5", "mime": "^3.0.0", "once": "^1.4.0", "parse-torrent": "^11.0.18", "pump": "^3.0.2", "queue-microtask": "^1.2.3", "random-iterate": "^1.0.1", "range-parser": "^1.2.1", "run-parallel": "^1.2.0", "run-parallel-limit": "^1.1.0", "speed-limiter": "^1.0.2", "streamx": "2.22.1", "throughput": "^1.0.2", "torrent-discovery": "^11.0.17", "torrent-piece": "^3.0.2", "uint8-util": "^2.2.5", "unordered-array-remove": "^1.0.2", "ut_metadata": "^4.0.3", "ut_pex": "^4.0.4" }, "optionalDependencies": { "utp-native": "^2.5.3" } }, "sha512-oIjpuBrypApJ+RCZ8RRaHEncVSkt2cd25/I4Trb2sk9nlaEF92Dg1u8BCwqA4eJR7wIZQM95GyO7Wo4QTbrUUA=="],
+    "webtorrent": ["webtorrent@3.0.16", "", { "dependencies": { "@silentbot1/nat-api": "^0.4.9", "@thaunknown/simple-peer": "^10.1.1", "@webtorrent/http-node": "^1.3.0", "addr-to-ip-port": "^2.0.0", "bitfield": "^5.0.1", "bittorrent-dht": "^11.0.12", "bittorrent-protocol": "^5.0.6", "cache-chunk-store": "^3.2.2", "chunk-store-iterator": "^1.0.4", "cpus": "^1.0.3", "create-torrent": "^6.1.2", "cross-fetch-ponyfill": "^1.0.3", "debug": "^4.4.3", "escape-html": "^1.0.3", "fs-chunk-store": "^5.0.1", "fsa-chunk-store": "^1.3.0", "immediate-chunk-store": "^2.2.0", "join-async-iterator": "^1.1.1", "load-ip-set": "^3.0.2", "lt_donthave": "^2.0.7", "memory-chunk-store": "^1.3.5", "mime": "^3.0.0", "once": "^1.4.0", "parse-torrent": "^11.0.21", "pump": "^3.0.4", "queue-microtask": "^1.2.3", "random-iterate": "^1.0.1", "range-parser": "^1.2.1", "run-parallel": "^1.2.0", "run-parallel-limit": "^1.1.0", "speed-limiter": "^1.0.2", "streamx": "2.25.0", "throughput": "^1.0.2", "torrent-discovery": "^11.0.21", "torrent-piece": "^4.0.1", "uint8-util": "^2.2.6", "unordered-array-remove": "^1.0.2", "ut_metadata": "^5.0.1", "ut_pex": "^5.0.2" }, "optionalDependencies": { "utp-native": "^2.5.3" } }, "sha512-oryVor+AGWiNbI4zBT58CKw5MrUYz2GxP5fleHyIhucqwTYAl6pjGkDTjCPGiY5VZCPnVhhhlt+eFov85ZgZKg=="],
 
     "which": ["which@4.0.0", "", { "dependencies": { "isexe": "^3.1.1" }, "bin": { "node-which": "bin/which.js" } }, "sha512-GlaYyEb07DPxYCKhKzplCWBJtvxZcZMrL+4UkrTSJHHPyZU4mYYTv3qaOe77H7EODLSSopAUFAc6W8U4yqvscg=="],
 
@@ -2695,6 +2693,8 @@
 
     "bare-stream/streamx": ["streamx@2.28.0", "", { "dependencies": { "events-universal": "^1.0.0", "fast-fifo": "^1.3.2", "text-decoder": "^1.1.0" } }, "sha512-1Yowhzjf0ivGMrTIkY9hav5TxobO9qIVqUE41fiCGMGgc3CLlf4MY+9AHmZqBWgDTue0fY9zWjYFVyf6Diuobw=="],
 
+    "bittorrent-protocol/streamx": ["streamx@2.28.0", "", { "dependencies": { "events-universal": "^1.0.0", "fast-fifo": "^1.3.2", "text-decoder": "^1.1.0" } }, "sha512-1Yowhzjf0ivGMrTIkY9hav5TxobO9qIVqUE41fiCGMGgc3CLlf4MY+9AHmZqBWgDTue0fY9zWjYFVyf6Diuobw=="],
+
     "body-parser/content-type": ["content-type@2.0.0", "", {}, "sha512-j/O/d7GcZCyNl7/hwZAb606rzqkyvaDctLmckbxLzHvFBzTJHuGEdodATcP3yIRoDrLHkIATJuvzbFlp/ki2cQ=="],
 
     "bun-types/@types/node": ["@types/node@26.1.0", "", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-O0A1G3xPGy4w7AgQdAQYUlQ+BKk2Oovw8eRpofyp5KdBZULnbe+WqaOVNrm705SHphCiG4XHsACrSmPu1f+Kgw=="],
@@ -2768,6 +2768,8 @@
     "shadcn/ts-morph": ["ts-morph@26.0.0", "", { "dependencies": { "@ts-morph/common": "~0.27.0", "code-block-writer": "^13.0.3" } }, "sha512-ztMO++owQnz8c/gIENcM9XfCEzgoGphTv+nKpYNM1bgsdOVC/jRZuEBf6N+mLLDNg68Kl+GgUZfOySaRiG1/Ug=="],
 
     "shadcn/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+
+    "speed-limiter/streamx": ["streamx@2.22.1", "", { "dependencies": { "fast-fifo": "^1.3.2", "text-decoder": "^1.1.0" }, "optionalDependencies": { "bare-events": "^2.2.0" } }, "sha512-znKXEBxfatz2GBNK02kRnCXjV+AA4kjZIUxeWSr3UGirZMJfTE9uiwKHobnbgxWyL/JWro8tTq+vOqAK1/qbSA=="],
 
     "string2compact/ipaddr.js": ["ipaddr.js@2.0.1", "", {}, "sha512-1qTgH9NG+IIJ4yfKs2e6Pp1bZg8wbDbKHT21HrLIeYBTRLgMYKnMTPAuI3Lcs61nfx5h1xlXnbJtH1kX5/d/ng=="],
 

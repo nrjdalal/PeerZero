@@ -1,11 +1,13 @@
-// zero-torrent download engine (Node sidecar)
+// zero-torrent download engine (Bun sidecar)
 //
-// Runs a WebTorrent client and exposes a tiny JSON HTTP API on 127.0.0.1 that the
-// Bun/Hono backend proxies to. This lives in its own Node process because
-// webtorrent depends on the `node-datachannel` native addon, which panics under
-// Bun (unsupported libuv function). webtorrent is pinned to 2.8.5: the 3.0.x line
-// crashes the process on a `piece.reserve()` null during download; 2.8.5 completes
-// downloads cleanly. See AGENTS.md / docs for the architecture rationale.
+// Runs a WebTorrent (3.x) client and exposes a tiny JSON HTTP API on 127.0.0.1 that the
+// Bun/Hono backend proxies to. It runs under Bun like the rest of the stack; the two
+// webtorrent native addons that crash Bun (an unsupported libuv function, uv_timer_init)
+// are kept out of the process: WebRTC/`node-datachannel` is neutralized by the preload in
+// src/webrtc-stub.mjs (wired via bunfig.toml), and uTP/`utp-native` is disabled with
+// `{ utp: false }` below. Peers are found via the DHT plus udp/http trackers over TCP,
+// which is all a local client needs. It stays a separate process so a crashing torrent
+// can never take the backend down. See AGENTS.md / docs for the architecture rationale.
 
 import { spawn } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -40,8 +42,8 @@ const LEGACY_STATE_FILE = resolve(LEGACY_DOWNLOAD_DIR, ".zero-torrent-state.json
 mkdirSync(STATE_DIR, { recursive: true })
 mkdirSync(downloadDir, { recursive: true })
 
-// A crashing torrent should never take the whole engine down. 2.8.5 is stable, but
-// stay defensive: log and keep serving so the parent doesn't have to restart us.
+// A crashing torrent should never take the whole engine down. Stay defensive: log
+// and keep serving so the parent doesn't have to restart us.
 process.on("uncaughtException", (err) =>
   console.error("[engine] uncaughtException:", err?.message || err),
 )
@@ -53,7 +55,10 @@ process.on("unhandledRejection", (err) => console.error("[engine] unhandledRejec
 // several torrents active at once this multiplies, so 25 stays gentle on the router;
 // raise it via TORRENT_MAX_CONNS on a capable network/wired link.
 const MAX_CONNS = Number(process.env.TORRENT_MAX_CONNS) || 25
-const client = new WebTorrent({ maxConns: MAX_CONNS })
+// utp: false -> keep the `utp-native` addon out of the process; it crashes Bun on an
+// unsupported libuv function (uv_timer_init). TCP + DHT + udp/http trackers cover a
+// local client's peer discovery. See the header note and src/webrtc-stub.mjs.
+const client = new WebTorrent({ maxConns: MAX_CONNS, utp: false })
 client.on("error", (err) => console.error("[engine] client error:", err?.message || err))
 
 // infoHash -> { paused: boolean, addedAt: number } side-state webtorrent doesn't
@@ -167,20 +172,19 @@ function findTorrent(infoHash) {
 
 // ---------- torrent actions ----------
 
-function addTorrent(magnet) {
-  return new Promise((resolve, reject) => {
-    let existing
-    try {
-      existing = client.get(magnet)
-    } catch {
-      existing = null
-    }
-    // client.get can return a pending promise-like in some versions; guard on infoHash.
-    if (existing && existing.infoHash) {
-      resolve(snapshot(existing))
-      return
-    }
+async function addTorrent(magnet) {
+  // Dedup: client.get() is async in webtorrent 3.x, so await it. Re-adding a magnet that
+  // is already present returns its current snapshot instead of client.add() erroring with
+  // "Cannot add duplicate torrent" (3.x raises that by destroying the just-added torrent).
+  let existing = null
+  try {
+    existing = await client.get(magnet)
+  } catch {
+    existing = null
+  }
+  if (existing && existing.infoHash) return snapshot(existing)
 
+  return new Promise((resolve, reject) => {
     let settled = false
     const t = client.add(magnet, { path: downloadDir }, (torrent) => {
       if (settled) return
@@ -205,6 +209,10 @@ function addTorrent(magnet) {
     t.once("infoHash", stampAdded)
     t.on("error", (err) => {
       if (settled) return
+      // Concurrent-add race the pre-check can miss: 3.x rejects a duplicate by destroying
+      // this new torrent with a "duplicate torrent" error, then calls the ontorrent callback
+      // above with the existing torrent (which resolves us). Ignore the error and let it settle.
+      if (/duplicate torrent/i.test(err?.message || "")) return
       settled = true
       reject(err)
     })

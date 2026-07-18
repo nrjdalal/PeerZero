@@ -29,7 +29,7 @@ jobs:
 
       - name: Audit, Format, Lint, Check-types, Test, and Build
         run: |
-          bun audit --audit-level high
+          bun audit --audit-level high --ignore GHSA-2p57-rm9w-gvfp # ip SSRF; unfixable transitive, see .github/notes/dependencies.md
           bun run format:check
           bun run lint
           bun run check-types
