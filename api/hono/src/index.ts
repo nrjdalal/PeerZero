@@ -13,7 +13,7 @@ import { errorHandler, globalErrorResponses, jsonError } from "@/lib/error"
 import { createServer, upgradeWebSocket } from "@/lib/server"
 import { startRegistrySync } from "@/lib/torrent/registry"
 import { rateLimiterMiddleware, requireFeature } from "@/middlewares"
-import { agentsRouter, authRouter, torrentsRouter, v1Router, waitlistRouter } from "@/routers"
+import { torrentsRouter } from "@/routers"
 
 const BUILD_VERSION = getBuildVersion()
 
@@ -148,11 +148,7 @@ socket.addEventListener("message", (event) => {
       }
     }),
   )
-  .route("/agents", agentsRouter)
-  .route("/auth", authRouter)
   .route("/torrents", torrentsRouter)
-  .route("/v1", v1Router)
-  .route("/waitlist", waitlistRouter)
   // Gate both the OpenAPI document and the Scalar UI on apiDocs; the UI fetches the spec, so gating only the UI would leave the full spec public.
   .use("/openapi.json", requireFeature("apiDocs"))
   .get(

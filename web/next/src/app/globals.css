@@ -1,7 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "fumadocs-ui/css/neutral.css";
-@import "fumadocs-ui/css/preset.css";
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
@@ -132,17 +130,5 @@
   }
   body {
     @apply bg-background text-foreground;
-  }
-}
-
-/* fumadocs */
-#nd-page {
-  @apply mt-10;
-}
-
-.console-docs {
-  --fd-banner-height: 0px;
-  #nd-page {
-    @apply mt-0;
   }
 }

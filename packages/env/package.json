@@ -15,14 +15,6 @@
       "types": "./dist/api-hono.d.mts",
       "default": "./dist/api-hono.mjs"
     },
-    "./auth": {
-      "types": "./dist/auth.d.mts",
-      "default": "./dist/auth.mjs"
-    },
-    "./db": {
-      "types": "./dist/db.d.mts",
-      "default": "./dist/db.mjs"
-    },
     "./web-next": {
       "types": "./dist/web-next.d.mts",
       "default": "./dist/web-next.mjs"
