@@ -24,11 +24,11 @@ restores your normal speed (test it with a plain download), it's connection over
 not throttling.
 
 **What helps:** lower the per-torrent connection limit. PeerZero already defaults to a
-conservative **50**; if your router is still struggling, drop it further via the
+conservative **25**; if your router is still struggling, drop it further via the
 `TORRENT_MAX_CONNS` environment variable before starting the engine:
 
 ```bash
-TORRENT_MAX_CONNS=30 bun run dev
+TORRENT_MAX_CONNS=15 bun run dev
 ```
 
 Fewer connections is gentler on the router and usually _more_ stable - and often

@@ -9,7 +9,7 @@ One Bun + Turborepo monorepo: two deployable apps over shared packages. Imports 
 
 ```
 .generated/       # repo-root home for build-time generated assets (gitignored)
-.downloads/       # where the torrent engine writes files (gitignored; TORRENT_DOWNLOAD_DIR)
+.downloads/       # legacy download dir (gitignored); default is now ~/Downloads/PeerZero (TORRENT_DOWNLOAD_DIR)
 api/hono/         # backend (Hono): routers, middlewares, the AppType export
 api/torrent-engine/ # Node sidecar: WebTorrent download engine behind a local HTTP API (runs under Node, not Bun)
 web/next/         # frontend (Next.js App Router): app/, components/, lib/, content/

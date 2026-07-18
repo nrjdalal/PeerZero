@@ -58,7 +58,7 @@ rarely need to - the app keeps its trackers and indexes fresh on its own in the 
   stream over a WebSocket into the **Transfers** tab.
 - **Stays a downloader.** Completed torrents auto-stop instead of seeding.
 - **Runs entirely locally.** Nothing is uploaded to a server; downloads land in
-  `.downloads/` at the project root.
+  `~/Downloads/PeerZero` by default (change it any time in the app's Settings).
 
 ---
 
@@ -102,11 +102,11 @@ refreshes happen in the background. No git pull required to stay current.
 
 Everything works out of the box; `.env` is only for tweaks. Highlights:
 
-| Variable               | Default       | What it does                                                                       |
-| ---------------------- | ------------- | ---------------------------------------------------------------------------------- |
-| `TORRENT_DOWNLOAD_DIR` | `.downloads/` | Where finished files land                                                          |
-| `TORRENT_MAX_CONNS`    | `50`          | Per-torrent connection cap (kept low to be gentle on home routers)                 |
-| `REGISTRY_SYNC_URL`    | canary mirror | Where background refresh falls back to; set to any non-URL (e.g. `off`) to disable |
+| Variable               | Default                | What it does                                                                       |
+| ---------------------- | ---------------------- | ---------------------------------------------------------------------------------- |
+| `TORRENT_DOWNLOAD_DIR` | `~/Downloads/PeerZero` | Where finished files land (also changeable in the app's Settings)                  |
+| `TORRENT_MAX_CONNS`    | `25`                   | Per-torrent connection cap (kept low to be gentle on home routers)                 |
+| `REGISTRY_SYNC_URL`    | canary mirror          | Where background refresh falls back to; set to any non-URL (e.g. `off`) to disable |
 
 See `.env.example` for the full list.
 
