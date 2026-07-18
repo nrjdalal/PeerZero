@@ -158,17 +158,12 @@ const SEARCH_DEBOUNCE_MS = 500
 
 // The Search tab: the same DataGrid as Transfers, fed by live search results. The
 // search box here filters inline (debounced) rather than navigating.
-export function SearchView({ initialQuery = "" }: { initialQuery?: string }) {
+export function SearchView() {
   // Query is persisted in the store so it survives leaving/returning to the tab and reloads.
   const query = usePrefs((s) => s.search)
   const setQuery = usePrefs((s) => s.setSearch)
-  const [debounced, setDebounced] = useState(query.trim() || initialQuery.trim())
+  const [debounced, setDebounced] = useState(query.trim())
   const isMagnet = query.trim().toLowerCase().startsWith("magnet:")
-
-  // Seed the persisted query from a ?q= deep link (the Transfers box navigates here).
-  useEffect(() => {
-    if (initialQuery) setQuery(initialQuery)
-  }, [initialQuery, setQuery])
 
   // Debounce real input, but clear instantly when the box is emptied/too short so stale
   // results and the spinner don't linger.

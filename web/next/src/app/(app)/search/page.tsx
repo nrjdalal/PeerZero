@@ -4,9 +4,8 @@ import { SearchView } from "@/components/torrents/search-view"
 
 export const metadata: Metadata = { title: "Search" }
 
-// Reads ?q= so the Transfers search box (which navigates here on Enter) lands with
-// the query already running.
-export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const { q } = await searchParams
-  return <SearchView initialQuery={q ?? ""} />
+// The Transfers search box seeds the shared search store before navigating here, so this
+// page needs no server-side searchParams and stays part of the static export.
+export default function Page() {
+  return <SearchView />
 }
