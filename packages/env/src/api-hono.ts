@@ -3,17 +3,19 @@ import { z } from "zod"
 
 import "@/lib/utils"
 import { NODE_ENV } from "@/lib/constants"
-import { polyfillServer } from "@/lib/polyfill"
 
+// Local-first: every var has a default, so the app runs (and builds) with no env at all.
+// A hosted deploy can still override any of these.
 export const env = createEnv({
   server: {
     NODE_ENV,
-    HONO_APP_URL: z.url(),
-    HONO_PORT: z.coerce.number().default(4000),
+    HONO_PORT: z.coerce.number().default(9336),
     HONO_RATE_LIMIT: z.coerce.number().default(60),
     HONO_RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000),
+    // Comma-separated allowed CORS origins; defaults to the local app.
     HONO_TRUSTED_ORIGINS: z
       .string()
+      .default("http://localhost:9410")
       .transform((s) => s.split(",").map((v) => v.trim().replace(/\/$/, "")))
       .pipe(z.array(z.url())),
     // Base URL of the local WebTorrent engine sidecar (api/torrent-engine).
@@ -30,11 +32,10 @@ export const env = createEnv({
   },
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
-    HONO_APP_URL: polyfillServer(process.env.HONO_APP_URL, "https://polyfill.url"),
     HONO_PORT: process.env.HONO_PORT,
     HONO_RATE_LIMIT: process.env.HONO_RATE_LIMIT,
     HONO_RATE_LIMIT_WINDOW_MS: process.env.HONO_RATE_LIMIT_WINDOW_MS,
-    HONO_TRUSTED_ORIGINS: polyfillServer(process.env.HONO_TRUSTED_ORIGINS, "https://polyfill.url"),
+    HONO_TRUSTED_ORIGINS: process.env.HONO_TRUSTED_ORIGINS,
     TORRENT_ENGINE_URL: process.env.TORRENT_ENGINE_URL,
     REGISTRY_SYNC_URL: process.env.REGISTRY_SYNC_URL,
   },

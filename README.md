@@ -30,7 +30,6 @@ Open your terminal and run these, one at a time:
 ```bash
 bunx gitpick nrjdalal/PeerZero   # download the project (no git needed)
 cd PeerZero
-cp .env.example .env             # Windows: copy .env.example .env
 bun install
 bun run dev
 ```
@@ -104,7 +103,9 @@ refreshes happen in the background. No git pull required to stay current.
 
 ## Configuration
 
-Everything works out of the box; `.env` is only for tweaks. Highlights:
+Everything works out of the box with no config at all - the app is local-first and defaults
+every setting. To tweak, set any of these as environment variables (no `.env` file needed).
+Highlights:
 
 | Variable               | Default                | What it does                                                                       |
 | ---------------------- | ---------------------- | ---------------------------------------------------------------------------------- |
@@ -112,7 +113,7 @@ Everything works out of the box; `.env` is only for tweaks. Highlights:
 | `TORRENT_MAX_CONNS`    | `25`                   | Per-torrent connection cap (kept low to be gentle on home routers)                 |
 | `REGISTRY_SYNC_URL`    | canary mirror          | Where background refresh falls back to; set to any non-URL (e.g. `off`) to disable |
 
-See `.env.example` for the full list.
+See `packages/env/src` for the full list of overridable variables and their defaults.
 
 ---
 
