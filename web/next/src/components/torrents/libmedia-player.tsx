@@ -40,12 +40,13 @@ function fmtTime(ms: number): string {
 
 const CTRL = "cursor-pointer text-white/90 transition hover:text-white"
 
-// Tauri's WKWebView serves the app from a custom `tauri://` scheme that can't load Web Workers, so
-// libmedia's worker pipeline (io/demux/decode) never spawns there and `load()` never completes. Run on
-// the main thread in the desktop app - hardware WebCodecs still offloads decode - and keep workers only
-// in a plain browser (served over http, where they work) so buffering never freezes the UI.
-function isTauri(): boolean {
-  return typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "isTauri" in window)
+// WKWebView can't create Web Workers from a custom scheme (tauri://), so libmedia's io/demux/decode
+// worker pipeline only runs off the main thread when the page is served over http/https. The desktop
+// app serves its UI from http://127.0.0.1 exactly so this holds (a tauri:// page, e.g. an old build,
+// would fall back to main-thread decode and freeze the UI). Decide by the page's own scheme.
+function canUseWorkers(): boolean {
+  if (typeof window === "undefined") return false
+  return window.location.protocol === "http:" || window.location.protocol === "https:"
 }
 
 // Full-screen Netflix-style player for every playable file. Uses @libmedia (headless) as the decode
@@ -155,9 +156,10 @@ export function LibmediaPlayer({
         const inst = new AVPlayer({
           container: boxRef.current,
           wasmBaseUrl: "/libmedia",
-          // Workers in a plain browser (smooth); main thread in the Tauri WebView (workers can't load
-          // from the tauri:// scheme). See isTauri() above.
-          enableWorker: !isTauri(),
+          // Off-main-thread decode whenever the page origin allows Workers (http/https). The desktop
+          // app serves its UI over http://127.0.0.1 for exactly this, so the UI stays responsive while
+          // libmedia demuxes/decodes. See canUseWorkers() above.
+          enableWorker: canUseWorkers(),
         })
         player = inst
         playerRef.current = inst
