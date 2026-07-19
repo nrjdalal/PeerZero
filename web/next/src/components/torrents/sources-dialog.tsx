@@ -105,20 +105,22 @@ export function SourcesDialog() {
             <div className="flex flex-col gap-2">
               <h3 className="text-sm font-semibold">Active search providers</h3>
               <div className="flex flex-wrap gap-2">
-                {data.providers.map((p) => {
-                  const dot = providerDot(p.name)
-                  return (
-                    <Badge key={p.name} variant="secondary" title={dot.title}>
-                      <span className={`size-2 shrink-0 rounded-full ${dot.color}`} />
-                      {p.name}
-                      {p.directoryTracked ? " · directory" : ""}
-                    </Badge>
-                  )
-                })}
+                {[...data.providers]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((p) => {
+                    const dot = providerDot(p.name)
+                    return (
+                      <Badge key={p.name} variant="secondary" title={dot.title}>
+                        <span className={`size-2 shrink-0 rounded-full ${dot.color}`} />
+                        {p.name}
+                        {p.directoryTracked ? " · directory" : ""}
+                      </Badge>
+                    )
+                  })}
               </div>
               <p className="text-muted-foreground text-xs">
-                Each source is health-checked as you search; a source that keeps failing is
-                auto-disabled and re-probed until it recovers.
+                Each source is health-checked as you search; one that keeps failing is parked for
+                12-24h, then re-probed to see if it recovered.
               </p>
             </div>
 
