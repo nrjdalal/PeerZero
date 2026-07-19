@@ -11,7 +11,6 @@
   "scripts": {
     "build": "tsdown && bun scripts/build-bundle.mjs",
     "check-types": "tsc --noEmit",
-    "test": "bun test",
     "dev": "portless",
     "dev:app": "concurrently \"tsdown --watch\" \"bun ../../.github/scripts/portless.ts bun --hot src/index.ts\"",
     "start": "bun bundle/index.mjs"

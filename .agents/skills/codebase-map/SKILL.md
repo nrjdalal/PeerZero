@@ -12,6 +12,7 @@ One Bun + Turborepo monorepo: two deployable apps over shared packages. Imports 
 .downloads/       # legacy download dir (gitignored); default is now ~/Downloads/PeerZero (TORRENT_DOWNLOAD_DIR)
 api/hono/         # backend (Hono): routers, middlewares, the AppType export, and the in-process WebTorrent engine (src/lib/torrent; WebRTC/uTP native addons disabled so webtorrent runs under Bun; see webrtc-stub.mjs)
 web/next/         # frontend (Next.js App Router): app/, components/, lib/, content/
+tests/            # central test tree mirroring the packages (tests/api-hono = golden API suite); run with `bun run test`, regenerate goldens with UPDATE_GOLDEN=1 (see tests/README.md)
 packages/auth/    # Better Auth instance
 packages/db/      # Drizzle schema + client
 packages/env/     # type-safe env, one validated entry per consumer

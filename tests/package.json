@@ -1,0 +1,19 @@
+{
+  "name": "@tests/root",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test": "bun run api-hono/run.ts",
+    "check-types": "tsc --noEmit -p api-hono/tsconfig.json"
+  },
+  "dependencies": {
+    "@api/hono": "workspace:*",
+    "webtorrent": "catalog:"
+  },
+  "devDependencies": {
+    "@packages/config": "workspace:*",
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

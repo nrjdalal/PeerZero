@@ -1,0 +1,30 @@
+{
+  "infoHash": "<infohash>",
+  "name": "peerzero-golden.bin",
+  "magnetURI": "<magnet>",
+  "length": 1024,
+  "downloaded": 1024,
+  "uploaded": 0,
+  "downloadSpeed": 0,
+  "uploadSpeed": 0,
+  "progress": 1,
+  "numPeers": 0,
+  "seeders": 0,
+  "timeRemaining": 0,
+  "ratio": 0,
+  "done": true,
+  "ready": true,
+  "syncing": false,
+  "paused": true,
+  "addedAt": 1700000000,
+  "downloadDir": "<downloadDir>",
+  "files": [
+    {
+      "name": "peerzero-golden.bin",
+      "path": "peerzero-golden.bin",
+      "length": 1024,
+      "downloaded": 1024,
+      "progress": 1
+    }
+  ]
+}

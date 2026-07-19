@@ -1,0 +1,13 @@
+{
+  "extends": "@packages/config/tsconfig.json",
+  "compilerOptions": {
+    "jsxImportSource": "hono/jsx",
+    "paths": {
+      "@/*": ["../../api/hono/src/*"]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
+}

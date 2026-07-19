@@ -1,0 +1,9 @@
+# The golden suite drives the real @api/hono backend (with its in-process WebTorrent engine) the
+# same way the app does. Preload the WebRTC stub before anything imports webtorrent, so the
+# node-datachannel native addon that crashes Bun is never loaded - mirrors api/hono/bunfig.toml.
+# `preload` covers `bun run` (the seed fixture); `[test].preload` is re-declared because
+# `bun test` ignores the top-level preload.
+preload = ["../../api/hono/src/lib/torrent/webrtc-stub.mjs"]
+
+[test]
+preload = ["../../api/hono/src/lib/torrent/webrtc-stub.mjs"]
