@@ -37,8 +37,15 @@ export type TorrentSnapshot = {
   paused: boolean
   addedAt: number // unix seconds the torrent was added, 0 if unknown
   downloadDir: string
+  // True once the torrent's video files have been hardlinked into the media library.
+  libraryLinked: boolean
   files: TorrentFile[]
 }
+
+// Where finished video torrents are hardlinked into a Jellyfin-friendly library. Hardlinks keep
+// the original download intact; enabled by default (only video torrents are ever touched).
+export type MediaLibrarySettings = { enabled: boolean; dir: string }
+export type EngineSettings = { downloadDir: string; mediaLibrary: MediaLibrarySettings }
 
 export class EngineError extends Error {
   constructor(
@@ -114,14 +121,32 @@ export const engine = {
     })
     return torrent
   },
-  async getSettings(): Promise<{ downloadDir: string }> {
-    return call<{ downloadDir: string }>("/settings")
+  async getSettings(): Promise<EngineSettings> {
+    return call<EngineSettings>("/settings")
   },
   async setSettings(downloadDir: string): Promise<{ downloadDir: string }> {
     return call<{ downloadDir: string }>("/settings", {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ downloadDir }),
+    })
+  },
+  // Update the media library config (partial): toggle it and/or set its folder. Hardlinks the
+  // canonical download; never renames or moves what webtorrent wrote.
+  async setMediaLibrary(update: {
+    enabled?: boolean
+    dir?: string
+  }): Promise<{ mediaLibrary: MediaLibrarySettings }> {
+    return call<{ mediaLibrary: MediaLibrarySettings }>("/settings/media-library", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(update),
+    })
+  },
+  // Open a native folder picker on the host for the media library folder.
+  async chooseLibraryDir(): Promise<{ mediaLibrary: MediaLibrarySettings; chosen: boolean }> {
+    return call<{ mediaLibrary: MediaLibrarySettings; chosen: boolean }>("/choose-library-dir", {
+      method: "POST",
     })
   },
   // Open the download folder in the OS file manager.

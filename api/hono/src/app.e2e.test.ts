@@ -154,7 +154,7 @@ describe("app e2e: Hono API -> torrent-engine", () => {
   }, 30_000) // add waits up to ~8s for the engine's early-snapshot fallback when offline
 
   test("display name: cosmetic PATCH persists; canonical name + reveal untouched", async () => {
-    type Snap = { infoHash: string; name: string; displayName?: string }
+    type Snap = { infoHash: string; name: string; displayName?: string; libraryLinked: boolean }
     const add = await call("/api/torrents", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -167,6 +167,8 @@ describe("app e2e: Hono API -> torrent-engine", () => {
     // display name (that's the frontend's job), so displayName is unset here.
     expect(typeof originalName).toBe("string")
     expect(added.displayName).toBeUndefined()
+    // Nothing is linked into the media library until the torrent finishes downloading.
+    expect(added.libraryLinked).toBe(false)
 
     // PATCH a locally-generated display name.
     const patched = (
@@ -225,5 +227,55 @@ describe("app e2e: Hono API -> torrent-engine", () => {
       .split(",")
       .map((m) => m.trim())
     expect(allowed).toContain("PATCH")
+  })
+
+  test("media library settings: defaults, toggle, set folder, persistence, validation", async () => {
+    type Lib = { enabled: boolean; dir: string }
+    type Settings = { downloadDir: string; mediaLibrary: Lib }
+
+    // Defaults: enabled, pointing at <downloadDir>/Media (auto: beside the downloads, same drive)
+    // so a fresh install organizes media out of the box without a cross-device hardlink risk.
+    const initial = ((await (await call("/api/torrents/settings")).json()) as { data: Settings })
+      .data
+    expect(initial.mediaLibrary).toEqual({ enabled: true, dir: join(downloadDir, "Media") })
+
+    // Toggle it off.
+    const off = (
+      (await (
+        await call("/api/torrents/settings/media-library", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ enabled: false }),
+        })
+      ).json()) as { data: { mediaLibrary: Lib } }
+    ).data.mediaLibrary
+    expect(off.enabled).toBe(false)
+
+    // Re-enable and point it at a new folder.
+    const libDir = join(home, "Jellyfin")
+    const set = (
+      (await (
+        await call("/api/torrents/settings/media-library", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ enabled: true, dir: libDir }),
+        })
+      ).json()) as { data: { mediaLibrary: Lib } }
+    ).data.mediaLibrary
+    expect(set).toEqual({ enabled: true, dir: libDir })
+
+    // Persisted to disk, so it survives a restart.
+    const state = JSON.parse(readFileSync(join(home, ".peerzero", "state.json"), "utf8")) as {
+      settings: { mediaLibrary: Lib }
+    }
+    expect(state.settings.mediaLibrary).toEqual({ enabled: true, dir: libDir })
+
+    // An empty update (neither enabled nor dir) is rejected at the API boundary.
+    const bad = await call("/api/torrents/settings/media-library", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    })
+    expect(bad.status).toBe(400)
   })
 })

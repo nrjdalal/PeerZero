@@ -18,6 +18,8 @@ import { fileURLToPath } from "node:url"
 
 import WebTorrent from "webtorrent"
 
+import { hardlinkTargets, libraryTargets, sameFilesystem } from "./media-library.mjs"
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = resolve(__dirname, "../../..")
 
@@ -35,6 +37,15 @@ const DEFAULT_DOWNLOAD_DIR = resolve(
 // Current download dir for NEW torrents. Loaded from persisted settings on boot; existing
 // torrents keep whatever folder they were added with (stored per-torrent in state).
 let downloadDir = DEFAULT_DOWNLOAD_DIR
+
+// Media library: when a finished torrent has video files, hardlink them into a Jellyfin-friendly
+// layout (Movies/…, Shows/…) so a media server can identify them by "Title (Year)" with no remote
+// calls. Hardlinks keep the original download intact for reveal/delete/seeding - we never move or
+// rename it. Enabled by default (only video torrents are ever touched). `dir: null` means "auto":
+// a `Media` folder beside the downloads (see libraryDir), which is always on the same drive so the
+// hardlink can't fail the cross-device check. An explicit folder chosen in Settings overrides it.
+// The folder is created lazily, only once there's something to link.
+let mediaLibrary = { enabled: true, dir: null }
 
 // State lives in a fixed app dir so it survives changing the download location. Older builds
 // kept it inside the repo's .downloads; loadState() migrates from there on first boot.
@@ -118,6 +129,9 @@ function saveState() {
     path: t.path || downloadDir,
     paused: meta.get(t.infoHash)?.paused ?? false,
     addedAt: meta.get(t.infoHash)?.addedAt ?? null,
+    // Whether this torrent's video files were already hardlinked into the media library, so a
+    // restart (which re-fires "done" after re-verifying) never re-links what's already there.
+    linked: meta.get(t.infoHash)?.linked ?? false,
     // Settled size/progress, replayed while a restored torrent re-verifies on boot (see snapshot's
     // `syncing`) so its bar is truthful instead of 0% until webtorrent finishes checking pieces.
     length: t.length || 0,
@@ -125,7 +139,10 @@ function saveState() {
     progress: t.progress || 0,
   }))
   try {
-    writeFileSync(STATE_FILE, JSON.stringify({ settings: { downloadDir }, torrents }, null, 2))
+    writeFileSync(
+      STATE_FILE,
+      JSON.stringify({ settings: { downloadDir, mediaLibrary }, torrents }, null, 2),
+    )
   } catch (err) {
     console.error("[engine] failed to write state:", err?.message || err)
   }
@@ -198,6 +215,8 @@ function snapshot(t) {
     paused: m.paused ?? false,
     addedAt: m.addedAt ?? 0,
     downloadDir: t.path || downloadDir,
+    // True once this torrent's video files have been hardlinked into the media library.
+    libraryLinked: !!m.linked,
     files: t.ready ? t.files.map(fileSnapshot) : [],
   }
 }
@@ -261,7 +280,7 @@ async function addTorrent(magnet) {
       saveState()
       resolve(snapshot(t))
     }, 8000)
-    t.on("done", () => stopSeeding(t))
+    t.on("done", () => onTorrentDone(t))
   })
 }
 
@@ -274,6 +293,53 @@ function stopSeeding(t) {
   }
   setMeta(t.infoHash, { paused: true })
   saveState()
+}
+
+// Called when a torrent finishes downloading: stop uploading, then organize it into the media
+// library. Both steps are independent and defensive, so one failing never blocks the other.
+function onTorrentDone(t) {
+  stopSeeding(t)
+  linkToLibrary(t)
+}
+
+// Hardlink a finished torrent's video files into the Jellyfin-friendly library. Runs once per
+// torrent (guarded by meta.linked so a restart's re-fired "done" never re-links), never throws
+// into the caller, and never touches the original download. No-ops when the library is disabled,
+// the torrent has no video files, or the library is on a different filesystem than the download
+// (a hardlink can't cross devices) - the download is always still there to reveal or delete.
+function linkToLibrary(t) {
+  try {
+    if (!mediaLibrary.enabled) return
+    if (meta.get(t.infoHash)?.linked) return
+    if (!t.ready || !t.files?.length) return
+    const targets = libraryTargets(
+      t.name,
+      t.files.map((f) => ({ name: f.name, path: f.path })),
+    )
+    if (targets.length === 0) return
+
+    const libRoot = libraryDir()
+    ensureDir(libRoot)
+    const base = resolve(t.path || downloadDir)
+    if (!sameFilesystem(libRoot, base)) {
+      console.warn(
+        `[engine] media library (${libRoot}) is on a different filesystem than the download; skipping hardlink for "${t.name}"`,
+      )
+      return
+    }
+
+    const linked = hardlinkTargets(base, libRoot, targets, {
+      onError: (dest, err) =>
+        console.error(`[engine] hardlink failed for ${dest}:`, err?.message || err),
+    })
+    if (linked > 0) {
+      setMeta(t.infoHash, { linked: true })
+      saveState()
+      console.log(`[engine] linked ${linked} file(s) into the media library for "${t.name}"`)
+    }
+  } catch (err) {
+    console.error("[engine] linkToLibrary error:", err?.message || err)
+  }
 }
 
 async function removeTorrent(infoHash, destroyStore) {
@@ -357,6 +423,33 @@ function setDownloadDir(dir) {
   return downloadDir
 }
 
+// The effective media library folder: the explicitly-chosen dir, else "auto" - a Media folder
+// beside the downloads, which is guaranteed to be on the same drive (so the hardlink never fails
+// the cross-device check). Always follows the download folder while on auto.
+function libraryDir() {
+  return mediaLibrary.dir ? resolve(expandHome(mediaLibrary.dir)) : resolve(downloadDir, "Media")
+}
+
+// The settings shape the API/UI see: the toggle plus the *resolved* folder (so the UI shows the
+// real path even while on auto).
+function mediaLibrarySettings() {
+  return { enabled: mediaLibrary.enabled, dir: libraryDir() }
+}
+
+// Update the media library config (partial): flip it on/off and/or point it at an explicit folder.
+// Only touches the fields present in `update`. Returns the resolved settings.
+function setMediaLibrary(update) {
+  const next = { ...mediaLibrary }
+  if (typeof update?.enabled === "boolean") next.enabled = update.enabled
+  if (update?.dir != null && String(update.dir).trim()) {
+    next.dir = resolve(expandHome(String(update.dir).trim()))
+    ensureDir(next.dir)
+  }
+  mediaLibrary = next
+  saveState()
+  return mediaLibrarySettings()
+}
+
 // Open a folder in the OS file manager. Local-only tool, so shelling out to the opener is fine.
 function openPath(target) {
   const p = platform()
@@ -375,25 +468,26 @@ function revealPath(target) {
 
 // Open a native folder picker and resolve to the chosen absolute path (or null if cancelled
 // or unavailable). Local-only tool, so the engine runs in the user's session and can show a
-// GUI dialog. macOS uses osascript; Windows a WinForms dialog; Linux zenity if present.
-function chooseFolder() {
+// GUI dialog. macOS uses osascript; Windows a WinForms dialog; Linux zenity if present. The
+// prompt labels the dialog so the download-folder and media-library pickers read differently.
+function chooseFolder(prompt = "Choose download folder") {
   return new Promise((res) => {
     const p = platform()
     let cmd
     let args
     if (p === "darwin") {
       cmd = "osascript"
-      args = ["-e", 'POSIX path of (choose folder with prompt "Choose download folder")']
+      args = ["-e", `POSIX path of (choose folder with prompt "${prompt.replace(/"/g, "'")}")`]
     } else if (p === "win32") {
       cmd = "powershell"
       args = [
         "-NoProfile",
         "-Command",
-        "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog() -eq 'OK') { Write-Output $d.SelectedPath }",
+        `Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = '${prompt.replace(/'/g, "")}'; if ($d.ShowDialog() -eq 'OK') { Write-Output $d.SelectedPath }`,
       ]
     } else {
       cmd = "zenity"
-      args = ["--file-selection", "--directory", "--title=Choose download folder"]
+      args = ["--file-selection", "--directory", `--title=${prompt}`]
     }
     try {
       let out = ""
@@ -436,9 +530,10 @@ const server = createServer(async (req, res) => {
 
     if (parts[0] === "health") return json(res, 200, { ok: true, downloadDir })
 
-    // /settings  (GET the current download dir, PUT/POST to change it)
+    // /settings  (GET both settings blocks; PUT/POST changes the download dir)
     if (parts[0] === "settings" && parts.length === 1) {
-      if (method === "GET") return json(res, 200, { downloadDir })
+      if (method === "GET")
+        return json(res, 200, { downloadDir, mediaLibrary: mediaLibrarySettings() })
       if (method === "PUT" || method === "POST") {
         const raw = await readBody(req)
         let dir = ""
@@ -456,17 +551,46 @@ const server = createServer(async (req, res) => {
       }
     }
 
+    // /settings/media-library  (PUT/POST: partial update of the media library config)
+    if (
+      parts[0] === "settings" &&
+      parts[1] === "media-library" &&
+      parts.length === 2 &&
+      (method === "PUT" || method === "POST")
+    ) {
+      const raw = await readBody(req)
+      let update = {}
+      try {
+        update = JSON.parse(raw) || {}
+      } catch {
+        /* malformed body -> no-op update, returns current settings */
+      }
+      try {
+        return json(res, 200, { mediaLibrary: setMediaLibrary(update) })
+      } catch (err) {
+        return json(res, 400, { error: err?.message || "failed to set media library" })
+      }
+    }
+
     // /open  (POST: open the current download folder in the file manager)
     if (parts[0] === "open" && parts.length === 1 && method === "POST") {
       openPath(downloadDir)
       return json(res, 200, { ok: true })
     }
 
-    // /choose-dir  (POST: native folder picker; sets and returns the chosen folder)
+    // /choose-dir  (POST: native folder picker; sets and returns the chosen download folder)
     if (parts[0] === "choose-dir" && parts.length === 1 && method === "POST") {
       const chosen = await chooseFolder()
       if (chosen) return json(res, 200, { downloadDir: setDownloadDir(chosen), chosen: true })
       return json(res, 200, { downloadDir, chosen: false })
+    }
+
+    // /choose-library-dir  (POST: native folder picker for the media library folder)
+    if (parts[0] === "choose-library-dir" && parts.length === 1 && method === "POST") {
+      const chosen = await chooseFolder("Choose media library folder")
+      if (chosen)
+        return json(res, 200, { mediaLibrary: setMediaLibrary({ dir: chosen }), chosen: true })
+      return json(res, 200, { mediaLibrary: mediaLibrarySettings(), chosen: false })
     }
 
     if (parts[0] === "torrents") {
@@ -560,6 +684,20 @@ server.listen(PORT, HOST, () => {
       console.error("[engine] bad saved downloadDir:", err?.message || err)
     }
   }
+  // Apply the saved media library config. Absent (older state) -> keep the enabled auto default, so
+  // upgrading users get the library without opting in. `dir` stays null (auto: <downloadDir>/Media)
+  // unless an explicit folder was chosen.
+  if (state.settings?.mediaLibrary) {
+    try {
+      const saved = state.settings.mediaLibrary
+      mediaLibrary = {
+        enabled: saved.enabled !== false,
+        dir: saved.dir ? resolve(expandHome(saved.dir)) : null,
+      }
+    } catch (err) {
+      console.error("[engine] bad saved mediaLibrary:", err?.message || err)
+    }
+  }
   // Restore previously-added torrents (webtorrent re-verifies existing files on disk and resumes).
   for (const saved of state.torrents || []) {
     try {
@@ -575,6 +713,8 @@ server.listen(PORT, HOST, () => {
         addedAt: saved.addedAt ?? nowUnix(),
         // Restore the persisted clean name so it's kept (and never regenerated) across restarts.
         displayName: saved.displayName ?? undefined,
+        // Restore the linked flag so a completed torrent isn't re-linked when "done" re-fires.
+        linked: !!saved.linked,
         restored: {
           name: saved.name,
           length: saved.length ?? 0,
@@ -583,7 +723,7 @@ server.listen(PORT, HOST, () => {
         },
       })
       if (saved.paused) t.pause()
-      t.on("done", () => stopSeeding(t))
+      t.on("done", () => onTorrentDone(t))
     } catch (err) {
       console.error("[engine] restore failed for", saved.infoHash, err?.message || err)
     }
