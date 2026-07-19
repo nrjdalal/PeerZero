@@ -129,7 +129,15 @@
     @apply font-sans;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground select-none;
+  }
+  /* Native desktop feel: app chrome is not text-selectable, so a stray drag or Cmd/Ctrl+A never
+     paints a "select all" highlight over labels like "Engine online", the grid, or the navbar.
+     Inputs stay selectable so typed text can still be edited and selected. */
+  input,
+  textarea,
+  [contenteditable="true"] {
+    @apply select-text;
   }
   /* macOS desktop only: the overlay title bar's traffic-light buttons float over the
      top-left, so inset the brand clear of them. The .tauri-mac class is set on <html>
