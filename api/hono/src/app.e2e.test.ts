@@ -211,4 +211,19 @@ describe("app e2e: Hono API -> torrent-engine", () => {
 
     await call(`/api/torrents/${INFOHASH}?destroyStore=true`, { method: "DELETE" })
   }, 30_000)
+
+  // Regression: the desktop app calls this API cross-origin (tauri://localhost -> 127.0.0.1), so
+  // the rename's PATCH triggers a CORS preflight. If PATCH is missing from allowMethods the
+  // browser silently blocks it while direct fetches (like the test above) still pass - exactly
+  // how the display-name rename first broke. Guard the preflight so a method can't drop out.
+  test("CORS preflight advertises PATCH for a cross-origin rename", async () => {
+    const preflight = await call(`/api/torrents/${INFOHASH}`, {
+      method: "OPTIONS",
+      headers: { origin: "http://127.0.0.1:9337", "access-control-request-method": "PATCH" },
+    })
+    const allowed = (preflight.headers.get("access-control-allow-methods") ?? "")
+      .split(",")
+      .map((m) => m.trim())
+    expect(allowed).toContain("PATCH")
+  })
 })

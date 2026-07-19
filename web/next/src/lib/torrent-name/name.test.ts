@@ -22,6 +22,12 @@ describe("parseTorrentName", () => {
   test("capitalizes purely-lowercase source words", () => {
     expect(parseTorrentName("ubuntu-desktop").title).toBe("Ubuntu Desktop")
   })
+
+  test("keeps small connector words lowercase, except when leading", () => {
+    // "and" stays lowercase mid-title (proper title case), first word still capitalized.
+    expect(parseTorrentName("Rick.and.Morty.S09E08.1080p.WEB-EDITH").title).toBe("Rick and Morty")
+    expect(parseTorrentName("the.lord.of.the.rings.2001.1080p").title).toBe("The Lord of the Rings")
+  })
 })
 
 describe("cleanNameFromRaw", () => {

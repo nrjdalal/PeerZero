@@ -38,9 +38,40 @@ const isTag = (t: string) =>
   NxYY.test(t) ||
   TAGS.some((re) => re.test(t))
 
-// Capitalize purely-lowercase words so lowercase sources read nicely, while leaving numbers,
-// versions, and already-cased acronyms (UHD, AMD64) untouched.
-const titleCaseWord = (w: string) => (/^[a-z]+$/.test(w) ? w[0].toUpperCase() + w.slice(1) : w)
+// Connector words that stay lowercase in title case, unless they lead the title.
+const SMALL_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "as",
+  "at",
+  "but",
+  "by",
+  "for",
+  "in",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "via",
+  "vs",
+  "with",
+])
+
+// Title-case purely-lowercase words so lowercase sources read nicely, keeping small connector
+// words lowercase (except the first word), and leaving numbers, versions, and already-cased
+// acronyms (UHD, AMD64) untouched.
+function toTitleCase(tokens: string[]): string {
+  return tokens
+    .map((w, i) => {
+      if (!/^[a-z]+$/.test(w)) return w
+      if (i > 0 && SMALL_WORDS.has(w)) return w
+      return w[0].toUpperCase() + w.slice(1)
+    })
+    .join(" ")
+    .trim()
+}
 
 export function parseTorrentName(raw: string): ParsedName {
   let s = raw.replace(MEDIA_EXT, "")
@@ -78,7 +109,7 @@ export function parseTorrentName(raw: string): ParsedName {
 
   let titleTokens = tokens.slice(0, cut)
   if (titleTokens.length === 0) titleTokens = tokens // name was all tags: keep everything
-  const title = titleTokens.map(titleCaseWord).join(" ").trim()
+  const title = toTitleCase(titleTokens)
   return { title, year, season, episode }
 }
 
