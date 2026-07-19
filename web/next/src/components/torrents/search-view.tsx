@@ -198,7 +198,10 @@ export function SearchView() {
     },
   })
 
-  // Only used by the "add this magnet" empty-state button (row downloads live in AddAction).
+  // Backs the "add this magnet" empty-state button and Enter-to-download on a highlighted row
+  // (per-row click downloads live in AddAction). `torrents` gates the Enter path so it no-ops on
+  // an already-added result, matching AddAction's disabled state.
+  const { torrents } = useTorrents()
   const queryClient = useQueryClient()
   const addMagnet = useMutation({
     mutationFn: async (magnet: string) => {
@@ -260,6 +263,10 @@ export function SearchView() {
       search={{ value: query, onChange: setQuery, pending: isFetching }}
       facet={{ columnId: "source", label: "Source", options: sources }}
       empty={empty}
+      onRowActivate={(r) => {
+        if (torrents.some((t) => t.infoHash === r.infoHash)) return
+        addMagnet.mutate(r.magnet)
+      }}
     />
   )
 }

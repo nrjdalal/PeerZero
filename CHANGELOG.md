@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.0.13
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.12...v0.0.13)
+
+### 🔥 Performance
+
+- **desktop:** Serve the UI over http so decode runs off the main thread ([#58](https://github.com/nrjdalal/PeerZero/pull/58))
+
+### 🩹 Fixes
+
+- **player:** Draggable top bar + padded controls ([#57](https://github.com/nrjdalal/PeerZero/pull/57))
+
+### 📖 Documentation
+
+- Rewrite the README around the video player + drop stale Intel builds ([#55](https://github.com/nrjdalal/PeerZero/pull/55))
+
+### ✅ Tests
+
+- Golden API suite in a central tests/ tree ([#54](https://github.com/nrjdalal/PeerZero/pull/54))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.12
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.11...v0.0.12)
