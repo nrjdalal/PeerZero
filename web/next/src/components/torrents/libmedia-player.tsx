@@ -91,6 +91,7 @@ export function LibmediaPlayer({
   const [activeSub, setActiveSub] = useState(-1)
 
   const playingRef = useRef(false)
+  const loadedRef = useRef(false)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Reveal the controls and (while playing) schedule them to auto-hide after 3s of no activity.
   const poke = useCallback(() => {
@@ -124,6 +125,17 @@ export function LibmediaPlayer({
         .catch(() => {})
     }
 
+    // libmedia can stall demuxing some large/complex files (e.g. a multi-GB HEVC MKV with many
+    // subtitle/audio tracks) and never emit "loaded". Guard with a timeout so the user isn't stuck on a
+    // spinner: fall back to the native handoff (VLC plays anything). See .github/plans/ICEBOX.md.
+    loadedRef.current = false
+    const loadTimer = setTimeout(() => {
+      if (!disposed && !loadedRef.current) {
+        console.error("[libmedia] load timed out; falling back to the native player")
+        onErrorRef.current()
+      }
+    }, 20000)
+
     ;(async () => {
       try {
         // Self-hosted ESM entry (see .github/scripts/vendor-libmedia.ts). Bundler-ignored dynamic
@@ -144,6 +156,8 @@ export function LibmediaPlayer({
         inst.on("loading", () => !disposed && setBuffering(true))
         inst.on("loaded", async () => {
           if (disposed) return
+          loadedRef.current = true
+          clearTimeout(loadTimer)
           setDur(Number(inst.getDuration()))
           setReady(true)
           try {
@@ -186,6 +200,7 @@ export function LibmediaPlayer({
 
     return () => {
       disposed = true
+      clearTimeout(loadTimer)
       teardown(player)
       playerRef.current = null
     }
