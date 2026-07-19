@@ -10,7 +10,7 @@
 // can never take the backend down. See AGENTS.md / docs for the architecture rationale.
 
 import { spawn } from "node:child_process"
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { createServer } from "node:http"
 import { homedir, platform } from "node:os"
 import { dirname, resolve } from "node:path"
@@ -41,8 +41,20 @@ const STATE_FILE = resolve(STATE_DIR, "state.json")
 const LEGACY_DOWNLOAD_DIR = resolve(`${REPO_ROOT}/.downloads`)
 const LEGACY_STATE_FILE = resolve(LEGACY_DOWNLOAD_DIR, ".zero-torrent-state.json")
 
+// Bun on Windows throws EEXIST from mkdir(recursive) when the target already exists as a
+// reparse point / known folder (e.g. ~/Downloads or ~/Desktop); Node treats it as a no-op.
+// Tolerate an already-existing directory so choosing such a folder in Settings doesn't 500.
+function ensureDir(dir) {
+  try {
+    mkdirSync(dir, { recursive: true })
+  } catch (err) {
+    if (err?.code === "EEXIST" && statSync(dir).isDirectory()) return
+    throw err
+  }
+}
+
 mkdirSync(STATE_DIR, { recursive: true })
-mkdirSync(downloadDir, { recursive: true })
+ensureDir(downloadDir)
 
 // A crashing torrent should never take the whole engine down. Stay defensive: log
 // and keep serving so the parent doesn't have to restart us.
@@ -291,7 +303,7 @@ function expandHome(p) {
 
 function setDownloadDir(dir) {
   const resolved = resolve(expandHome(String(dir).trim()))
-  mkdirSync(resolved, { recursive: true })
+  ensureDir(resolved)
   downloadDir = resolved
   saveState()
   return downloadDir
@@ -483,7 +495,7 @@ server.listen(PORT, HOST, () => {
   if (state.settings?.downloadDir) {
     try {
       downloadDir = resolve(state.settings.downloadDir)
-      mkdirSync(downloadDir, { recursive: true })
+      ensureDir(downloadDir)
     } catch (err) {
       console.error("[engine] bad saved downloadDir:", err?.message || err)
     }
