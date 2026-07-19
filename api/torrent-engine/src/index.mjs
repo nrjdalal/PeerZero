@@ -77,8 +77,9 @@ const MAX_CONNS = Number(process.env.TORRENT_MAX_CONNS) || 25
 const client = new WebTorrent({ maxConns: MAX_CONNS, utp: false })
 client.on("error", (err) => console.error("[engine] client error:", err?.message || err))
 
-// infoHash -> { paused: boolean, addedAt: number } side-state webtorrent doesn't
-// track for us. addedAt is unix seconds, set once when the torrent is first added.
+// infoHash -> { paused: boolean, addedAt: number, displayName?: string } side-state
+// webtorrent doesn't track for us. addedAt is unix seconds, set once when the torrent is
+// first added; displayName is an optional locally-generated clean name (see setDisplayName).
 const meta = new Map()
 
 const nowUnix = () => Math.floor(Date.now() / 1000)
@@ -110,6 +111,9 @@ function saveState() {
     // (and streamable) even while paused, without re-fetching metadata from peers.
     torrentFile: t.torrentFile ? Buffer.from(t.torrentFile).toString("base64") : null,
     name: t.name,
+    // Locally-generated clean name (AI/parser). Cosmetic; persisted so it survives restarts
+    // and a restored torrent keeps its name without being regenerated.
+    displayName: meta.get(t.infoHash)?.displayName ?? null,
     // Each torrent remembers its own folder so changing the default never moves existing ones.
     path: t.path || downloadDir,
     paused: meta.get(t.infoHash)?.paused ?? false,
@@ -173,6 +177,9 @@ function snapshot(t) {
   return {
     infoHash: t.infoHash,
     name: t.name || restored?.name || t.infoHash,
+    // Optional locally-generated clean name, for display only. The UI shows displayName ?? name;
+    // reveal/delete and every on-disk path use the canonical `name` above, never this.
+    displayName: m.displayName || undefined,
     magnetURI: t.magnetURI,
     length: t.length || restored?.length || 0,
     downloaded: restored ? restored.downloaded : t.downloaded || 0,
@@ -303,6 +310,32 @@ function setPaused(infoHash, paused) {
   if (paused) t.pause()
   else t.resume()
   setMeta(t.infoHash, { paused })
+  saveState()
+  return snapshot(t)
+}
+
+// Defensive final pass on a generated display name before persisting: single line, trimmed,
+// collapsed whitespace, surrounding quotes stripped, length-capped. The frontend does the
+// semantic validation (rejecting multi-line/empty); this just guarantees a safe stored value.
+const MAX_DISPLAY_NAME = 200
+function sanitizeDisplayName(raw) {
+  if (typeof raw !== "string") return ""
+  let s = raw
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  s = s.replace(/^["'`]+|["'`]+$/g, "").trim()
+  return s.length > MAX_DISPLAY_NAME ? s.slice(0, MAX_DISPLAY_NAME).trim() : s
+}
+
+// Set (or clear, with an empty value) a torrent's locally-generated display name. Purely
+// cosmetic metadata: it never touches t.name or any on-disk path, so reveal/delete and the
+// file tree keep operating on the real downloaded files.
+function setDisplayName(infoHash, displayName) {
+  const t = findTorrent(infoHash)
+  if (!t) return null
+  const clean = sanitizeDisplayName(displayName)
+  setMeta(t.infoHash, { displayName: clean || undefined })
   saveState()
   return snapshot(t)
 }
@@ -467,6 +500,18 @@ const server = createServer(async (req, res) => {
         const t = findTorrent(infoHash)
         if (!t) return json(res, 404, { error: "not found" })
         if (method === "GET") return json(res, 200, { torrent: snapshot(t) })
+        if (method === "PATCH") {
+          // Persist a locally-generated display name only; every other field is ignored.
+          const raw = await readBody(req)
+          let displayName = ""
+          try {
+            displayName = JSON.parse(raw)?.displayName ?? ""
+          } catch {
+            /* malformed body -> empty, which clears the name */
+          }
+          const snap = setDisplayName(infoHash, displayName)
+          return snap ? json(res, 200, { torrent: snap }) : json(res, 404, { error: "not found" })
+        }
         if (method === "DELETE") {
           const ok = await removeTorrent(infoHash, url.searchParams.get("destroyStore") === "true")
           return json(res, ok ? 200 : 404, { ok })
@@ -528,6 +573,8 @@ server.listen(PORT, HOST, () => {
       setMeta(saved.infoHash, {
         paused: !!saved.paused,
         addedAt: saved.addedAt ?? nowUnix(),
+        // Restore the persisted clean name so it's kept (and never regenerated) across restarts.
+        displayName: saved.displayName ?? undefined,
         restored: {
           name: saved.name,
           length: saved.length ?? 0,

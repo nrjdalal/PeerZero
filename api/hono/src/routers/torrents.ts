@@ -224,6 +224,24 @@ export const torrentsRouter = new Hono()
       }
     },
   )
+  .patch(
+    "/:infoHash",
+    describeRoute({
+      tags: ["Torrents"],
+      description:
+        "Set a torrent's locally-generated display name (cosmetic; never renames files on disk).",
+    }),
+    sValidator("json", z.object({ displayName: z.string().trim().min(1).max(300) }), onInvalid),
+    async (c) => {
+      const { displayName } = c.req.valid("json")
+      try {
+        const torrent = await engine.setDisplayName(c.req.param("infoHash"), displayName)
+        return c.json({ data: { torrent } })
+      } catch (err) {
+        return handleEngineError(c, err)
+      }
+    },
+  )
   .delete(
     "/:infoHash",
     describeRoute({

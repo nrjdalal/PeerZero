@@ -16,6 +16,9 @@ export type TorrentFile = {
 export type TorrentSnapshot = {
   infoHash: string
   name: string
+  // Optional locally-generated clean name (AI/parser). The UI shows `displayName ?? name`;
+  // reveal/delete and all on-disk paths always use the canonical `name`.
+  displayName?: string
   magnetURI: string
   length: number
   downloaded: number
@@ -100,6 +103,16 @@ export const engine = {
       { method: "DELETE" },
     )
     return ok
+  },
+  // Persist a locally-generated display name. Cosmetic only: the engine never renames files
+  // on disk or touches the canonical torrent name, so reveal/delete stay correct.
+  async setDisplayName(infoHash: string, displayName: string): Promise<TorrentSnapshot> {
+    const { torrent } = await call<{ torrent: TorrentSnapshot }>(`/torrents/${infoHash}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ displayName }),
+    })
+    return torrent
   },
   async getSettings(): Promise<{ downloadDir: string }> {
     return call<{ downloadDir: string }>("/settings")

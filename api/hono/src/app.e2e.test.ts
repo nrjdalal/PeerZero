@@ -8,7 +8,7 @@
 // round-trips through the engine without needing peers, so the test is deterministic.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import { mkdtempSync, rmSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -152,4 +152,63 @@ describe("app e2e: Hono API -> torrent-engine", () => {
     ).data.torrents
     expect(after.some((t) => t.infoHash === INFOHASH)).toBe(false)
   }, 30_000) // add waits up to ~8s for the engine's early-snapshot fallback when offline
+
+  test("display name: cosmetic PATCH persists; canonical name + reveal untouched", async () => {
+    type Snap = { infoHash: string; name: string; displayName?: string }
+    const add = await call("/api/torrents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ magnet: MAGNET }),
+    })
+    const added = ((await add.json()) as { data: { torrent: Snap } }).data.torrent
+    expect(added.infoHash).toBe(INFOHASH)
+    const originalName = added.name
+    // A new torrent starts with only its original name; the engine never auto-generates a
+    // display name (that's the frontend's job), so displayName is unset here.
+    expect(typeof originalName).toBe("string")
+    expect(added.displayName).toBeUndefined()
+
+    // PATCH a locally-generated display name.
+    const patched = (
+      (await (
+        await call(`/api/torrents/${INFOHASH}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ displayName: "Sintel (2010)" }),
+        })
+      ).json()) as { data: { torrent: Snap } }
+    ).data.torrent
+    // Snapshot returns BOTH the canonical name (unchanged) and the optional displayName.
+    expect(patched.name).toBe(originalName)
+    expect(patched.displayName).toBe("Sintel (2010)")
+
+    // The list snapshot carries the displayName too.
+    const one = (
+      (await (await call("/api/torrents")).json()) as { data: { torrents: Snap[] } }
+    ).data.torrents.find((t) => t.infoHash === INFOHASH)
+    expect(one?.name).toBe(originalName)
+    expect(one?.displayName).toBe("Sintel (2010)")
+
+    // Persisted to disk, so a restart restores it (and the restore path never regenerates).
+    const state = JSON.parse(readFileSync(join(home, ".peerzero", "state.json"), "utf8")) as {
+      torrents: Array<{ infoHash: string; name: string; displayName?: string | null }>
+    }
+    const saved = state.torrents.find((t) => t.infoHash === INFOHASH)
+    expect(saved?.displayName).toBe("Sintel (2010)")
+    expect(saved?.name).toBe(originalName) // canonical name is what gets persisted for FS ops
+
+    // Reveal targets the real folder by canonical name; the display name never reaches it.
+    const reveal = await call(`/api/torrents/${INFOHASH}/reveal`, { method: "POST" })
+    expect(((await reveal.json()) as { data: { ok: boolean } }).data.ok).toBe(true)
+
+    // An empty display name is rejected at the API boundary (invalid values never persist).
+    const bad = await call(`/api/torrents/${INFOHASH}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ displayName: "   " }),
+    })
+    expect(bad.status).toBe(400)
+
+    await call(`/api/torrents/${INFOHASH}?destroyStore=true`, { method: "DELETE" })
+  }, 30_000)
 })
