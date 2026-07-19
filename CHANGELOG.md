@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.3
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.2...v0.0.3)
+
+### 🚀 Enhancements
+
+- **dev:** Run the torrent-engine sidecar under portless with pinned ports ([#11](https://github.com/nrjdalal/PeerZero/pull/11))
+- **ui:** Matching header/footer bars + width-stable Browse button ([#13](https://github.com/nrjdalal/PeerZero/pull/13))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.2
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.1...v0.0.2)
