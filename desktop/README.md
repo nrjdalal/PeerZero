@@ -5,10 +5,15 @@ loads the static UI in the OS webview and runs the whole backend as **one Bun si
 binary** (Hono API + WebTorrent engine, in-process). No Node, no database, nothing to
 install.
 
+The sidecar binds an **ephemeral loopback port** (OS-assigned, so multiple instances never
+collide) and prints `PZ_API_PORT=<port>`. The Rust shell reads that line, then creates the
+window with `window.__PEERZERO_API_URL__` injected before any app JS runs, so the static UI
+learns the port at runtime instead of having it baked in.
+
 ```
 desktop/
   backend/            one Bun binary = Hono API + engine + optional static UI
-    main.ts           entry: sets local ports/env, starts engine, serves the app
+    main.ts           entry: picks a free port, sets env, serves the API (+ optional UI)
     serve-static.ts   serves the Next static export
     build.ts          bun build --compile  (optional cross-compile target arg)
   src-tauri/          the Tauri app (Rust shell, config, icons, capabilities)
@@ -21,8 +26,10 @@ desktop/
 From the repo root:
 
 ```bash
-# 1. backend bundle + static UI (bake the local API url) + native sidecar
+# 1. backend bundle + static UI + native sidecar
 # NEXT_OUTPUT=export makes the web build a static SPA; without it the web app stays standalone.
+# NEXT_PUBLIC_API_URL here is only a fallback: at runtime the shell injects the real (ephemeral)
+# port via window.__PEERZERO_API_URL__, which the UI prefers.
 NODE_ENV=production bunx turbo run build --filter=@api/hono
 NEXT_OUTPUT=export NEXT_PUBLIC_API_URL=http://127.0.0.1:9336 NEXT_PUBLIC_APP_URL=http://127.0.0.1:9336 \
   bunx turbo run build --filter=@web/next
