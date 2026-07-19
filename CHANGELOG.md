@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.0.6
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.5...v0.0.6)
+
+### 🩹 Fixes
+
+- **torrents:** Kill first-load flash + add a Syncing state for restored torrents ([#25](https://github.com/nrjdalal/PeerZero/pull/25))
+- **desktop:** Overlay the macOS title bar so it stops duplicating the brand ([#26](https://github.com/nrjdalal/PeerZero/pull/26))
+- **engine:** Default sidecar port to 6339 so PORTLESS=0 works ([#17](https://github.com/nrjdalal/PeerZero/pull/17))
+
+### 🏡 Chore
+
+- Align docker and docs to the canonical 9410/9336/6339 ports ([#27](https://github.com/nrjdalal/PeerZero/pull/27))
+
+### ✅ Tests
+
+- **hono:** End-to-end test for the API → torrent-engine flow ([#21](https://github.com/nrjdalal/PeerZero/pull/21))
+
+### 🎨 Styles
+
+- **web:** Hide scrollbars app-wide ([#22](https://github.com/nrjdalal/PeerZero/pull/22))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+- Siddharth Gaikwad @sidgaikwad
+
 ## v0.0.5
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.4...v0.0.5)
