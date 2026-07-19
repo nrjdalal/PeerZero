@@ -134,7 +134,7 @@ export function LibmediaPlayer({
         console.error("[libmedia] load timed out; falling back to the native player")
         onErrorRef.current()
       }
-    }, 20000)
+    }, 10000)
 
     ;(async () => {
       try {
