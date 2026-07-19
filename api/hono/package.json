@@ -9,7 +9,7 @@
   "types": "./dist/index.d.mts",
   "exports": "./dist/index.mjs",
   "scripts": {
-    "build": "tsdown && bun build dist/index.mjs --outfile bundle/index.mjs --target bun --minify",
+    "build": "tsdown && bun scripts/build-bundle.mjs",
     "check-types": "tsc --noEmit",
     "test": "bun test",
     "dev": "portless",
@@ -26,6 +26,7 @@
     "hono": "catalog:",
     "hono-openapi": "catalog:",
     "hono-rate-limiter": "catalog:",
+    "webtorrent": "catalog:",
     "ws": "catalog:",
     "zod": "catalog:"
   },

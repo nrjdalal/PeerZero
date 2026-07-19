@@ -79,7 +79,7 @@ const columns: ColumnDef<SearchResult>[] = [
     header: ({ column, table }) => <SortHeader column={column} table={table} label="Name" />,
     cell: ({ row }) => (
       <div className="flex min-w-0 items-center gap-2">
-        <span className="truncate" title={row.original.name}>
+        <span className="truncate text-sm" title={row.original.name}>
           {row.original.name}
         </span>
         <Badge variant="secondary" className="shrink-0 font-normal">

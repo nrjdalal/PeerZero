@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.0.11
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.10...v0.0.11)
+
+### 🚀 Enhancements
+
+- **transfers:** In-browser video playback + Netflix-style player (libmedia) ([#42](https://github.com/nrjdalal/PeerZero/pull/42))
+
+### 🩹 Fixes
+
+- **transfers:** Shorten the libmedia load-timeout to 10s ([#44](https://github.com/nrjdalal/PeerZero/pull/44))
+
+### 📖 Documentation
+
+- **plans:** Icebox the two-API merge and a native video player ([#41](https://github.com/nrjdalal/PeerZero/pull/41))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.10
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.9...v0.0.10)

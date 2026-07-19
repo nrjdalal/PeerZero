@@ -17,8 +17,10 @@ import {
 import { type KeyboardEvent, useCallback, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
+import type { SubRowColumn } from "@/components/torrents/data-grid"
 import { LibmediaPlayer } from "@/components/torrents/libmedia-player"
-import { Progress } from "@/components/ui/progress"
+import { STATUS_BADGE } from "@/components/torrents/torrents-grid"
+import { Badge } from "@/components/ui/badge"
 import { formatBytes, formatPercent } from "@/lib/format"
 import { openInExternalPlayer, streamUrl } from "@/lib/play-file"
 import { cn } from "@/lib/utils"
@@ -153,11 +155,11 @@ const NAME_COLUMN_REM = 3.5
 const INDENT_STEP_REM = 1.5
 const rowStyle = (depth: number) => ({
   paddingLeft: `${NAME_COLUMN_REM + depth * INDENT_STEP_REM}rem`,
-  paddingRight: "1rem",
 })
 
 function TreeRow({
   row,
+  columns,
   active,
   highlighted,
   showDisclosure,
@@ -167,6 +169,8 @@ function TreeRow({
   onPlay,
 }: {
   row: FlatRow
+  // The parent grid's visible after-Name columns, so this row's cells sit under the real columns.
+  columns: SubRowColumn[]
   // `active` is the roving-tabindex target (always one row); `highlighted` is the visible
   // selection, shown only while the tree holds focus.
   active: boolean
@@ -197,58 +201,80 @@ function TreeRow({
       onClick={() => (row.hasChildren ? onToggle() : onFocusRow())}
       style={rowStyle(row.depth)}
       className={cn(
-        "flex cursor-pointer items-center gap-2 py-0.5 outline-none",
+        // Same 32px height as the parent grid rows.
+        "flex h-8 cursor-pointer items-center outline-none",
         // Matches the grid's keyboard focus fill (see DataGrid).
         highlighted && "bg-muted",
       )}
     >
-      {isFolder ? (
-        <RiArrowRightSLine
-          className={cn(
-            "text-muted-foreground size-4 shrink-0 transition-transform",
-            row.expanded && "rotate-90",
-          )}
-        />
-      ) : showDisclosure ? (
-        <span className="size-4 shrink-0" aria-hidden />
-      ) : null}
-      {node.type === "file" && isPlayable(node.name) ? (
-        // The file icon doubles as a Play button (swaps to ▶ on hover) - no layout shift, so the
-        // percent/size columns stay aligned. tabIndex=-1 keeps the tree's roving focus intact.
-        <button
-          type="button"
-          tabIndex={-1}
-          onClick={(e) => {
-            e.stopPropagation()
-            onPlay(node.index, node.name)
-          }}
-          title={`Play ${node.name}`}
-          aria-label={`Play ${node.name}`}
-          className="group/play text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
-        >
-          <Icon className="size-4 group-hover/play:hidden" />
-          <RiPlayFill className="hidden size-4 group-hover/play:block" />
-        </button>
-      ) : (
-        <Icon className="text-muted-foreground size-4 shrink-0" />
-      )}
-      <span className={cn("min-w-0 flex-1 truncate", isFolder && "font-medium")} title={node.name}>
-        {node.name}
-      </span>
-      <div className="flex shrink-0 items-center gap-2">
+      {/* Name cluster fills the Name column (flex), pushing the trailing cells under the real
+          Progress/Size/... columns of the parent grid. */}
+      <div className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-2">
         {isFolder ? (
-          // Folders reserve the file-bar column so their percent/size line up with file rows.
-          <span className="w-20 shrink-0" aria-hidden />
+          <RiArrowRightSLine
+            className={cn(
+              "text-muted-foreground size-4 shrink-0 transition-transform",
+              row.expanded && "rotate-90",
+            )}
+          />
+        ) : showDisclosure ? (
+          <span className="size-4 shrink-0" aria-hidden />
+        ) : null}
+        {node.type === "file" && isPlayable(node.name) ? (
+          // The file icon doubles as a Play button (swaps to ▶ on hover). tabIndex=-1 keeps the
+          // tree's roving focus intact.
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation()
+              onPlay(node.index, node.name)
+            }}
+            title={`Play ${node.name}`}
+            aria-label={`Play ${node.name}`}
+            className="group/play text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+          >
+            <Icon className="size-4 group-hover/play:hidden" />
+            <RiPlayFill className="hidden size-4 group-hover/play:block" />
+          </button>
         ) : (
-          <Progress value={Math.round(progress * 100)} className="w-20" />
+          <Icon className="text-muted-foreground size-4 shrink-0" />
         )}
-        <span className="text-muted-foreground w-11 text-right text-xs tabular-nums">
-          {formatPercent(progress)}
-        </span>
-        <span className="text-muted-foreground w-16 text-right text-xs tabular-nums">
-          {formatBytes(node.length)}
+        <span
+          className={cn("min-w-0 flex-1 truncate text-sm", isFolder && "font-medium")}
+          title={node.name}
+        >
+          {node.name}
         </span>
       </div>
+      {/* One cell per after-Name grid column so Progress/Size land under their headers, reusing the
+          grid's own badge + mono size styling. Other columns render an empty spacer. */}
+      {columns.map((col) => (
+        <div
+          key={col.id}
+          style={{ width: col.width }}
+          className={cn(
+            "flex shrink-0 items-center px-2 py-1",
+            col.align === "center" && "justify-center",
+            col.align === "right" && "justify-end",
+          )}
+        >
+          {col.id === "progress" ? (
+            <Badge
+              className={cn(
+                "w-36 justify-center border-[0.5px] font-normal tabular-nums",
+                progress >= 1 ? STATUS_BADGE.Completed : STATUS_BADGE.Downloading,
+              )}
+            >
+              {formatPercent(progress)}
+            </Badge>
+          ) : col.id === "length" ? (
+            <span className="text-muted-foreground font-mono text-xs tabular-nums">
+              {formatBytes(node.length)}
+            </span>
+          ) : null}
+        </div>
+      ))}
     </div>
   )
 }
@@ -262,12 +288,15 @@ export function TorrentFileTree({
   files,
   rootName,
   infoHash,
+  columns,
   onExitUp,
   onExitDown,
 }: {
   files: TorrentFile[]
   rootName: string
   infoHash: string
+  // The parent grid's visible after-Name columns, so file rows align under Progress/Size/etc.
+  columns: SubRowColumn[]
   // Called at the tree's boundaries so the grid can continue the unified treegrid traversal:
   // onExitUp when Up is pressed on the first row, onExitDown when Down is pressed on the last.
   onExitUp?: () => void
@@ -396,6 +425,7 @@ export function TorrentFileTree({
           <TreeRow
             key={row.path}
             row={row}
+            columns={columns}
             active={row.path === active}
             highlighted={row.path === active && hasFocus}
             showDisclosure={hasFolders}

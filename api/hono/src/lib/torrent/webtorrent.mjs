@@ -1,17 +1,15 @@
-// zero-torrent download engine (Bun sidecar)
+// WebTorrent download engine (in-process module of api/hono)
 //
-// Runs a WebTorrent (3.x) client and exposes a tiny JSON HTTP API on 127.0.0.1 that the
-// Bun/Hono backend proxies to. It runs under Bun like the rest of the stack; the two
-// webtorrent native addons that crash Bun (an unsupported libuv function, uv_timer_init)
-// are kept out of the process: WebRTC/`node-datachannel` is neutralized by the preload in
-// src/webrtc-stub.mjs (wired via bunfig.toml), and uTP/`utp-native` is disabled with
-// `{ utp: false }` below. Peers are found via the DHT plus udp/http trackers over TCP,
-// which is all a local client needs. It stays a separate process so a crashing torrent
-// can never take the backend down. See AGENTS.md / docs for the architecture rationale.
+// Runs a WebTorrent (3.x) client and exposes plain async functions the Hono routers call
+// directly. It used to be a separate sidecar reached over HTTP, but it runs under Bun like the
+// rest of the backend, so it lives in-process now. The two webtorrent native addons that crash
+// Bun are kept out of the process: WebRTC/`node-datachannel` is neutralized by the webrtc-stub
+// plugin (preloaded via api/hono/bunfig.toml in dev/test, applied at bundle time by the build),
+// and uTP/`utp-native` is disabled with `{ utp: false }` below. Peers are found via the DHT plus
+// udp/http trackers over TCP, which is all a local client needs.
 
 import { spawn } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
-import { createServer } from "node:http"
 import { homedir, platform } from "node:os"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -19,16 +17,8 @@ import { fileURLToPath } from "node:url"
 import WebTorrent from "webtorrent"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const REPO_ROOT = resolve(__dirname, "../../..")
-
-// In dev the engine runs under portless (see package.json "portless"), which injects PORT/HOST;
-// TORRENT_ENGINE_PORT/HOST stay as the fixed-port fallback for production (PORTLESS off).
-// The 6339 fallback matches the API's TORRENT_ENGINE_URL default, so `PORTLESS=0` works out of
-// the box even when the root .env isn't loaded into this sidecar. In portless dev mode there is no
-// fixed appPort (matches ZeroStarter): portless assigns a free port and injects it as PORT, so the
-// dev stack never collides with the installed desktop app on 6339.
-const PORT = Number(process.env.PORT || process.env.TORRENT_ENGINE_PORT || 6339)
-const HOST = process.env.HOST || process.env.TORRENT_ENGINE_HOST || "127.0.0.1"
+// api/hono/src/lib/torrent -> repo root (only used for the legacy .downloads migration in dev).
+const REPO_ROOT = resolve(__dirname, "../../../../..")
 
 // Where new torrents download by default (overridable in Settings; env wins as the hard default).
 const DEFAULT_DOWNLOAD_DIR = resolve(
@@ -60,8 +50,7 @@ function ensureDir(dir) {
 mkdirSync(STATE_DIR, { recursive: true })
 ensureDir(downloadDir)
 
-// A crashing torrent should never take the whole engine down. Stay defensive: log
-// and keep serving so the parent doesn't have to restart us.
+// A crashing torrent should never take the backend down. Stay defensive: log and keep going.
 process.on("uncaughtException", (err) =>
   console.error("[engine] uncaughtException:", err?.message || err),
 )
@@ -75,7 +64,7 @@ process.on("unhandledRejection", (err) => console.error("[engine] unhandledRejec
 const MAX_CONNS = Number(process.env.TORRENT_MAX_CONNS) || 25
 // utp: false -> keep the `utp-native` addon out of the process; it crashes Bun on an
 // unsupported libuv function (uv_timer_init). TCP + DHT + udp/http trackers cover a
-// local client's peer discovery. See the header note and src/webrtc-stub.mjs.
+// local client's peer discovery. See the header note and webrtc-stub.mjs.
 const client = new WebTorrent({ maxConns: MAX_CONNS, utp: false })
 client.on("error", (err) => console.error("[engine] client error:", err?.message || err))
 
@@ -215,7 +204,7 @@ async function addTorrent(magnet) {
   }
   if (existing && existing.infoHash) return snapshot(existing)
 
-  return new Promise((resolve, reject) => {
+  return new Promise((res, reject) => {
     let settled = false
     const t = client.add(magnet, { path: downloadDir }, (torrent) => {
       if (settled) return
@@ -227,7 +216,7 @@ async function addTorrent(magnet) {
         addedAt: meta.get(torrent.infoHash)?.addedAt ?? nowUnix(),
       })
       saveState()
-      resolve(snapshot(torrent))
+      res(snapshot(torrent))
     })
     // Stamp addedAt as early as possible so the new torrent shows its add time (not a dash
     // at addedAt 0) and sorts to the top immediately. A magnet's infoHash is usually known
@@ -254,7 +243,7 @@ async function addTorrent(magnet) {
       settled = true
       setMeta(t.infoHash, { paused: false, addedAt: meta.get(t.infoHash)?.addedAt ?? nowUnix() })
       saveState()
-      resolve(snapshot(t))
+      res(snapshot(t))
     }, 8000)
     t.on("done", () => stopSeeding(t))
   })
@@ -376,186 +365,117 @@ function chooseFolder() {
   })
 }
 
-// ---------- HTTP helpers ----------
+// ---------- public API (called in-process by the Hono torrents router) ----------
 
-function json(res, status, body) {
-  const data = JSON.stringify(body)
-  res.writeHead(status, {
-    "content-type": "application/json",
-    "content-length": Buffer.byteLength(data),
-  })
-  res.end(data)
+export function list() {
+  return client.torrents.map(snapshot)
 }
 
-function readBody(req) {
-  return new Promise((res) => {
-    let raw = ""
-    req.on("data", (c) => (raw += c))
-    req.on("end", () => res(raw))
-  })
+export function getTorrent(infoHash) {
+  const t = findTorrent(infoHash)
+  return t ? snapshot(t) : null
 }
 
-// ---------- router ----------
+export { addTorrent as add, removeTorrent as remove }
 
-const server = createServer(async (req, res) => {
-  try {
-    const url = new URL(req.url, `http://${HOST}:${PORT}`)
-    const parts = url.pathname.split("/").filter(Boolean) // e.g. ["torrents", "<hash>", "pause"]
-    const method = req.method || "GET"
+export function pause(infoHash) {
+  return setPaused(infoHash, true)
+}
 
-    if (parts[0] === "health") return json(res, 200, { ok: true, downloadDir })
+export function resume(infoHash) {
+  return setPaused(infoHash, false)
+}
 
-    // /settings  (GET the current download dir, PUT/POST to change it)
-    if (parts[0] === "settings" && parts.length === 1) {
-      if (method === "GET") return json(res, 200, { downloadDir })
-      if (method === "PUT" || method === "POST") {
-        const raw = await readBody(req)
-        let dir = ""
-        try {
-          dir = JSON.parse(raw).downloadDir || ""
-        } catch {
-          /* ignore malformed body; handled below */
-        }
-        if (!dir || !String(dir).trim()) return json(res, 400, { error: "downloadDir required" })
-        try {
-          return json(res, 200, { downloadDir: setDownloadDir(dir) })
-        } catch (err) {
-          return json(res, 400, { error: err?.message || "failed to set download dir" })
-        }
-      }
-    }
+export function getSettings() {
+  return { downloadDir }
+}
 
-    // /open  (POST: open the current download folder in the file manager)
-    if (parts[0] === "open" && parts.length === 1 && method === "POST") {
-      openPath(downloadDir)
-      return json(res, 200, { ok: true })
-    }
+export function setSettings(dir) {
+  return { downloadDir: setDownloadDir(dir) }
+}
 
-    // /choose-dir  (POST: native folder picker; sets and returns the chosen folder)
-    if (parts[0] === "choose-dir" && parts.length === 1 && method === "POST") {
-      const chosen = await chooseFolder()
-      if (chosen) return json(res, 200, { downloadDir: setDownloadDir(chosen), chosen: true })
-      return json(res, 200, { downloadDir, chosen: false })
-    }
+// Open the current download folder in the OS file manager.
+export function openDownloadDir() {
+  openPath(downloadDir)
+  return true
+}
 
-    if (parts[0] === "torrents") {
-      // /torrents
-      if (parts.length === 1) {
-        if (method === "GET") return json(res, 200, { torrents: client.torrents.map(snapshot) })
-        if (method === "POST") {
-          const raw = await readBody(req)
-          let magnet = raw
-          try {
-            const parsed = JSON.parse(raw)
-            magnet = parsed.magnet || parsed.magnetURI || raw
-          } catch {
-            /* raw magnet string body is fine too */
-          }
-          if (!magnet || !String(magnet).trim()) return json(res, 400, { error: "magnet required" })
-          try {
-            const snap = await addTorrent(String(magnet).trim())
-            return json(res, 200, { torrent: snap })
-          } catch (err) {
-            return json(res, 400, { error: err?.message || "failed to add torrent" })
-          }
-        }
-      }
+// Reveal (select) a torrent's downloaded folder/file in the OS file manager.
+export function revealTorrent(infoHash) {
+  const t = findTorrent(infoHash)
+  if (!t) return false
+  revealPath(resolve(t.path || downloadDir, t.name || ""))
+  return true
+}
 
-      const infoHash = parts[1]
-      const action = parts[2]
+// Native folder picker; sets and returns the chosen folder (chosen:false if cancelled/absent).
+export async function chooseDir() {
+  const chosen = await chooseFolder()
+  if (chosen) return { downloadDir: setDownloadDir(chosen), chosen: true }
+  return { downloadDir, chosen: false }
+}
 
-      // /torrents/:hash
-      if (parts.length === 2) {
-        const t = findTorrent(infoHash)
-        if (!t) return json(res, 404, { error: "not found" })
-        if (method === "GET") return json(res, 200, { torrent: snapshot(t) })
-        if (method === "DELETE") {
-          const ok = await removeTorrent(infoHash, url.searchParams.get("destroyStore") === "true")
-          return json(res, ok ? 200 : 404, { ok })
-        }
-      }
+// Shutdown hook: destroy the WebTorrent client (stops the DHT/trackers/timers) so a process that
+// only needs the engine transiently - e.g. the e2e test - can exit cleanly.
+export function destroyClient() {
+  return new Promise((res) => client.destroy(() => res()))
+}
 
-      // /torrents/:hash/pause | resume | delete
-      if (parts.length === 3 && method === "POST") {
-        if (action === "pause") {
-          const snap = setPaused(infoHash, true)
-          return snap ? json(res, 200, { torrent: snap }) : json(res, 404, { error: "not found" })
-        }
-        if (action === "resume") {
-          const snap = setPaused(infoHash, false)
-          return snap ? json(res, 200, { torrent: snap }) : json(res, 404, { error: "not found" })
-        }
-        if (action === "delete") {
-          const ok = await removeTorrent(infoHash, url.searchParams.get("destroyStore") === "true")
-          return json(res, ok ? 200 : 404, { ok })
-        }
-        if (action === "reveal") {
-          const t = findTorrent(infoHash)
-          if (!t) return json(res, 404, { error: "not found" })
-          revealPath(resolve(t.path || downloadDir, t.name || ""))
-          return json(res, 200, { ok: true })
-        }
-      }
-    }
+const jsonResponse = (status, body) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  })
 
-    // /stream/:hash/:idx  (Range-capable byte stream for the video player + external handoff)
-    if (parts[0] === "stream" && parts.length === 3 && (method === "GET" || method === "HEAD")) {
-      const t = findTorrent(parts[1])
-      if (!t || !t.ready) return json(res, 404, { error: "not ready" })
-      const idx = Number(parts[2])
-      const file = Number.isInteger(idx) ? t.files[idx] : undefined
-      if (!file) return json(res, 404, { error: "file not found" })
-      // Streaming an unfinished file needs the torrent running with this file's pieces prioritized;
-      // a completed file reads straight from disk and works even while the torrent is paused/seeding.
-      if (file.progress < 1) {
-        t.resume()
-        file.select()
-      }
-      const total = file.length
-      let start = 0
-      let end = total - 1
-      let status = 200
-      const headers = {
-        "accept-ranges": "bytes",
-        "content-type": file.type || "application/octet-stream",
-      }
-      const match = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "")
-      if (match) {
-        if (!match[1] && match[2]) {
-          start = Math.max(0, total - Number(match[2])) // suffix range "bytes=-N": last N bytes
-        } else {
-          if (match[1]) start = Number(match[1])
-          if (match[2]) end = Number(match[2])
-        }
-        if (start > end || start >= total) {
-          res.writeHead(416, { "content-range": `bytes */${total}` })
-          return res.end()
-        }
-        end = Math.min(end, total - 1)
-        status = 206
-        headers["content-range"] = `bytes ${start}-${end}/${total}`
-      }
-      headers["content-length"] = end - start + 1
-      res.writeHead(status, headers)
-      if (method === "HEAD") return res.end()
-      const stream = file.createReadStream({ start, end })
-      req.on("close", () => stream.destroy())
-      stream.on("error", (err) => {
-        console.error("[engine] stream error:", err?.message || err)
-        res.destroy()
-      })
-      return stream.pipe(res)
-    }
-
-    return json(res, 404, { error: "not found" })
-  } catch (err) {
-    console.error("[engine] request error:", err?.message || err)
-    return json(res, 500, { error: "internal engine error" })
+// Range-capable byte stream of a torrent file, returned as a Web Response (for the video player
+// and external-player handoff). 404 when the torrent/file isn't ready, 416 on a bad range.
+export function streamFile(infoHash, idx, range, method = "GET") {
+  const t = findTorrent(infoHash)
+  if (!t || !t.ready) return jsonResponse(404, { error: "not ready" })
+  const file = Number.isInteger(idx) ? t.files[idx] : undefined
+  if (!file) return jsonResponse(404, { error: "file not found" })
+  // Streaming an unfinished file needs the torrent running with this file's pieces prioritized;
+  // a completed file reads straight from disk and works even while the torrent is paused/seeding.
+  if (file.progress < 1) {
+    t.resume()
+    file.select()
   }
-})
+  const total = file.length
+  let start = 0
+  let end = total - 1
+  let status = 200
+  const headers = {
+    "accept-ranges": "bytes",
+    "content-type": file.type || "application/octet-stream",
+  }
+  const match = /^bytes=(\d*)-(\d*)$/.exec(range || "")
+  if (match) {
+    if (!match[1] && match[2]) {
+      start = Math.max(0, total - Number(match[2])) // suffix range "bytes=-N": last N bytes
+    } else {
+      if (match[1]) start = Number(match[1])
+      if (match[2]) end = Number(match[2])
+    }
+    if (start > end || start >= total) {
+      return new Response(null, { status: 416, headers: { "content-range": `bytes */${total}` } })
+    }
+    end = Math.min(end, total - 1)
+    status = 206
+    headers["content-range"] = `bytes ${start}-${end}/${total}`
+  }
+  headers["content-length"] = String(end - start + 1)
+  if (method === "HEAD") return new Response(null, { status, headers })
+  const nodeStream = file.createReadStream({ start, end })
+  nodeStream.on("error", (err) => console.error("[engine] stream error:", err?.message || err))
+  // Hand the Node Readable straight to Response. Do NOT use Readable.toWeb(): under Bun it throws
+  // ("QueuingStrategyInit.highWaterMark member is required", oven-sh/bun#2935). Bun's Response
+  // accepts a Node stream (it is an async iterable) as a body, which is all this backend runs on.
+  return new Response(nodeStream, { status, headers })
+}
 
-server.listen(PORT, HOST, () => {
-  console.log(`[engine] webtorrent engine on http://${HOST}:${PORT} -> ${downloadDir}`)
+// ---------- boot: restore previously-added torrents (runs once at module load) ----------
+
+function restoreOnBoot() {
   const state = loadState()
   // Apply the saved download location for new torrents (existing ones keep their own path).
   if (state.settings?.downloadDir) {
@@ -573,9 +493,8 @@ server.listen(PORT, HOST, () => {
       const source = saved.torrentFile ? Buffer.from(saved.torrentFile, "base64") : saved.magnetURI
       // Each torrent restores to its own saved folder; path-less legacy entries lived in .downloads.
       const t = client.add(source, { path: saved.path || LEGACY_DOWNLOAD_DIR }, () => saveState())
-      // Use saved.infoHash (always present) - t.infoHash can be unset synchronously.
-      // `restored` is the last-known size/progress, replayed by snapshot() while this torrent
-      // shows as "syncing" (re-verifying its pieces) and dropped once webtorrent is ready.
+      // Use saved.infoHash (always present) - t.infoHash can be unset synchronously. `restored` is
+      // the last-known size/progress, replayed by snapshot() while this torrent shows as "syncing".
       setMeta(saved.infoHash, {
         paused: !!saved.paused,
         addedAt: saved.addedAt ?? nowUnix(),
@@ -592,4 +511,7 @@ server.listen(PORT, HOST, () => {
       console.error("[engine] restore failed for", saved.infoHash, err?.message || err)
     }
   }
-})
+}
+
+restoreOnBoot()
+console.log(`[engine] in-process webtorrent engine -> ${downloadDir}`)

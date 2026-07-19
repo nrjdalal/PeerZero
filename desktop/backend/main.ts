@@ -1,23 +1,41 @@
-// Combined desktop backend: one Bun process that runs the Hono API, the WebTorrent
-// engine, and (optionally) serves the static UI, so the whole app ships as a single
-// self-contained binary (see build.ts). Under Tauri the shell serves the UI and this
-// binary is the API-only sidecar; run standalone with PZ_FRONTEND_DIR to also serve the
-// UI and open it in a browser.
+// Combined desktop backend: one Bun process that runs the Hono API (with the in-process
+// WebTorrent engine) and, optionally, serves the static UI, so the whole app ships as a single
+// self-contained binary (see build.ts). Under Tauri the shell serves the UI and this binary is
+// the API-only sidecar; run standalone with PZ_FRONTEND_DIR to also serve the UI in a browser.
 //
-// Ports are loopback-only and fixed so the statically-exported frontend (which bakes
-// NEXT_PUBLIC_API_URL at build time) always knows where the API is.
+// The API binds an ephemeral loopback port (an OS-assigned free port, the pattern most local
+// desktop servers use) instead of a fixed one: a fixed port lets a second - or stale - instance
+// collide, and the survivor's UI could end up talking to the wrong backend. We print the chosen
+// port as `PZ_API_PORT=<port>` so the Tauri shell can inject it into the webview at runtime (it
+// sets window.__PEERZERO_API_URL__, which the frontend prefers over its baked default). PZ_PORT
+// still pins the port for Docker/tests.
+import { createServer } from "node:net"
+
 import { serveStatic } from "./serve-static"
 
-const API_PORT = Number(process.env.PZ_PORT || 9336)
-const ENGINE_PORT = Number(process.env.PZ_ENGINE_PORT || 6339)
+// Ask the OS for a free loopback port: bind :0, read the assigned port, release it. There is a
+// tiny window between release and re-bind, but on single-user loopback that never bites in
+// practice, and it lets us know the port before importing the bundle (which needs it in env).
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createServer()
+    probe.once("error", reject)
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address()
+      probe.close(() =>
+        address && typeof address === "object"
+          ? resolve(address.port)
+          : reject(new Error("could not resolve a free port")),
+      )
+    })
+  })
+}
 
-// Set every env the Hono + engine modules read, BEFORE importing them (both validate/read
-// process.env at module init). The engine reads TORRENT_ENGINE_PORT directly; Hono reads
-// the rest through @packages/env.
-//
-// Use unconditional `=` (not `||=`): Bun auto-loads any .env in the cwd before this file
-// runs, so `||=` would silently keep a stray .env value (e.g. HONO_TRUSTED_ORIGINS from a
-// dev checkout) and break CORS for the Tauri webview. These desktop values must always win.
+const API_PORT = process.env.PZ_PORT ? Number(process.env.PZ_PORT) : await freePort()
+
+// Set every env the Hono modules read BEFORE importing the bundle (env is validated at module
+// init). Use unconditional `=` (not `||=`): Bun auto-loads any .env in the cwd first, so `||=`
+// would keep a stray dev value (e.g. HONO_TRUSTED_ORIGINS) and break CORS for the Tauri webview.
 process.env.NODE_ENV = "production"
 process.env.HONO_PORT = String(API_PORT)
 // Same-origin (browser) plus the Tauri webview origins, so CORS passes in both shells.
@@ -27,19 +45,14 @@ process.env.HONO_TRUSTED_ORIGINS = [
   "tauri://localhost",
   "http://tauri.localhost",
 ].join(",")
-process.env.TORRENT_ENGINE_PORT = String(ENGINE_PORT)
-process.env.TORRENT_ENGINE_URL = `http://127.0.0.1:${ENGINE_PORT}`
-// The engine (and Hono) read PORT/HOST first - portless injects them in dev. Clear any
-// inherited values so the desktop sidecar always binds our fixed loopback ports.
+// Hono reads PORT/HOST first - portless injects them in dev. Clear any inherited values so the
+// desktop sidecar always binds our chosen loopback port.
 delete process.env.PORT
 delete process.env.HOST
 
-// Start the engine (side effect: listens on ENGINE_PORT). Import after the env is set.
-await import("../../api/torrent-engine/src/index.mjs")
-
-// Load the pre-built Hono bundle. Its default export is the Bun.serve config
-// ({ fetch, port, websocket }); importing it does NOT start a server (only the entry's
-// default export auto-serves), so we drive it ourselves below.
+// Load the pre-built Hono bundle. Importing it boots the in-process WebTorrent engine and gives us
+// the Bun.serve config ({ fetch, websocket }); it does NOT start a server (only an entry's default
+// export auto-serves), so we drive it ourselves below.
 const hono = (await import("../../api/hono/bundle/index.mjs")).default as {
   fetch: (req: Request, server: unknown) => Response | Promise<Response>
   websocket: unknown
@@ -62,5 +75,8 @@ Bun.serve({
   },
 })
 
-console.log(`[desktop] app on http://127.0.0.1:${API_PORT} (engine on 127.0.0.1:${ENGINE_PORT})`)
+// Machine-readable handshake the Tauri shell parses (src-tauri/src/lib.rs) to learn which port
+// to point the webview at. Keep the exact `PZ_API_PORT=<port>` shape in sync with that parser.
+console.log(`PZ_API_PORT=${API_PORT}`)
+console.log(`[desktop] app on http://127.0.0.1:${API_PORT} (webtorrent engine in-process)`)
 if (FRONTEND_DIR) console.log(`[desktop] serving UI from ${FRONTEND_DIR}`)

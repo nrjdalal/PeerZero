@@ -1,9 +1,9 @@
-// Thin HTTP client to the WebTorrent sidecar (api/torrent-engine): a separate Bun process
-// so a crashing torrent can't take the backend down. One module so the backend is swappable.
+// Typed seam over the in-process WebTorrent engine (./webtorrent.mjs): the Hono routers call
+// these functions, which drive the WebTorrent client running in this same Bun process. It used
+// to be a separate sidecar reached over HTTP; now it's in-process, so there is no port, no fetch
+// hop, and a torrent operation is a direct call. One module so the backend stays swappable.
 
-import { env } from "@packages/env/api-hono"
-
-const BASE = env.TORRENT_ENGINE_URL.replace(/\/$/, "")
+import * as wt from "./webtorrent.mjs"
 
 export type TorrentFile = {
   name: string
@@ -37,6 +37,7 @@ export type TorrentSnapshot = {
   files: TorrentFile[]
 }
 
+// Kept for the routers' error mapping: a thrown EngineError carries the HTTP status to return.
 export class EngineError extends Error {
   constructor(
     message: string,
@@ -46,93 +47,60 @@ export class EngineError extends Error {
   }
 }
 
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  let res: Response
-  try {
-    res = await fetch(`${BASE}${path}`, init)
-  } catch {
-    throw new EngineError("torrent engine unreachable (is the sidecar running?)", 503)
-  }
-  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
-  if (!res.ok) {
-    const message = typeof body.error === "string" ? body.error : `engine ${res.status}`
-    throw new EngineError(message, res.status)
-  }
-  return body as T
-}
-
-// Proxy a byte-range stream from the engine WITHOUT JSON-decoding it: forwards the browser's Range
-// header and returns the raw Response (200/206 + body) to pipe into a <video> or an external player.
-export async function engineStream(path: string, range?: string): Promise<Response> {
-  try {
-    return await fetch(`${BASE}${path}`, range ? { headers: { range } } : undefined)
-  } catch {
-    throw new EngineError("torrent engine unreachable (is the sidecar running?)", 503)
-  }
+// Range-capable byte stream of a torrent file, as a Web Response (video player + external-player
+// handoff). Returns a 404/416 Response for a missing file or bad range - it does not throw.
+export function engineStream(infoHash: string, fileIdx: string | number, range?: string): Response {
+  return wt.streamFile(infoHash, Number(fileIdx), range)
 }
 
 export const engine = {
-  async health(): Promise<boolean> {
-    try {
-      await call("/health")
-      return true
-    } catch {
-      return false
-    }
+  // In-process: the client is always live once this module loaded.
+  health(): boolean {
+    return true
   },
-  async list(): Promise<TorrentSnapshot[]> {
-    const { torrents } = await call<{ torrents: TorrentSnapshot[] }>("/torrents")
-    return torrents
+  list(): TorrentSnapshot[] {
+    return wt.list() as TorrentSnapshot[]
   },
   async add(magnet: string): Promise<TorrentSnapshot> {
-    const { torrent } = await call<{ torrent: TorrentSnapshot }>("/torrents", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ magnet }),
-    })
-    return torrent
+    try {
+      return (await wt.add(magnet)) as TorrentSnapshot
+    } catch (err) {
+      throw new EngineError((err as Error)?.message || "failed to add torrent", 400)
+    }
   },
-  async pause(infoHash: string): Promise<TorrentSnapshot> {
-    const { torrent } = await call<{ torrent: TorrentSnapshot }>(`/torrents/${infoHash}/pause`, {
-      method: "POST",
-    })
-    return torrent
+  pause(infoHash: string): TorrentSnapshot {
+    const snap = wt.pause(infoHash)
+    if (!snap) throw new EngineError("not found", 404)
+    return snap as TorrentSnapshot
   },
-  async resume(infoHash: string): Promise<TorrentSnapshot> {
-    const { torrent } = await call<{ torrent: TorrentSnapshot }>(`/torrents/${infoHash}/resume`, {
-      method: "POST",
-    })
-    return torrent
+  resume(infoHash: string): TorrentSnapshot {
+    const snap = wt.resume(infoHash)
+    if (!snap) throw new EngineError("not found", 404)
+    return snap as TorrentSnapshot
   },
   async remove(infoHash: string, destroyStore: boolean): Promise<boolean> {
-    const { ok } = await call<{ ok: boolean }>(
-      `/torrents/${infoHash}?destroyStore=${destroyStore ? "true" : "false"}`,
-      { method: "DELETE" },
-    )
-    return ok
+    return wt.remove(infoHash, destroyStore)
   },
-  async getSettings(): Promise<{ downloadDir: string }> {
-    return call<{ downloadDir: string }>("/settings")
+  getSettings(): { downloadDir: string } {
+    return wt.getSettings()
   },
-  async setSettings(downloadDir: string): Promise<{ downloadDir: string }> {
-    return call<{ downloadDir: string }>("/settings", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ downloadDir }),
-    })
+  setSettings(downloadDir: string): { downloadDir: string } {
+    try {
+      return wt.setSettings(downloadDir)
+    } catch (err) {
+      throw new EngineError((err as Error)?.message || "failed to set download dir", 400)
+    }
   },
   // Open the download folder in the OS file manager.
-  async openDir(): Promise<boolean> {
-    const { ok } = await call<{ ok: boolean }>("/open", { method: "POST" })
-    return ok
+  openDir(): boolean {
+    return wt.openDownloadDir()
   },
   // Reveal (select) a torrent's downloaded folder/file in the OS file manager.
-  async reveal(infoHash: string): Promise<boolean> {
-    const { ok } = await call<{ ok: boolean }>(`/torrents/${infoHash}/reveal`, { method: "POST" })
-    return ok
+  reveal(infoHash: string): boolean {
+    return wt.revealTorrent(infoHash)
   },
   // Open a native folder picker on the host; returns the chosen (and now-active) folder.
   async chooseDir(): Promise<{ downloadDir: string; chosen: boolean }> {
-    return call<{ downloadDir: string; chosen: boolean }>("/choose-dir", { method: "POST" })
+    return wt.chooseDir()
   },
 }

@@ -8,20 +8,7 @@
     "devUrl": "http://localhost:9336"
   },
   "app": {
-    "windows": [
-      {
-        "title": "PeerZero",
-        "titleBarStyle": "Overlay",
-        "hiddenTitle": true,
-        "backgroundColor": "#0A0A0A",
-        "width": 1080,
-        "height": 720,
-        "minWidth": 1080,
-        "minHeight": 720,
-        "resizable": true,
-        "fullscreen": false
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
     }
