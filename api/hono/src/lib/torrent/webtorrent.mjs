@@ -12,7 +12,6 @@ import { spawn } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { homedir, platform } from "node:os"
 import { dirname, resolve } from "node:path"
-import { Readable } from "node:stream"
 import { fileURLToPath } from "node:url"
 
 import WebTorrent from "webtorrent"
@@ -468,7 +467,10 @@ export function streamFile(infoHash, idx, range, method = "GET") {
   if (method === "HEAD") return new Response(null, { status, headers })
   const nodeStream = file.createReadStream({ start, end })
   nodeStream.on("error", (err) => console.error("[engine] stream error:", err?.message || err))
-  return new Response(Readable.toWeb(nodeStream), { status, headers })
+  // Hand the Node Readable straight to Response. Do NOT use Readable.toWeb(): under Bun it throws
+  // ("QueuingStrategyInit.highWaterMark member is required", oven-sh/bun#2935). Bun's Response
+  // accepts a Node stream (it is an async iterable) as a body, which is all this backend runs on.
+  return new Response(nodeStream, { status, headers })
 }
 
 // ---------- boot: restore previously-added torrents (runs once at module load) ----------
