@@ -70,7 +70,7 @@ export const exampleRouter = new Hono().post(
 `bun --hot` will NOT see a new file: restart the stack (see the `dev` skill), then:
 
 ```bash
-WEB=$(bunx portless get zerostarter); API=$(bunx portless get api.zerostarter)
+WEB=$(bunx portless get peerzero); API=$(bunx portless get api.peerzero)
 curl -sS -X POST -H "Content-Type: application/json" -H "Origin: $WEB" \
   -d '{"email":"you@example.com"}' "$API/api/<name>"
 ```

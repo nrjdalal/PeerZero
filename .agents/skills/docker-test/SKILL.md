@@ -40,7 +40,7 @@ docker compose down
 - **Skip `SKIP_ENV_VALIDATION`.** Build and runtime both load a real `.env`, so both validate real values. The flag no longer bypasses validation anyway: it only substitutes shape-valid dummies for *missing* required vars while zod defaults and transforms still run (`HONO_PORT` defaults to 9336, `HONO_TRUSTED_ORIGINS` parses to an array). Reserve it for CI, which genuinely lacks a `.env`. The web deploy uses the narrower `SKIP_ENV_VALIDATION_SERVER`, which dummies only server secrets while still validating the `NEXT_PUBLIC_*` it inlines.
 - **Database.** Without a reachable `POSTGRES_URL`, DB-backed routes (e.g. `/api/v1/user`) return 500 while `/api/health` stays green; full e2e needs a real database URL.
 - **Direct `docker run --env-file`** does not strip inline comments: `HONO_RATE_LIMIT=60 # note` arrives as `"60 # note"`, coerces to NaN, and validation rejects it. Compose's parser strips them; for `docker run`, sanitize first: `sed 's/ #.*//' .env > .env.docker`.
-- **Ports** `9336` and `9410` collide with a running dev stack; for side-by-side testing bump the compose mappings (e.g. `19336:9336`) in a scratch checkout.
+- **Ports** `9336`/`9410` are Docker's fixed ports. The default portless dev stack uses random per-app ports, so it won't collide - but a `PORTLESS=0` dev stack (or the installed desktop app, which binds `9336`) will; for side-by-side testing bump the compose mappings (e.g. `19336:9336`) in a scratch checkout.
 
 ## Self-containment check (catches runtime auto-install)
 
