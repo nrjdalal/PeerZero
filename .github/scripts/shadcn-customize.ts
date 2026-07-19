@@ -19,6 +19,7 @@ const BUTTON = `${UI}/button.tsx`
 const DROPDOWN = `${UI}/dropdown-menu.tsx`
 const SPINNER = `${UI}/spinner.tsx`
 const SIDEBAR = `${UI}/sidebar.tsx`
+const DIALOG = `${UI}/dialog.tsx`
 const GLOBALS = "web/next/src/app/globals.css"
 
 // init/add re-scaffold these with shadcn defaults we keep none of: a next/font/google layout, a
@@ -151,6 +152,38 @@ function patchSidebar() {
   log(`patched: ${SIDEBAR}`)
 }
 
+// dialog.tsx: add the DialogBody scroll region the registry lacks, so every dialog composes the
+// same Header/Body/Footer shape (canonical dialog pattern, see the design skill "Dialogs").
+const DIALOG_BODY = `// Scrollable body between the header and footer. Long content scrolls here while the header
+// and footer stay put; gap-6 spaces the sections. Canonical dialog pattern - see the design
+// skill "Dialogs".
+function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-body"
+      className={cn("flex max-h-[60svh] flex-col gap-6 overflow-y-auto", className)}
+      {...props}
+    />
+  )
+}`
+
+function patchDialog() {
+  const sf = project.addSourceFileAtPath(DIALOG)
+  if (!sf.getFunction("DialogBody")) {
+    const anchor = sf.getFunctionOrThrow("DialogTitle")
+    sf.insertText(anchor.getStart(), `${DIALOG_BODY}\n\n`)
+  }
+  const exportDecl = sf
+    .getExportDeclarations()
+    .find((d) => d.getNamedExports().some((n) => n.getName() === "DialogContent"))
+  if (!exportDecl)
+    throw new Error("shadcn-customize: dialog.tsx named export block not found; shape changed")
+  if (!exportDecl.getNamedExports().some((n) => n.getName() === "DialogBody"))
+    exportDecl.addNamedExport("DialogBody")
+  sf.saveSync()
+  log(`patched: ${DIALOG}`)
+}
+
 // globals.css: two brand overrides init reverts. --font-sans repoints at its own Inter variable;
 // --sidebar gets hardcoded light/dark defaults where we flush it with --background (PR #566). Both
 // are stable, uniquely-anchored lines, so guarded string swaps suffice; no CSS parser warranted.
@@ -180,4 +213,5 @@ patchButton()
 patchCursor()
 patchSpinner()
 patchSidebar()
+patchDialog()
 patchGlobals()

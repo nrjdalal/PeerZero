@@ -101,6 +101,19 @@ function DialogFooter({
   )
 }
 
+// Scrollable body between the header and footer. Long content (Sources' provider list,
+// Settings' sections) scrolls here while the header and footer stay put; gap-6 spaces the
+// sections. Part of the canonical dialog pattern - see the design skill "Dialogs".
+function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-body"
+      className={cn("flex max-h-[60svh] flex-col gap-6 overflow-y-auto", className)}
+      {...props}
+    />
+  )
+}
+
 function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
@@ -126,6 +139,7 @@ function DialogDescription({ className, ...props }: DialogPrimitive.Description.
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,

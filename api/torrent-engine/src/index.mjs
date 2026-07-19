@@ -10,7 +10,7 @@
 // can never take the backend down. See AGENTS.md / docs for the architecture rationale.
 
 import { spawn } from "node:child_process"
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { createServer } from "node:http"
 import { homedir, platform } from "node:os"
 import { dirname, resolve } from "node:path"
@@ -243,9 +243,26 @@ function stopSeeding(t) {
 async function removeTorrent(infoHash, destroyStore) {
   const t = findTorrent(infoHash)
   if (!t) return false
+  // Capture before client.remove destroys the torrent object.
+  const rootName = t.name
+  const base = resolve(t.path || downloadDir)
   await new Promise((res) =>
     client.remove(t.infoHash, { destroyStore: !!destroyStore }, () => res()),
   )
+  // destroyStore deletes the files but leaves the torrent's now-empty folder tree behind, so a
+  // "Delete files" removal still litters the download dir with empty folders. Remove that
+  // top-level folder too, but only when it's a direct child of the download dir (never the dir
+  // itself), so a malformed name can't escalate into deleting anything outside it.
+  if (destroyStore && rootName) {
+    const root = resolve(base, rootName)
+    if (dirname(root) === base && root !== base) {
+      try {
+        rmSync(root, { recursive: true, force: true })
+      } catch {
+        /* best effort - the files themselves are already gone */
+      }
+    }
+  }
   meta.delete(t.infoHash)
   saveState()
   return true
