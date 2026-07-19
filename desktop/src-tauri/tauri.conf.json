@@ -5,7 +5,7 @@
   "identifier": "com.peerzero.desktop",
   "build": {
     "frontendDist": "../../web/next/out",
-    "devUrl": "http://localhost:47821"
+    "devUrl": "http://localhost:9336"
   },
   "app": {
     "windows": [

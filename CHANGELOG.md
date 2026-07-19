@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.4
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.3...v0.0.4)
+
+### 🚀 Enhancements
+
+- **desktop:** Self-contained desktop app + cross-platform release CI (Tauri + Bun) ([#10](https://github.com/nrjdalal/PeerZero/pull/10))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.3
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.2...v0.0.3)

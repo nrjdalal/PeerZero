@@ -8,8 +8,8 @@
 // NEXT_PUBLIC_API_URL at build time) always knows where the API is.
 import { serveStatic } from "./serve-static"
 
-const API_PORT = Number(process.env.PZ_PORT || 47821)
-const ENGINE_PORT = Number(process.env.PZ_ENGINE_PORT || 47822)
+const API_PORT = Number(process.env.PZ_PORT || 9336)
+const ENGINE_PORT = Number(process.env.PZ_ENGINE_PORT || 6339)
 
 // Set every env the Hono + engine modules read, BEFORE importing them (both validate/read
 // process.env at module init). The engine reads TORRENT_ENGINE_PORT directly; Hono reads
@@ -20,7 +20,6 @@ const ENGINE_PORT = Number(process.env.PZ_ENGINE_PORT || 47822)
 // dev checkout) and break CORS for the Tauri webview. These desktop values must always win.
 process.env.NODE_ENV = "production"
 process.env.HONO_PORT = String(API_PORT)
-process.env.HONO_APP_URL = `http://127.0.0.1:${API_PORT}`
 // Same-origin (browser) plus the Tauri webview origins, so CORS passes in both shells.
 process.env.HONO_TRUSTED_ORIGINS = [
   `http://127.0.0.1:${API_PORT}`,

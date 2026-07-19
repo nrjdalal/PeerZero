@@ -36,7 +36,6 @@ if (import.meta.main) {
     const { web, api, engine } = deriveUrls(portlessUrl)
     overrides.NEXT_PUBLIC_APP_URL = web
     overrides.NEXT_PUBLIC_API_URL = api
-    overrides.HONO_APP_URL = api
     overrides.HONO_TRUSTED_ORIGINS = web
     // The Hono API reaches the sidecar through the proxy at its derived engine host; the engine
     // itself registers this host by running under portless (see api/torrent-engine/package.json).

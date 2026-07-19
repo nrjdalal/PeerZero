@@ -30,7 +30,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files - the app is local-first and needs none; override via real env vars if hosting
 .env*
 
 # vercel
@@ -63,9 +63,6 @@ cookies.txt
 web/next/content/blog/meta.json
 web/next/content/console/docs/meta.json
 web/next/content/docs/meta.json
-
-# git overrides
-!.env.example
 
 # desktop: updater signing private key (add to GitHub secrets, never commit)
 desktop/.keys/
