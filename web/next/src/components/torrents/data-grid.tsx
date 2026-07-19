@@ -54,6 +54,12 @@ import {
 import { usePrefs } from "@/lib/prefs-store"
 import { cn } from "@/lib/utils"
 
+// Fades the engine-status indicator in only the first time it's shown in a session. The grid
+// remounts on every Transfers/Search navigation, so a plain mount animation would re-fade on each
+// switch; this flag (survives navigation, resets on a full reload) records that first reveal so
+// the fade never replays.
+let engineStatusRevealed = false
+
 // Sortable column header shared by every grid. Sort direction is read from live table
 // state (via `table`), not column.getIsSorted() - that captures a stale table reference.
 export function SortHeader<T>({
@@ -147,7 +153,8 @@ export function DataGrid<T>({
   columnLabels: Record<string, string>
   getRowId: (row: T) => string
   search: DataGridSearch
-  facet: FacetFilter
+  // Optional: the Status/Source multi-select. Omitted on single-status grids (e.g. Completed).
+  facet?: FacetFilter
   // Namespaces this grid's persisted preferences (sort + visible columns).
   storageKey: string
   // Which input leads the toolbar (leftmost + autofocused). Transfers leads with the
@@ -166,6 +173,8 @@ export function DataGrid<T>({
   // Sort + column visibility persist in the store (surviving reloads); column filters stay
   // transient. initialSorting/initialColumnVisibility must be stable references so state doesn't churn.
   const tablePref = usePrefs((s) => s.tables[storageKey])
+  // Search is gated behind Settings > Advanced; when off, hide the secondary "Search torrents…" box.
+  const enableSearch = usePrefs((s) => s.enableSearch)
   const sorting = tablePref?.sorting ?? initialSorting
   // Merge defaults under the stored value: a default still applies to columns the user
   // hasn't toggled, while their choices win.
@@ -178,6 +187,12 @@ export function DataGrid<T>({
   const setColumnVisibility = (updater: Updater<VisibilityState>) =>
     usePrefs.getState().setColumnVisibility(storageKey, updater, initialColumnVisibility)
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  // Fade the engine-status indicator in only on its first reveal this session (see
+  // engineStatusRevealed). Captured at mount so it's stable across re-renders/StrictMode;
+  // navigation remounts find the flag already set and show the status instantly instead of
+  // re-fading on every page switch.
+  const [animateStatus] = useState(() => !engineStatusRevealed)
+  if (status !== "connecting") engineStatusRevealed = true
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   // Anchor = where a Shift range starts; active = the "cursor" row for arrow-key navigation.
   const [anchorId, setAnchorId] = useState<string | null>(null)
@@ -188,8 +203,8 @@ export function DataGrid<T>({
     if (!selectable) return columns
     const select: ColumnDef<T> = {
       id: "select",
-      size: 40,
-      minSize: 40,
+      size: 48,
+      minSize: 48,
       enableSorting: false,
       enableHiding: false,
       header: ({ table }) => (
@@ -227,7 +242,9 @@ export function DataGrid<T>({
   })
 
   const nameFilter = (table.getColumn("name")?.getFilterValue() as string) ?? ""
-  const facetValue = (table.getColumn(facet.columnId)?.getFilterValue() as string[]) ?? []
+  const facetValue = facet
+    ? ((table.getColumn(facet.columnId)?.getFilterValue() as string[]) ?? [])
+    : []
   const rows = table.getRowModel().rows
   const rowIds = rows.map((r) => r.id)
   const selectedRows = selectable ? table.getSelectedRowModel().rows.map((r) => r.original) : []
@@ -295,7 +312,6 @@ export function DataGrid<T>({
         onChange={(e) => search.onChange(e.target.value)}
         placeholder={search.placeholder ?? "Search torrents…"}
         className="h-8 w-full pl-9 sm:w-64"
-        autoFocus={primaryInput === "search"}
       />
       {search.pending ? (
         <span className="absolute top-1/2 right-3 -translate-y-1/2">
@@ -336,7 +352,6 @@ export function DataGrid<T>({
         onChange={(e) => table.getColumn("name")?.setFilterValue(e.target.value)}
         placeholder="Filter by name…"
         className="h-8 w-full pl-9 sm:w-64"
-        autoFocus={primaryInput === "filter"}
       />
     </div>
   )
@@ -350,7 +365,13 @@ export function DataGrid<T>({
         {/* Render only once the live connection is confirmed, then fade in via CSS (like
             FadeIn) - so it never flashes from "Connecting" to "Engine online" on load. */}
         {status !== "connecting" && (
-          <span className="text-muted-foreground animate-in fade-in-0 flex items-center gap-2 text-sm duration-1000 ease-out">
+          <span
+            className={cn(
+              "text-muted-foreground ml-2 flex items-center gap-2 text-sm",
+              // Fade in on the first reveal only; instant on later navigation mounts (no re-flicker).
+              animateStatus && "animate-in fade-in-0 duration-1000 ease-out",
+            )}
+          >
             <span
               className={cn(
                 "size-2 rounded-full",
@@ -368,44 +389,48 @@ export function DataGrid<T>({
 
         {/* Right: faceted filter + columns + name filter */}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              // Nothing to filter (e.g. Source before results) - disable rather than open
-              // an empty menu.
-              disabled={facet.options.length === 0}
-              render={
-                <Button variant="outline" size="sm" className="h-8">
-                  <RiFilter3Fill className="size-4" />
-                  {facet.label}
-                  {facetValue.length > 0 && <Badge variant="secondary">{facetValue.length}</Badge>}
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="end">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>{facet.label}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {[...facet.options]
-                  .sort((a, b) => a.localeCompare(b))
-                  .map((o) => (
-                    <DropdownMenuCheckboxItem
-                      key={o}
-                      checked={facetValue.includes(o)}
-                      onCheckedChange={(checked) => {
-                        const next = checked
-                          ? [...facetValue, o]
-                          : facetValue.filter((v) => v !== o)
-                        table
-                          .getColumn(facet.columnId)
-                          ?.setFilterValue(next.length ? next : undefined)
-                      }}
-                    >
-                      {o}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {facet && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                // Nothing to filter (e.g. Source before results) - disable rather than open
+                // an empty menu.
+                disabled={facet.options.length === 0}
+                render={
+                  <Button variant="outline" size="sm" className="h-8">
+                    <RiFilter3Fill className="size-4" />
+                    {facet.label}
+                    {facetValue.length > 0 && (
+                      <Badge variant="secondary">{facetValue.length}</Badge>
+                    )}
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>{facet.label}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {[...facet.options]
+                    .sort((a, b) => a.localeCompare(b))
+                    .map((o) => (
+                      <DropdownMenuCheckboxItem
+                        key={o}
+                        checked={facetValue.includes(o)}
+                        onCheckedChange={(checked) => {
+                          const next = checked
+                            ? [...facetValue, o]
+                            : facetValue.filter((v) => v !== o)
+                          table
+                            .getColumn(facet.columnId)
+                            ?.setFilterValue(next.length ? next : undefined)
+                        }}
+                      >
+                        {o}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -436,7 +461,7 @@ export function DataGrid<T>({
           </DropdownMenu>
 
           {/* Secondary input: the one the primary isn't using. */}
-          {primaryInput === "filter" ? searchSlot : filterSlot}
+          {primaryInput === "filter" ? (enableSearch ? searchSlot : null) : filterSlot}
         </div>
       </div>
 
@@ -463,7 +488,7 @@ export function DataGrid<T>({
           <TableHeader className="bg-background sticky top-0 z-10">
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id}>
-                {hg.headers.map((header) => (
+                {hg.headers.map((header, i) => (
                   <TableHead
                     key={header.id}
                     // Name claims all remaining width (width:100% in a fixed layout), so
@@ -471,7 +496,8 @@ export function DataGrid<T>({
                     style={
                       header.column.id === "name" ? { width: "100%" } : { width: header.getSize() }
                     }
-                    className="select-none"
+                    // Extra left inset on the first column so it doesn't hug the table border.
+                    className={cn("select-none", i === 0 && "pl-4")}
                   >
                     {header.isPlaceholder
                       ? null
@@ -521,7 +547,7 @@ export function DataGrid<T>({
                       : undefined
                   }
                 >
-                  {row.getVisibleCells().map((cell) => {
+                  {row.getVisibleCells().map((cell, i) => {
                     const align = (cell.column.columnDef.meta as { align?: string } | undefined)
                       ?.align
                     return (
@@ -529,6 +555,8 @@ export function DataGrid<T>({
                         key={cell.id}
                         className={cn(
                           "truncate",
+                          // Match the header's first-column inset.
+                          i === 0 && "pl-4",
                           align === "center" && "text-center",
                           (align === "right" || cell.column.id === "actions") && "text-right",
                         )}

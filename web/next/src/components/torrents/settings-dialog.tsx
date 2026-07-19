@@ -2,12 +2,19 @@
 
 import { RiFolderOpenFill, RiSettings3Fill } from "@remixicon/react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { toast } from "sonner"
 
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -15,18 +22,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
+import { Switch } from "@/components/ui/switch"
 import { apiClient, unwrap } from "@/lib/api/client"
+import { usePrefs } from "@/lib/prefs-store"
 
-// Download-location settings. The folder is changed only through the native OS picker
-// (Browse) - there is no free-text path to type or save. Applies to new torrents only;
-// existing torrents keep whatever folder they were added with.
+// App settings. Follows the canonical dialog pattern (Header > Body > Footer; see the design
+// skill). The download folder is changed only through the native OS picker (Browse) - no
+// free-text path. Advanced holds off-by-default toggles like Enable Search.
 export function SettingsDialog() {
   const [open, setOpen] = useState(false)
-  const [dir, setDir] = useState("")
   const queryClient = useQueryClient()
+  const enableSearch = usePrefs((s) => s.enableSearch)
+  const setEnableSearch = usePrefs((s) => s.setEnableSearch)
 
   const { data, isLoading } = useQuery({
     queryKey: ["torrent-settings"],
@@ -38,11 +48,6 @@ export function SettingsDialog() {
     },
   })
 
-  // Show the current folder once it loads (and after Browse updates it).
-  useEffect(() => {
-    if (data?.downloadDir) setDir(data.downloadDir)
-  }, [data?.downloadDir])
-
   const openFolder = useMutation({
     mutationFn: async () => {
       const { error } = await unwrap(apiClient.torrents.open.$post())
@@ -51,7 +56,8 @@ export function SettingsDialog() {
     onError: (e) => toast.error(e.message),
   })
 
-  // Native OS folder picker - the only way to change the download folder.
+  // Native OS folder picker - the only way to change the download folder. On success the
+  // settings query refetches so the field shows the new path.
   const browse = useMutation({
     mutationFn: async () => {
       const { data, error } = await unwrap(apiClient.torrents["choose-dir"].$post())
@@ -59,7 +65,6 @@ export function SettingsDialog() {
       return data
     },
     onSuccess: (data) => {
-      setDir(data.downloadDir)
       if (data.chosen) {
         queryClient.invalidateQueries({ queryKey: ["torrent-settings"] })
         toast.success("Download folder updated")
@@ -89,24 +94,50 @@ export function SettingsDialog() {
             Where new downloads are saved. Existing torrents keep their current folder.
           </DialogDescription>
         </DialogHeader>
-        {isLoading ? (
-          <div className="flex justify-center py-6">
-            <Spinner />
-          </div>
-        ) : (
-          <Field>
-            <FieldLabel htmlFor="download-dir">Download folder</FieldLabel>
-            <div className="flex gap-2">
-              <Input id="download-dir" value={dir} readOnly />
-              <Button variant="outline" onClick={() => browse.mutate()} disabled={browse.isPending}>
-                {browse.isPending ? <Spinner /> : "Browse…"}
-              </Button>
+        <DialogBody>
+          {isLoading ? (
+            <div className="flex justify-center py-6">
+              <Spinner />
             </div>
-            <FieldDescription>
-              Choose a folder with Browse. Applies to new torrents only.
-            </FieldDescription>
-          </Field>
-        )}
+          ) : (
+            <Field>
+              <FieldLabel htmlFor="download-dir">Download folder</FieldLabel>
+              <div className="flex gap-2">
+                <Input id="download-dir" value={data?.downloadDir ?? ""} readOnly />
+                <Button
+                  variant="outline"
+                  onClick={() => browse.mutate()}
+                  disabled={browse.isPending}
+                >
+                  {browse.isPending ? <Spinner /> : "Browse…"}
+                </Button>
+              </div>
+              <FieldDescription>
+                Choose a folder with Browse. Applies to new torrents only.
+              </FieldDescription>
+            </Field>
+          )}
+          <Accordion>
+            <AccordionItem value="advanced">
+              <AccordionTrigger>Advanced</AccordionTrigger>
+              <AccordionContent>
+                <Field orientation="horizontal">
+                  <FieldContent>
+                    <FieldLabel htmlFor="enable-search">Enable Search</FieldLabel>
+                    <FieldDescription>
+                      Show the torrent Search page and its navbar shortcut. Off by default.
+                    </FieldDescription>
+                  </FieldContent>
+                  <Switch
+                    id="enable-search"
+                    checked={enableSearch}
+                    onCheckedChange={setEnableSearch}
+                  />
+                </Field>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </DialogBody>
         <DialogFooter>
           <Button
             variant="outline"

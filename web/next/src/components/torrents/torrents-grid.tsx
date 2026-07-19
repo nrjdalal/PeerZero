@@ -43,6 +43,15 @@ type Torrent = TorrentSnapshot
 const DEFAULT_SORTING: SortingState = [{ id: "addedAt", desc: true }]
 // Up (upload speed) is off by default since we don't seed; enable it via Columns.
 const DEFAULT_COLUMN_VISIBILITY: VisibilityState = { uploadSpeed: false }
+// Completed torrents are done and stopped, so the live-transfer columns are always blank -
+// hide them by default (still re-enableable via Columns).
+const COMPLETED_COLUMN_VISIBILITY: VisibilityState = {
+  uploadSpeed: false,
+  downloadSpeed: false,
+  eta: false,
+  numPeers: false,
+  seeders: false,
+}
 
 const STATUSES = ["Downloading", "Completed", "Paused", "Fetching"] as const
 type Status = (typeof STATUSES)[number]
@@ -510,10 +519,15 @@ const columns: ColumnDef<Torrent>[] = [
   },
 ]
 
-export function TorrentsGrid() {
+// Both the Transfers tab (all torrents) and the Completed tab (finished only) render this grid;
+// `completed` filters the data, drops the redundant Status facet, and hides the live-transfer
+// columns while keeping its own persisted sort/columns.
+export function TorrentsGrid({ completed = false }: { completed?: boolean } = {}) {
   const { torrents, loaded } = useTorrents()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
+
+  const data = completed ? torrents.filter((t) => t.done) : torrents
 
   // Show a loader until the first snapshot actually arrives - not just until the socket
   // connects - so we never flash "No torrents yet" before the list has loaded.
@@ -528,10 +542,22 @@ export function TorrentsGrid() {
           <RiInboxFill />
         </EmptyMedia>
         <EmptyTitle>
-          {torrents.length === 0 ? "No torrents yet" : "Nothing matches your filters"}
+          {completed
+            ? data.length === 0
+              ? "No completed downloads yet"
+              : "Nothing matches your filters"
+            : torrents.length === 0
+              ? "No torrents yet"
+              : "Nothing matches your filters"}
         </EmptyTitle>
         <EmptyDescription>
-          Head to the <Link href="/search">Search</Link> tab to find torrents.
+          {completed ? (
+            "Finished downloads show up here."
+          ) : (
+            <>
+              Head to the <Link href="/search">Search</Link> tab to find torrents.
+            </>
+          )}
         </EmptyDescription>
       </EmptyHeader>
     </Empty>
@@ -539,17 +565,17 @@ export function TorrentsGrid() {
 
   return (
     <DataGrid
-      data={torrents}
+      data={data}
       columns={columns}
       columnLabels={COLUMN_LABELS}
       getRowId={(t) => t.infoHash}
       selectable
       bulkActions={(selected, clear) => <BulkActions torrents={selected} onDone={clear} />}
-      storageKey="transfers"
+      storageKey={completed ? "completed" : "transfers"}
       primaryInput="filter"
       tableClassName="min-w-256"
       initialSorting={DEFAULT_SORTING}
-      initialColumnVisibility={DEFAULT_COLUMN_VISIBILITY}
+      initialColumnVisibility={completed ? COMPLETED_COLUMN_VISIBILITY : DEFAULT_COLUMN_VISIBILITY}
       search={{
         value: searchQuery,
         onChange: setSearchQuery,
@@ -558,7 +584,7 @@ export function TorrentsGrid() {
           router.push(q ? `/search?q=${encodeURIComponent(q)}` : "/search")
         },
       }}
-      facet={{ columnId: "progress", label: "Status", options: STATUSES }}
+      facet={completed ? undefined : { columnId: "progress", label: "Status", options: STATUSES }}
       empty={empty}
     />
   )
