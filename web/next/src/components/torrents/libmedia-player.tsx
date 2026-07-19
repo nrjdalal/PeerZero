@@ -369,14 +369,14 @@ export function LibmediaPlayer({
                 className="nf-scrubber flex-1"
                 style={{ "--played": played } as React.CSSProperties}
               />
-              <span className="w-16 shrink-0 text-right text-sm text-white/80 tabular-nums">
+              <span className="w-20 shrink-0 text-right text-lg text-white/90 tabular-nums">
                 {fmtTime(dur - cur)}
               </span>
             </div>
 
             {/* Button row: left cluster / centered title / right cluster */}
             <div className="relative flex items-center justify-between">
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-8">
                 <button
                   type="button"
                   onClick={togglePlay}
@@ -431,11 +431,11 @@ export function LibmediaPlayer({
                 </div>
               </div>
 
-              <div className="pointer-events-none absolute left-1/2 max-w-[40%] -translate-x-1/2 truncate text-center text-sm font-medium text-white/90">
+              <div className="pointer-events-none absolute left-1/2 max-w-[40%] -translate-x-1/2 truncate text-center text-xl font-semibold text-white">
                 {name}
               </div>
 
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-8">
                 {subs.length > 0 && (
                   <div className="relative">
                     <button

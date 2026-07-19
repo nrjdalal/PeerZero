@@ -20,7 +20,7 @@
   cursor: pointer;
 }
 .nf-scrubber::-webkit-slider-runnable-track {
-  height: 4px;
+  height: 6px;
   border-radius: 2px;
   background: linear-gradient(
     to right,
@@ -33,25 +33,25 @@
 .nf-scrubber::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 13px;
-  height: 13px;
-  margin-top: -4.5px;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
   border-radius: 50%;
   background: #e50914;
 }
 .nf-scrubber::-moz-range-track {
-  height: 4px;
+  height: 6px;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.3);
 }
 .nf-scrubber::-moz-range-progress {
-  height: 4px;
+  height: 6px;
   border-radius: 2px;
   background: #e50914;
 }
 .nf-scrubber::-moz-range-thumb {
-  width: 13px;
-  height: 13px;
+  width: 16px;
+  height: 16px;
   border: 0;
   border-radius: 50%;
   background: #e50914;
