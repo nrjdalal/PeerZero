@@ -13,14 +13,29 @@ const appDevHost = (() => {
   }
 })()
 
+// The desktop build (Tauri) sets NEXT_OUTPUT=export to emit a static SPA it serves from the
+// webview. Everything else - `bun run dev/build/start`, Docker, hosted - keeps the standalone
+// SSR server and the /api proxy exactly as before, so desktop packaging stays isolated from
+// the web deploy.
+const staticExport = process.env.NEXT_OUTPUT === "export"
+
 const nextConfig: NextConfig = {
-  // Static SPA export: no Next server at runtime. The desktop shell (Tauri) serves these
-  // files and the UI calls the local Hono API directly over http + ws at NEXT_PUBLIC_API_URL.
-  // A static export cannot use rewrites, so the client always targets the absolute API URL.
-  output: "export",
-  images: { unoptimized: true },
+  output: staticExport ? "export" : "standalone",
+  ...(staticExport && { images: { unoptimized: true } }),
   ...(appDevHost && { allowedDevOrigins: [appDevHost, `*.${appDevHost}`] }),
   reactCompiler: true,
+  // Proxy the browser's same-origin /api/* calls to the local Hono server. A static export
+  // has no server, so it is omitted there and the client calls the absolute NEXT_PUBLIC_API_URL.
+  ...(!staticExport && {
+    rewrites: async () => {
+      return [
+        {
+          source: "/api/:path*",
+          destination: `${env.INTERNAL_API_URL || env.NEXT_PUBLIC_API_URL}/api/:path*`,
+        },
+      ]
+    },
+  }),
 }
 
 export default nextConfig

@@ -35,7 +35,6 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Spinner } from "@/components/ui/spinner"
 import { apiClient, unwrap } from "@/lib/api/client"
 import { formatAge, formatBytes, formatEta, formatPercent, formatSpeed } from "@/lib/format"
-import { usePrefs } from "@/lib/prefs-store"
 import { cn } from "@/lib/utils"
 
 type Torrent = TorrentSnapshot
@@ -581,10 +580,8 @@ export function TorrentsGrid({ completed = false }: { completed?: boolean } = {}
         value: searchQuery,
         onChange: setSearchQuery,
         onSubmit: () => {
-          // Seed the shared search store, then navigate. Keeping the query in the store
-          // (not the URL) lets /search stay a static export with no server searchParams.
-          usePrefs.getState().setSearch(searchQuery.trim())
-          router.push("/search")
+          const q = searchQuery.trim()
+          router.push(q ? `/search?q=${encodeURIComponent(q)}` : "/search")
         },
       }}
       facet={completed ? undefined : { columnId: "progress", label: "Status", options: STATUSES }}

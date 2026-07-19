@@ -30,6 +30,10 @@ process.env.HONO_TRUSTED_ORIGINS = [
 ].join(",")
 process.env.TORRENT_ENGINE_PORT = String(ENGINE_PORT)
 process.env.TORRENT_ENGINE_URL = `http://127.0.0.1:${ENGINE_PORT}`
+// The engine (and Hono) read PORT/HOST first - portless injects them in dev. Clear any
+// inherited values so the desktop sidecar always binds our fixed loopback ports.
+delete process.env.PORT
+delete process.env.HOST
 
 // Start the engine (side effect: listens on ENGINE_PORT). Import after the env is set.
 await import("../../api/torrent-engine/src/index.mjs")

@@ -80,6 +80,8 @@ jobs:
         shell: bash
         env:
           NODE_ENV: production
+          # Emit the static SPA (only the desktop build does this; the web deploy stays standalone).
+          NEXT_OUTPUT: export
           # The static UI bakes this and calls the sidecar's local Hono API at runtime.
           NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:47821

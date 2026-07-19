@@ -22,8 +22,9 @@ From the repo root:
 
 ```bash
 # 1. backend bundle + static UI (bake the local API url) + native sidecar
+# NEXT_OUTPUT=export makes the web build a static SPA; without it the web app stays standalone.
 NODE_ENV=production bunx turbo run build --filter=@api/hono
-NEXT_PUBLIC_API_URL=http://127.0.0.1:47821 NEXT_PUBLIC_APP_URL=http://127.0.0.1:47821 \
+NEXT_OUTPUT=export NEXT_PUBLIC_API_URL=http://127.0.0.1:47821 NEXT_PUBLIC_APP_URL=http://127.0.0.1:47821 \
   bunx turbo run build --filter=@web/next
 bun desktop/backend/build.ts desktop/src-tauri/binaries/peerzero-backend-$(rustc -Vv | sed -n 's/host: //p')
 

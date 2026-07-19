@@ -1,11 +1,16 @@
 import type { Metadata } from "next"
+import { Suspense } from "react"
 
 import { SearchView } from "@/components/torrents/search-view"
 
 export const metadata: Metadata = { title: "Search" }
 
-// The Transfers search box seeds the shared search store before navigating here, so this
-// page needs no server-side searchParams and stays part of the static export.
+// SearchView reads the ?q= deep link via useSearchParams, so it sits under a Suspense
+// boundary (required for that hook in the static export build).
 export default function Page() {
-  return <SearchView />
+  return (
+    <Suspense>
+      <SearchView />
+    </Suspense>
+  )
 }

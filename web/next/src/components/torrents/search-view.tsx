@@ -5,6 +5,7 @@ import { RiCheckFill, RiDownloadFill, RiSearchFill } from "@remixicon/react"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ColumnDef, SortingState, VisibilityState } from "@tanstack/react-table"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
@@ -164,6 +165,13 @@ export function SearchView() {
   const setQuery = usePrefs((s) => s.setSearch)
   const [debounced, setDebounced] = useState(query.trim())
   const isMagnet = query.trim().toLowerCase().startsWith("magnet:")
+
+  // Seed the persisted query from a ?q= deep link (the Transfers box navigates here).
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    const q = searchParams.get("q")
+    if (q) setQuery(q)
+  }, [searchParams, setQuery])
 
   // Debounce real input, but clear instantly when the box is emptied/too short so stale
   // results and the spinner don't linger.
