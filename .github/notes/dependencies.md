@@ -15,7 +15,7 @@ Advisories that cannot be lifted by any dependency update and are suppressed wit
 - **Advisory:** [GHSA-2p57-rm9w-gvfp](https://github.com/advisories/GHSA-2p57-rm9w-gvfp) - ip SSRF
   improper categorization in `isPublic` (high, CVSS 8.1, CWE-918). Affects `ip <= 2.0.1`, i.e. every
   published version.
-- **Path:** `@api/torrent-engine > webtorrent@3.0.16 > torrent-discovery > bittorrent-tracker@11.2.3 > ip@2.0.1`.
+- **Path:** `@api/hono > webtorrent@3.0.16 > torrent-discovery > bittorrent-tracker@11.2.3 > ip@2.0.1`.
 - **Why an update/parent bump can't lift it:** `ip@2.0.1` is the latest release and has no patched
   version. `bittorrent-tracker@11.2.3` is the latest release and still requires `ip@^2.0.1`. No newer
   version of `bittorrent-tracker`, `torrent-discovery`, or `webtorrent` drops `ip`, and `ip` has no

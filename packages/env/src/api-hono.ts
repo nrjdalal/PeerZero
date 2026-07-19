@@ -18,8 +18,6 @@ export const env = createEnv({
       .default("http://localhost:9410")
       .transform((s) => s.split(",").map((v) => v.trim().replace(/\/$/, "")))
       .pipe(z.array(z.url())),
-    // Base URL of the local WebTorrent engine sidecar (api/torrent-engine).
-    TORRENT_ENGINE_URL: z.url().default("http://127.0.0.1:6339"),
     // Encoded registry the app refreshes from at runtime. The bundled registry.json is
     // the instant answer; this is fetched in the background on a TTL so a running app
     // picks up new trackers/directory/providers without a git pull. Set to any non-URL
@@ -36,7 +34,6 @@ export const env = createEnv({
     HONO_RATE_LIMIT: process.env.HONO_RATE_LIMIT,
     HONO_RATE_LIMIT_WINDOW_MS: process.env.HONO_RATE_LIMIT_WINDOW_MS,
     HONO_TRUSTED_ORIGINS: process.env.HONO_TRUSTED_ORIGINS,
-    TORRENT_ENGINE_URL: process.env.TORRENT_ENGINE_URL,
     REGISTRY_SYNC_URL: process.env.REGISTRY_SYNC_URL,
   },
   emptyStringAsUndefined: true,

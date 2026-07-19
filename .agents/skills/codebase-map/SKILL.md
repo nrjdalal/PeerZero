@@ -10,8 +10,7 @@ One Bun + Turborepo monorepo: two deployable apps over shared packages. Imports 
 ```
 .generated/       # repo-root home for build-time generated assets (gitignored)
 .downloads/       # legacy download dir (gitignored); default is now ~/Downloads/PeerZero (TORRENT_DOWNLOAD_DIR)
-api/hono/         # backend (Hono): routers, middlewares, the AppType export
-api/torrent-engine/ # Bun sidecar: WebTorrent download engine behind a local HTTP API (WebRTC/uTP native addons disabled so it runs under Bun; see src/webrtc-stub.mjs)
+api/hono/         # backend (Hono): routers, middlewares, the AppType export, and the in-process WebTorrent engine (src/lib/torrent; WebRTC/uTP native addons disabled so webtorrent runs under Bun; see webrtc-stub.mjs)
 web/next/         # frontend (Next.js App Router): app/, components/, lib/, content/
 packages/auth/    # Better Auth instance
 packages/db/      # Drizzle schema + client
@@ -30,7 +29,7 @@ Read `AGENTS.md` first for the rules; `curl "$(bunx portless get peerzero)/llms-
 | Add/change an API route | `api/hono/src/routers/<name>.ts` → export from `routers/index.ts` → mount in `src/index.ts` `.route()` chain | `api-endpoint` skill |
 | Add/change a torrent search source | `api/hono/src/lib/torrent/defs.ts` (data-driven `DEFS` catalog: JSON/RSS/HTML config - add an index here) · `sources.ts` (bespoke providers + aggregator) · `shared.ts` (types/parsers) · `health.ts` (liveness canary) · `fmhy.ts` + `trackers.ts` (read the committed snapshot for domains + trackers) | - |
 | Change how the source snapshot is generated | `.github/scripts/update-torrent-sources.ts` (generator) + `parse.ts` (pure FMHY/tracker parsers) + `.github/workflows/auto-update-torrent-sources.yml` (6-hourly cron). Output: committed `api/hono/src/lib/torrent/generated/sources.generated.json` (read at runtime, never fetched) | - |
-| Change the download engine | `api/torrent-engine/src/index.mjs` (WebTorrent, Bun; WebRTC/uTP disabled via `src/webrtc-stub.mjs` + `bunfig.toml`) + `api/hono/src/lib/torrent/engine.ts` (the client seam) | - |
+| Change the download engine | `api/hono/src/lib/torrent/webtorrent.mjs` (the in-process WebTorrent engine; WebRTC/uTP disabled via `webrtc-stub.mjs` + `bunfig.toml`) + `api/hono/src/lib/torrent/engine.ts` (the typed seam the Hono routers call) | - |
 | Change the Transfers / Search UI | `web/next/src/components/torrents/torrents-grid.tsx` (Transfers) + `search-view.tsx` (Search) - both TanStack Table grids sharing `torrents-context.tsx` | - |
 | Change the database schema | `packages/db/src/schema/<name>.ts` → export from `schema/index.ts` | `db-migration` skill |
 | Add/change a page | `web/next/src/app/`, route groups: `(marketing)` public, `(protected)` dashboard, `(console)` admin, `(content)` docs+blog | - |

@@ -90,23 +90,21 @@ rarely need to - the app keeps its trackers and indexes fresh on its own in the 
 
 ## How it works
 
-Three processes start together with `bun run dev`:
+Two processes start together with `bun run dev`:
 
-| Service              | Runtime | Role                                                     |
-| -------------------- | ------- | -------------------------------------------------------- |
-| `web/next`           | Bun     | Next.js UI                                               |
-| `api/hono`           | Bun     | API layer + proxy to the download engine                 |
-| `api/torrent-engine` | Bun     | WebTorrent download engine behind a small local HTTP API |
+| Service    | Runtime | Role                                                  |
+| ---------- | ------- | ----------------------------------------------------- |
+| `web/next` | Bun     | Next.js UI                                            |
+| `api/hono` | Bun     | API layer + the in-process WebTorrent download engine |
 
-The engine runs under Bun like the rest of the stack. WebTorrent's two Bun-incompatible
-native addons are kept out of the process: WebRTC (`node-datachannel`) is neutralized by a
-preload stub (`api/torrent-engine/src/webrtc-stub.mjs`, wired via `bunfig.toml`) and uTP
-(`utp-native`) is disabled with `{ utp: false }`; both otherwise crash Bun on an unsupported
-libuv function. Peers are found via the DHT plus udp/http trackers over TCP. It stays a
-separate process so a crashing torrent can't take the backend down. The Bun API talks to it
-over plain HTTP (in dev through portless at `engine.<name>.localhost`, otherwise `127.0.0.1:6339`),
-so the engine could later be swapped for another client behind the same seam
-(`api/hono/src/lib/torrent/engine.ts`).
+The WebTorrent engine runs in-process inside the Hono API (a Bun process), so a torrent
+operation is a direct function call, not an HTTP hop. WebTorrent's two Bun-incompatible native
+addons are kept out of the process: WebRTC (`node-datachannel`) is neutralized by a stub plugin
+(`api/hono/src/lib/torrent/webrtc-stub.mjs`, preloaded via `bunfig.toml` in dev/test and applied
+at bundle time for the build) and uTP (`utp-native`) is disabled with `{ utp: false }`; both
+otherwise crash Bun on an unsupported libuv function. Peers are found via the DHT plus udp/http
+trackers over TCP. The engine sits behind a small typed seam
+(`api/hono/src/lib/torrent/engine.ts`), so it could later be swapped for another client.
 
 Dev URLs are named `.localhost` hosts served by [portless](https://www.npmjs.com/package/portless)
 (`bunx portless list` shows them). `PORTLESS=0 bun run dev` uses plain ports instead

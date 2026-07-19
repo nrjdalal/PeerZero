@@ -38,6 +38,7 @@
         "hono": "catalog:",
         "hono-openapi": "catalog:",
         "hono-rate-limiter": "catalog:",
+        "webtorrent": "catalog:",
         "ws": "catalog:",
         "zod": "catalog:",
       },
@@ -49,16 +50,6 @@
         "portless": "catalog:",
         "tsdown": "catalog:",
         "typescript": "catalog:",
-      },
-    },
-    "api/torrent-engine": {
-      "name": "@api/torrent-engine",
-      "version": "0.0.0",
-      "dependencies": {
-        "webtorrent": "catalog:",
-      },
-      "devDependencies": {
-        "portless": "catalog:",
       },
     },
     "packages/config": {
@@ -219,8 +210,6 @@
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
 
     "@api/hono": ["@api/hono@workspace:api/hono"],
-
-    "@api/torrent-engine": ["@api/torrent-engine@workspace:api/torrent-engine"],
 
     "@arcjet/ip": ["@arcjet/ip@1.8.0", "", {}, "sha512-ghEK+dz4GcRkjpewMH153wRXP73pS+U2OxVlQnzfOua3knkqc76aeD39PNxqdxd9fDXKj/vFMYtQE+kuTt2TkA=="],
 

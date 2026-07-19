@@ -1,24 +1,27 @@
-// End-to-end test for the app's backend: the real Hono API driving the real torrent-engine
-// sidecar (api/torrent-engine) over its local HTTP seam - the same path the Next UI takes.
+// End-to-end test for the app's backend: the real Hono API driving the in-process WebTorrent
+// engine (src/lib/torrent/webtorrent.mjs) - the same path the Next UI takes, now with no separate
+// sidecar and no HTTP hop.
 //
-// It boots the actual engine subprocess (Bun + WebTorrent, WebRTC/uTP disabled) against an
-// isolated state + download dir, then exercises health, the registry-backed sources list, and
-// the full add -> list -> pause -> resume -> delete torrent lifecycle. Nothing here waits on
-// the BitTorrent swarm: a magnet's infohash is parsed offline and every lifecycle action
-// round-trips through the engine without needing peers, so the test is deterministic.
+// The WebRTC stub is preloaded via api/hono/bunfig.toml's [test].preload, so node-datachannel is
+// never imported (its native binary is absent under CI's `bun install --ignore-scripts`; uTP
+// degrades on its own via webtorrent's utp.cjs try/catch). Nothing here waits on the BitTorrent
+// swarm: a magnet's infohash is parsed offline and every lifecycle action round-trips through the
+// in-process engine without needing peers, so the test is deterministic.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-// Env must be set before the app (and its validated env module) is imported below.
-const ENGINE_PORT = 6399 // fixed test port, distinct from dev's default
-const ENGINE_URL = `http://127.0.0.1:${ENGINE_PORT}`
+// The engine boots at import and reads HOME (for ~/.peerzero state) + TORRENT_DOWNLOAD_DIR at
+// module init, so isolate them here at module top - before any import can pull in webtorrent.mjs.
+const home = mkdtempSync(join(tmpdir(), "pz-e2e-home-"))
+const downloadDir = mkdtempSync(join(tmpdir(), "pz-e2e-dl-"))
 process.env.SKIP_ENV_VALIDATION = "true" // dummy-fill server vars the app doesn't need here
 process.env.NODE_ENV = "test"
-process.env.TORRENT_ENGINE_URL = ENGINE_URL
 process.env.REGISTRY_SYNC_URL = "off" // no background registry fetch during the test
+process.env.HOME = home
+process.env.TORRENT_DOWNLOAD_DIR = downloadDir
 
 // Sintel (Blender open movie) - a real, legal, well-known magnet. We only use its infohash,
 // which parse-torrent derives offline; we never wait for its swarm.
@@ -26,66 +29,28 @@ const MAGNET =
   "magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df6748d566095a10&dn=Sintel&tr=udp%3A%2F%2Fexplodie.org%3A6969"
 const INFOHASH = "08ada5a7a6183aae1e09d831df6748d566095a10"
 
-const ENGINE_DIR = join(import.meta.dir, "../../torrent-engine")
-
-let engine: ReturnType<typeof Bun.spawn> | undefined
-let home = ""
-let downloadDir = ""
 // server.fetch is the same handler Bun serves in production (default export of src/index.ts).
 let call: (path: string, init?: RequestInit) => Promise<Response>
 
-async function waitUntil(fn: () => Promise<boolean>, timeoutMs: number, label: string) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (await fn().catch(() => false)) return
-    await Bun.sleep(250)
-  }
-  throw new Error(`timed out after ${timeoutMs}ms waiting for ${label}`)
-}
-
 beforeAll(async () => {
-  home = mkdtempSync(join(tmpdir(), "pz-e2e-home-"))
-  downloadDir = mkdtempSync(join(tmpdir(), "pz-e2e-dl-"))
-
-  // Spawn the real engine under Bun. Preload the WebRTC stub explicitly (rather than relying on
-  // bunfig.toml discovery, which doesn't apply to this spawned process) so node-datachannel is
-  // never imported - it has no try/catch and its native binary is absent under CI's
-  // `bun install --ignore-scripts`. uTP degrades on its own (webtorrent's utp.cjs try/catch).
-  // HOME is isolated so the engine's ~/.peerzero state never touches the developer's.
-  engine = Bun.spawn(["bun", "--preload", "./src/webrtc-stub.mjs", "src/index.mjs"], {
-    cwd: ENGINE_DIR,
-    env: {
-      ...process.env,
-      TORRENT_ENGINE_PORT: String(ENGINE_PORT),
-      TORRENT_DOWNLOAD_DIR: downloadDir,
-      HOME: home,
-    },
-    stdout: "ignore",
-    stderr: "inherit", // surface a boot failure (e.g. a missing dep) in the test log
-  })
-
-  await waitUntil(
-    async () => (await fetch(`${ENGINE_URL}/health`)).ok,
-    45_000,
-    "torrent-engine to become healthy",
-  )
-
-  // Import the app only after env + engine are ready. Outside Vercel, createServer() returns the
-  // Bun serve shape ({ fetch, ... }) - the same handler Bun serves in production.
+  // Importing the app boots the in-process engine (webtorrent client + state restore) against the
+  // isolated HOME set above. Outside Vercel, createServer() returns the Bun serve shape { fetch }.
   const server = (await import("@/index")).default as {
     fetch: (req: Request) => Response | Promise<Response>
   }
   call = (path, init) => Promise.resolve(server.fetch(new Request(`http://local${path}`, init)))
 }, 60_000) // cold WebTorrent import on a CI runner can take well past bun's 5s default hook timeout
 
-afterAll(() => {
-  engine?.kill()
-  for (const dir of [home, downloadDir]) {
-    if (dir) rmSync(dir, { recursive: true, force: true })
-  }
-})
+afterAll(async () => {
+  // Best-effort shutdown: destroy the WebTorrent client (stops the DHT/trackers/timers), but don't
+  // let a slow shutdown fail the suite - in CI the DHT can be slow to close, and bun test exits the
+  // process right after this hook regardless.
+  const wt = await import("@/lib/torrent/webtorrent.mjs")
+  await Promise.race([wt.destroyClient?.().catch(() => {}), Bun.sleep(3000)])
+  for (const dir of [home, downloadDir]) if (dir) rmSync(dir, { recursive: true, force: true })
+}, 15_000)
 
-describe("app e2e: Hono API -> torrent-engine", () => {
+describe("app e2e: Hono API -> in-process engine", () => {
   test("GET /api/health reports ok", async () => {
     const res = await call("/api/health")
     expect(res.status).toBe(200)
