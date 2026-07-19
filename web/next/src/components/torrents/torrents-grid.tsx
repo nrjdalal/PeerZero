@@ -62,7 +62,7 @@ type Status = (typeof STATUSES)[number]
 // the one documented exception to semantic-tokens-only (see the design skill); Paused stays
 // neutral on the muted token.
 // border-current makes each badge's border match its text color (see the design skill).
-const STATUS_BADGE: Record<Status, string> = {
+export const STATUS_BADGE: Record<Status, string> = {
   Downloading: "border-current bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
   Completed: "border-current bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300",
   Paused: "border-current bg-muted text-muted-foreground",
@@ -374,7 +374,7 @@ const columns: ColumnDef<Torrent>[] = [
     enableResizing: false,
     header: ({ column, table }) => <SortHeader column={column} table={table} label="Name" />,
     cell: ({ row }) => (
-      <span className="truncate font-medium" title={row.original.name}>
+      <span className="truncate text-sm font-medium" title={row.original.name}>
         {row.original.name}
       </span>
     ),
@@ -578,11 +578,12 @@ export function TorrentsGrid({ completed = false }: { completed?: boolean } = {}
       getRowId={(t) => t.infoHash}
       selectable
       getRowCanExpand={(t) => t.files.length > 0}
-      renderSubRow={(t, nav) => (
+      renderSubRow={(t, nav, columns) => (
         <TorrentFileTree
           files={t.files}
           rootName={t.name}
           infoHash={t.infoHash}
+          columns={columns}
           onExitUp={nav.onExitUp}
           onExitDown={nav.onExitDown}
         />
