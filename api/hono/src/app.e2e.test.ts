@@ -42,11 +42,13 @@ beforeAll(async () => {
 }, 60_000) // cold WebTorrent import on a CI runner can take well past bun's 5s default hook timeout
 
 afterAll(async () => {
-  // Destroy the WebTorrent client (stops the DHT/trackers/timers) so the test process exits cleanly.
+  // Best-effort shutdown: destroy the WebTorrent client (stops the DHT/trackers/timers), but don't
+  // let a slow shutdown fail the suite - in CI the DHT can be slow to close, and bun test exits the
+  // process right after this hook regardless.
   const wt = await import("@/lib/torrent/webtorrent.mjs")
-  await wt.destroyClient?.()
+  await Promise.race([wt.destroyClient?.().catch(() => {}), Bun.sleep(3000)])
   for (const dir of [home, downloadDir]) if (dir) rmSync(dir, { recursive: true, force: true })
-})
+}, 15_000)
 
 describe("app e2e: Hono API -> in-process engine", () => {
   test("GET /api/health reports ok", async () => {
