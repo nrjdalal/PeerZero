@@ -12,6 +12,7 @@
   "dependencies": {
     "@api/hono": "workspace:*",
     "@base-ui/react": "catalog:",
+    "@libmedia/avplayer-ui": "catalog:",
     "@packages/config": "workspace:*",
     "@packages/env": "workspace:*",
     "@remixicon/react": "catalog:",
