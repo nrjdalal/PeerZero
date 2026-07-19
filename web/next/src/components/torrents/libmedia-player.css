@@ -1,0 +1,66 @@
+/* We use @libmedia/avplayer-ui purely as the decode engine and render our own Netflix-style controls
+   (see libmedia-player.tsx), so hide ALL of its built-in chrome. Only the video surface
+   (.avplayer-ui-player) is kept; our overlay draws everything else. !important beats the library's
+   own injected styles; selectors are stable for the pinned/vendored 1.3.1. */
+.avplayer-ui-folder-container,
+.avplayer-ui-header,
+.avplayer-ui-footer,
+.avplayer-ui-mask,
+.avplayer-ui-loading-tip {
+  display: none !important;
+}
+
+/* Netflix-style scrubber: red (#E50914) played fill, translucent unplayed track, red knob. Chrome/
+   Safari need the ::-webkit pseudos with a JS-driven --played gradient; Firefox has ::-moz-range-progress. */
+.nf-scrubber {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+.nf-scrubber::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    #e50914 0%,
+    #e50914 var(--played, 0%),
+    rgba(255, 255, 255, 0.3) var(--played, 0%),
+    rgba(255, 255, 255, 0.3) 100%
+  );
+}
+.nf-scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #e50914;
+}
+.nf-scrubber::-moz-range-track {
+  height: 6px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+}
+.nf-scrubber::-moz-range-progress {
+  height: 6px;
+  border-radius: 2px;
+  background: #e50914;
+}
+.nf-scrubber::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: #e50914;
+}
+
+/* Volume slider: white fill, thinner. accent-color paints the played portion + thumb in one line. */
+.nf-volume {
+  -webkit-appearance: auto;
+  height: 14px;
+  cursor: pointer;
+  accent-color: #ffffff;
+}

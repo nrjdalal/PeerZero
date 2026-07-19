@@ -582,6 +582,7 @@ export function TorrentsGrid({ completed = false }: { completed?: boolean } = {}
         <TorrentFileTree
           files={t.files}
           rootName={t.name}
+          infoHash={t.infoHash}
           onExitUp={nav.onExitUp}
           onExitDown={nav.onExitDown}
         />

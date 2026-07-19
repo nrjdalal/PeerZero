@@ -35,14 +35,16 @@ app.use(
   "*",
   cors({
     origin: env.HONO_TRUSTED_ORIGINS,
-    allowHeaders: ["content-type", "authorization"],
-    allowMethods: ["GET", "OPTIONS", "POST", "PUT", "DELETE"],
-    exposeHeaders: ["content-length"],
+    allowHeaders: ["content-type", "authorization", "range"],
+    allowMethods: ["GET", "HEAD", "OPTIONS", "POST", "PUT", "DELETE"],
+    // Expose the Range headers so a cross-origin <video>/fetch can seek.
+    exposeHeaders: ["content-length", "content-range", "accept-ranges"],
     maxAge: 600,
     credentials: true,
   }),
   logger(),
-  rateLimiterMiddleware,
+  // Rate-limit everything except media streaming - a seeking <video> bursts many Range requests.
+  (c, next) => (c.req.path.includes("/stream/") ? next() : rateLimiterMiddleware(c, next)),
 )
 
 app.onError(errorHandler)

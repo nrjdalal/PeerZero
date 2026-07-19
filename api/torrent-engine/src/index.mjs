@@ -23,8 +23,10 @@ const REPO_ROOT = resolve(__dirname, "../../..")
 
 // In dev the engine runs under portless (see package.json "portless"), which injects PORT/HOST;
 // TORRENT_ENGINE_PORT/HOST stay as the fixed-port fallback for production (PORTLESS off).
-// The 6339 fallback matches the API's TORRENT_ENGINE_URL default and portless appPort, so
-// `PORTLESS=0` works out of the box even when the root .env isn't loaded into this sidecar.
+// The 6339 fallback matches the API's TORRENT_ENGINE_URL default, so `PORTLESS=0` works out of
+// the box even when the root .env isn't loaded into this sidecar. In portless dev mode there is no
+// fixed appPort (matches ZeroStarter): portless assigns a free port and injects it as PORT, so the
+// dev stack never collides with the installed desktop app on 6339.
 const PORT = Number(process.env.PORT || process.env.TORRENT_ENGINE_PORT || 6339)
 const HOST = process.env.HOST || process.env.TORRENT_ENGINE_HOST || "127.0.0.1"
 
@@ -494,6 +496,55 @@ const server = createServer(async (req, res) => {
           return json(res, 200, { ok: true })
         }
       }
+    }
+
+    // /stream/:hash/:idx  (Range-capable byte stream for the video player + external handoff)
+    if (parts[0] === "stream" && parts.length === 3 && (method === "GET" || method === "HEAD")) {
+      const t = findTorrent(parts[1])
+      if (!t || !t.ready) return json(res, 404, { error: "not ready" })
+      const idx = Number(parts[2])
+      const file = Number.isInteger(idx) ? t.files[idx] : undefined
+      if (!file) return json(res, 404, { error: "file not found" })
+      // Streaming an unfinished file needs the torrent running with this file's pieces prioritized;
+      // a completed file reads straight from disk and works even while the torrent is paused/seeding.
+      if (file.progress < 1) {
+        t.resume()
+        file.select()
+      }
+      const total = file.length
+      let start = 0
+      let end = total - 1
+      let status = 200
+      const headers = {
+        "accept-ranges": "bytes",
+        "content-type": file.type || "application/octet-stream",
+      }
+      const match = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "")
+      if (match) {
+        if (!match[1] && match[2]) {
+          start = Math.max(0, total - Number(match[2])) // suffix range "bytes=-N": last N bytes
+        } else {
+          if (match[1]) start = Number(match[1])
+          if (match[2]) end = Number(match[2])
+        }
+        if (start > end || start >= total) {
+          res.writeHead(416, { "content-range": `bytes */${total}` })
+          return res.end()
+        }
+        end = Math.min(end, total - 1)
+        status = 206
+        headers["content-range"] = `bytes ${start}-${end}/${total}`
+      }
+      headers["content-length"] = end - start + 1
+      res.writeHead(status, headers)
+      if (method === "HEAD") return res.end()
+      const stream = file.createReadStream({ start, end })
+      req.on("close", () => stream.destroy())
+      stream.on("error", (err) => {
+        console.error("[engine] stream error:", err?.message || err)
+        res.destroy()
+      })
+      return stream.pipe(res)
     }
 
     return json(res, 404, { error: "not found" })
