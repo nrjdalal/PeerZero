@@ -125,6 +125,16 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Hide scrollbars across the whole app while keeping scroll behavior intact (mirrors the
+     `no-scrollbar` utility from shadcn/tailwind.css, applied globally). Content still scrolls;
+     only the scrollbar chrome is hidden. */
+  * {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* legacy Edge */
+  }
+  *::-webkit-scrollbar {
+    display: none; /* Chromium, Safari */
+  }
   html {
     @apply font-sans;
   }
