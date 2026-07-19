@@ -44,6 +44,15 @@ type Torrent = TorrentSnapshot
 const DEFAULT_SORTING: SortingState = [{ id: "addedAt", desc: true }]
 // Up (upload speed) is off by default since we don't seed; enable it via Columns.
 const DEFAULT_COLUMN_VISIBILITY: VisibilityState = { uploadSpeed: false }
+// Completed torrents are done and stopped, so the live-transfer columns are always blank -
+// hide them by default (still re-enableable via Columns).
+const COMPLETED_COLUMN_VISIBILITY: VisibilityState = {
+  uploadSpeed: false,
+  downloadSpeed: false,
+  eta: false,
+  numPeers: false,
+  seeders: false,
+}
 
 const STATUSES = ["Downloading", "Completed", "Paused", "Fetching"] as const
 type Status = (typeof STATUSES)[number]
@@ -226,6 +235,132 @@ function RowActions({ torrent: t }: { torrent: Torrent }) {
   )
 }
 
+// Bulk actions for the current selection, rendered in the DataGrid's selection bar.
+function BulkActions({ torrents, onDone }: { torrents: Torrent[]; onDone: () => void }) {
+  const queryClient = useQueryClient()
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: TORRENTS_QUERY_KEY })
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  const pauseAll = useMutation({
+    mutationFn: () =>
+      Promise.all(
+        torrents
+          .filter((t) => !t.done && !t.paused)
+          .map((t) =>
+            unwrap(
+              apiClient.torrents[":infoHash"].pause.$post({ param: { infoHash: t.infoHash } }),
+            ),
+          ),
+      ),
+    onSuccess: () => {
+      invalidate()
+      onDone()
+    },
+    onError: (e) => toast.error(e.message),
+  })
+  const resumeAll = useMutation({
+    mutationFn: () =>
+      Promise.all(
+        torrents
+          .filter((t) => t.paused && !t.done)
+          .map((t) =>
+            unwrap(
+              apiClient.torrents[":infoHash"].resume.$post({ param: { infoHash: t.infoHash } }),
+            ),
+          ),
+      ),
+    onSuccess: () => {
+      invalidate()
+      onDone()
+    },
+    onError: (e) => toast.error(e.message),
+  })
+  const removeAll = useMutation({
+    mutationFn: (destroyStore: boolean) =>
+      Promise.all(
+        torrents.map((t) =>
+          unwrap(
+            apiClient.torrents[":infoHash"].$delete({
+              param: { infoHash: t.infoHash },
+              query: { destroyStore: destroyStore ? "true" : "false" },
+            }),
+          ),
+        ),
+      ),
+    onSuccess: () => {
+      invalidate()
+      toast.success(`Removed ${torrents.length}`)
+      onDone()
+    },
+    onError: (e) => toast.error(e.message),
+  })
+  const busy = pauseAll.isPending || resumeAll.isPending || removeAll.isPending
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8"
+        disabled={busy}
+        onClick={() => pauseAll.mutate()}
+      >
+        <RiPauseFill className="size-4" />
+        Pause
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8"
+        disabled={busy}
+        onClick={() => resumeAll.mutate()}
+      >
+        <RiPlayFill className="size-4" />
+        Resume
+      </Button>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogTrigger
+          render={
+            <Button size="sm" variant="outline" className="text-destructive h-8" disabled={busy} />
+          }
+        >
+          <RiDeleteBinFill className="size-4" />
+          Remove
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {torrents.length} torrents?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Keep the downloaded files or delete them from disk.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="outline"
+              onClick={() => {
+                removeAll.mutate(false)
+                setConfirmOpen(false)
+              }}
+            >
+              Keep files
+            </AlertDialogAction>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                removeAll.mutate(true)
+                setConfirmOpen(false)
+              }}
+            >
+              Delete files
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
 // Stable module-level definition so the table never sees a new columns reference.
 const columns: ColumnDef<Torrent>[] = [
   {
@@ -303,7 +438,9 @@ const columns: ColumnDef<Torrent>[] = [
     size: 80,
     meta: { align: "right" },
     accessorFn: (t) => t.timeRemaining ?? Number.POSITIVE_INFINITY,
-    header: () => <div className="text-right">ETA</div>,
+    header: ({ column, table }) => (
+      <SortHeader column={column} table={table} label="ETA" align="right" />
+    ),
     // Blank (not "-") when there's no live ETA: paused, completed, or stalled.
     cell: ({ row }) => {
       const ms = row.original.timeRemaining
@@ -383,43 +520,63 @@ const columns: ColumnDef<Torrent>[] = [
   },
 ]
 
-export function TorrentsGrid() {
-  const { torrents, status } = useTorrents()
+// Both the Transfers tab (all torrents) and the Completed tab (finished only) render this grid;
+// `completed` filters the data, drops the redundant Status facet, and hides the live-transfer
+// columns while keeping its own persisted sort/columns.
+export function TorrentsGrid({ completed = false }: { completed?: boolean } = {}) {
+  const { torrents, loaded } = useTorrents()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
 
-  const empty =
-    status === "connecting" && torrents.length === 0 ? (
-      <div className="flex h-64 items-center justify-center">
-        <Spinner />
-      </div>
-    ) : (
-      <Empty>
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <RiInboxFill />
-          </EmptyMedia>
-          <EmptyTitle>
-            {torrents.length === 0 ? "No torrents yet" : "Nothing matches your filters"}
-          </EmptyTitle>
-          <EmptyDescription>
-            Head to the <Link href="/search">Search</Link> tab to find torrents.
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    )
+  const data = completed ? torrents.filter((t) => t.done) : torrents
+
+  // Show a loader until the first snapshot actually arrives - not just until the socket
+  // connects - so we never flash "No torrents yet" before the list has loaded.
+  const empty = !loaded ? (
+    <div className="flex h-64 items-center justify-center">
+      <Spinner />
+    </div>
+  ) : (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <RiInboxFill />
+        </EmptyMedia>
+        <EmptyTitle>
+          {completed
+            ? data.length === 0
+              ? "No completed downloads yet"
+              : "Nothing matches your filters"
+            : torrents.length === 0
+              ? "No torrents yet"
+              : "Nothing matches your filters"}
+        </EmptyTitle>
+        <EmptyDescription>
+          {completed ? (
+            "Finished downloads show up here."
+          ) : (
+            <>
+              Head to the <Link href="/search">Search</Link> tab to find torrents.
+            </>
+          )}
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  )
 
   return (
     <DataGrid
-      data={torrents}
+      data={data}
       columns={columns}
       columnLabels={COLUMN_LABELS}
       getRowId={(t) => t.infoHash}
-      storageKey="transfers"
+      selectable
+      bulkActions={(selected, clear) => <BulkActions torrents={selected} onDone={clear} />}
+      storageKey={completed ? "completed" : "transfers"}
       primaryInput="filter"
       tableClassName="min-w-256"
       initialSorting={DEFAULT_SORTING}
-      initialColumnVisibility={DEFAULT_COLUMN_VISIBILITY}
+      initialColumnVisibility={completed ? COMPLETED_COLUMN_VISIBILITY : DEFAULT_COLUMN_VISIBILITY}
       search={{
         value: searchQuery,
         onChange: setSearchQuery,
@@ -430,7 +587,7 @@ export function TorrentsGrid() {
           router.push("/search")
         },
       }}
-      facet={{ columnId: "progress", label: "Status", options: STATUSES }}
+      facet={completed ? undefined : { columnId: "progress", label: "Status", options: STATUSES }}
       empty={empty}
     />
   )

@@ -19,6 +19,7 @@ import { SettingsDialog } from "@/components/torrents/settings-dialog"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { usePrefs } from "@/lib/prefs-store"
 import { cn, isActive } from "@/lib/utils"
 
 const socialLinks = [
@@ -71,9 +72,14 @@ export function Navbar() {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
 
+  // Search is an off-by-default advanced feature (Settings > Advanced > Enable Search); its tab
+  // appears after Completed only once enabled.
+  const enableSearch = usePrefs((s) => s.enableSearch)
+
   const navLinks: { href: string; label: string; external?: boolean }[] = [
     { href: "/", label: "Transfers" },
-    { href: "/search", label: "Search" },
+    { href: "/completed", label: "Completed" },
+    ...(enableSearch ? [{ href: "/search", label: "Search" }] : []),
   ]
 
   return (

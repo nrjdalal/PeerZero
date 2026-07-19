@@ -15,6 +15,10 @@ type PrefsState = {
   // The Search tab's query, persisted so it survives tab switches and reloads.
   search: string
   setSearch: (value: string) => void
+  // Advanced, off by default: reveals the torrent Search feature (navbar icon, /search page,
+  // and the toolbar's "Search torrents…" box). Enabled from Settings > Advanced.
+  enableSearch: boolean
+  setEnableSearch: (value: boolean) => void
   // Per-grid sort + visible-column preferences, keyed by the grid's storageKey.
   tables: Record<string, TablePref>
   setSorting: (key: string, updater: Updater<SortingState>, fallback: SortingState) => void
@@ -32,6 +36,8 @@ export const usePrefs = create<PrefsState>()(
     (set) => ({
       search: "",
       setSearch: (value) => set({ search: value }),
+      enableSearch: false,
+      setEnableSearch: (value) => set({ enableSearch: value }),
       tables: {},
       setSorting: (key, updater, fallback) =>
         set((s) => {

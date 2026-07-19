@@ -9,6 +9,7 @@ import { usePrefs } from "@/lib/prefs-store"
 type TorrentsContextValue = {
   torrents: TorrentSnapshot[]
   status: "connecting" | "online" | "offline"
+  loaded: boolean
 }
 
 const TorrentsContext = createContext<TorrentsContextValue | null>(null)

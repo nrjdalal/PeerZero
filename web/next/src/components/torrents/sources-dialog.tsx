@@ -8,13 +8,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Spinner } from "@/components/ui/spinner"
 import { apiClient, unwrap } from "@/lib/api/client"
 
@@ -86,8 +86,8 @@ export function SourcesDialog() {
           </Button>
         }
       />
-      <DialogContent className="max-h-[85svh] gap-0 overflow-hidden p-0 sm:max-w-2xl">
-        <DialogHeader className="border-b p-6">
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
           <DialogTitle>Sources</DialogTitle>
           <DialogDescription>
             Search runs against {data?.providers.length ?? "these"} providers. The directory below
@@ -97,16 +97,17 @@ export function SourcesDialog() {
         </DialogHeader>
 
         {isLoading || !data ? (
-          <div className="flex items-center justify-center p-10">
+          <div className="flex justify-center py-6">
             <Spinner />
           </div>
         ) : (
-          <ScrollArea className="max-h-[60svh]">
-            <div className="flex flex-col gap-6 p-6">
-              <div className="flex flex-col gap-2">
-                <h3 className="text-sm font-semibold">Active search providers</h3>
-                <div className="flex flex-wrap gap-2">
-                  {data.providers.map((p) => {
+          <DialogBody>
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold">Active search providers</h3>
+              <div className="flex flex-wrap gap-2">
+                {[...data.providers]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((p) => {
                     const dot = providerDot(p.name)
                     return (
                       <Badge key={p.name} variant="secondary" title={dot.title}>
@@ -116,68 +117,67 @@ export function SourcesDialog() {
                       </Badge>
                     )
                   })}
-                </div>
+              </div>
+              <p className="text-muted-foreground text-xs">
+                Each source is health-checked as you search; one that keeps failing is parked for
+                12-24h, then re-probed to see if it recovered.
+              </p>
+            </div>
+
+            {data.trackers && (
+              <div className="flex flex-col gap-2">
+                <h3 className="text-sm font-semibold">Magnet trackers</h3>
                 <p className="text-muted-foreground text-xs">
-                  Each source is health-checked as you search; a source that keeps failing is
-                  auto-disabled and re-probed until it recovers.
+                  {data.trackers.count} trackers appended to every magnet
+                  {data.trackers.live
+                    ? ` · auto-synced ${relativeTime(data.trackers.syncedAt)}`
+                    : " · bundled fallback (live sync pending)"}
+                  {data.trackers.source ? (
+                    <>
+                      {" · "}
+                      <a
+                        href={data.trackers.source}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline"
+                      >
+                        tracker list
+                      </a>
+                    </>
+                  ) : null}
                 </p>
               </div>
+            )}
 
-              {data.trackers && (
-                <div className="flex flex-col gap-2">
-                  <h3 className="text-sm font-semibold">Magnet trackers</h3>
-                  <p className="text-muted-foreground text-xs">
-                    {data.trackers.count} trackers appended to every magnet
-                    {data.trackers.live
-                      ? ` · auto-synced ${relativeTime(data.trackers.syncedAt)}`
-                      : " · bundled fallback (live sync pending)"}
-                    {data.trackers.source ? (
-                      <>
-                        {" · "}
-                        <a
-                          href={data.trackers.source}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="underline"
-                        >
-                          tracker list
-                        </a>
-                      </>
-                    ) : null}
-                  </p>
-                </div>
-              )}
-
-              {Object.entries(grouped).map(([section, entries]) => (
-                <div key={section} className="flex flex-col gap-2">
-                  <h3 className="text-sm font-semibold">{section}</h3>
-                  <ul className="flex flex-col gap-1">
-                    {entries.map((entry) => (
-                      <li key={`${section}-${entry.name}`}>
-                        <a
-                          href={entry.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="group flex items-baseline gap-2 text-sm"
-                        >
-                          <span className="group-hover:underline">
-                            {entry.starred ? "⭐ " : ""}
-                            {entry.name}
+            {Object.entries(grouped).map(([section, entries]) => (
+              <div key={section} className="flex flex-col gap-2">
+                <h3 className="text-sm font-semibold">{section}</h3>
+                <ul className="flex flex-col gap-1">
+                  {entries.map((entry) => (
+                    <li key={`${section}-${entry.name}`}>
+                      <a
+                        href={entry.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group flex items-baseline gap-2 text-sm"
+                      >
+                        <span className="group-hover:underline">
+                          {entry.starred ? "⭐ " : ""}
+                          {entry.name}
+                        </span>
+                        <RiExternalLinkFill className="text-muted-foreground size-3 shrink-0 self-center" />
+                        {entry.description && (
+                          <span className="text-muted-foreground truncate text-xs">
+                            {entry.description}
                           </span>
-                          <RiExternalLinkFill className="text-muted-foreground size-3 shrink-0 self-center" />
-                          {entry.description && (
-                            <span className="text-muted-foreground truncate text-xs">
-                              {entry.description}
-                            </span>
-                          )}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
+                        )}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </DialogBody>
         )}
       </DialogContent>
     </Dialog>
