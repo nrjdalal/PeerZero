@@ -40,6 +40,14 @@ function fmtTime(ms: number): string {
 
 const CTRL = "cursor-pointer text-white/90 transition hover:text-white"
 
+// Tauri's WKWebView serves the app from a custom `tauri://` scheme that can't load Web Workers, so
+// libmedia's worker pipeline (io/demux/decode) never spawns there and `load()` never completes. Run on
+// the main thread in the desktop app - hardware WebCodecs still offloads decode - and keep workers only
+// in a plain browser (served over http, where they work) so buffering never freezes the UI.
+function isTauri(): boolean {
+  return typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "isTauri" in window)
+}
+
 // Full-screen Netflix-style player for every playable file. Uses @libmedia (headless) as the decode
 // engine - hardware WebCodecs when available, its own WASM otherwise - and draws a custom control
 // overlay: red scrubber, play/pause, +-10s, volume, title, subtitles, speed, fullscreen. Controls
@@ -147,7 +155,9 @@ export function LibmediaPlayer({
         const inst = new AVPlayer({
           container: boxRef.current,
           wasmBaseUrl: "/libmedia",
-          enableWorker: true,
+          // Workers in a plain browser (smooth); main thread in the Tauri WebView (workers can't load
+          // from the tauri:// scheme). See isTauri() above.
+          enableWorker: !isTauri(),
         })
         player = inst
         playerRef.current = inst
