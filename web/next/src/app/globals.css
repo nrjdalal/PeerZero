@@ -131,4 +131,10 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* macOS desktop only: the overlay title bar's traffic-light buttons float over the
+     top-left, so inset the brand clear of them. The .tauri-mac class is set on <html>
+     before first paint by the inline script in the root layout, so there is no flash. */
+  .tauri-mac [data-brand-inset] {
+    padding-left: 4rem;
+  }
 }

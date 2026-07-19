@@ -10,7 +10,7 @@ import {
 } from "@remixicon/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import { Logo } from "@/components/common/logo"
 import { ModeToggle } from "@/components/common/mode-toggle"
@@ -72,16 +72,6 @@ export function Navbar() {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
 
-  // In the macOS desktop app the title bar is an overlay (tauri.conf.json titleBarStyle:
-  // Overlay), so the window's traffic-light buttons float over the top-left of the web
-  // content. Detect that case to pad the brand clear of them. No-op in the browser, where
-  // there is no Tauri global and data-tauri-drag-region below is simply ignored.
-  const [macOverlay, setMacOverlay] = useState(false)
-  useEffect(() => {
-    const isTauri = "isTauri" in window || "__TAURI_INTERNALS__" in window
-    setMacOverlay(isTauri && /Mac/i.test(navigator.userAgent))
-  }, [])
-
   // Search is an off-by-default advanced feature (Settings > Advanced > Enable Search); its tab
   // appears after Completed only once enabled.
   const enableSearch = usePrefs((s) => s.enableSearch)
@@ -98,8 +88,10 @@ export function Navbar() {
         data-tauri-drag-region
         className="flex min-h-14 items-center justify-between px-4 md:px-6"
       >
-        {/* Left: logo + primary tabs */}
-        <div className={cn("flex items-center gap-8", macOverlay && "pl-16")}>
+        {/* Left: logo + primary tabs. data-brand-inset shifts the brand clear of the macOS
+            overlay traffic lights (see globals.css .tauri-mac); the drag region makes the
+            group's empty space a window drag handle (inert in the browser). */}
+        <div data-tauri-drag-region data-brand-inset className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2 font-bold">
             <Logo className="size-6" />
             {site.name}
@@ -138,7 +130,7 @@ export function Navbar() {
         </div>
 
         {/* Right: social links + settings + theme toggle + mobile menu */}
-        <div className="flex items-center gap-3.5">
+        <div data-tauri-drag-region className="flex items-center gap-3.5">
           {/* Social Links */}
           <div className="hidden items-center gap-2.5 lg:flex">
             <SocialLinks />

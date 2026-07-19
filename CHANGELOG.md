@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.7
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.6...v0.0.7)
+
+### 🩹 Fixes
+
+- **desktop:** Draggable title bar, external links, and in-app updater ([#28](https://github.com/nrjdalal/PeerZero/pull/28))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.6
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.5...v0.0.6)
