@@ -11,6 +11,8 @@
     "windows": [
       {
         "title": "PeerZero",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
         "width": 1180,
         "height": 800,
         "minWidth": 900,
