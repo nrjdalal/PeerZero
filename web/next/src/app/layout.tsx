@@ -3,6 +3,8 @@ import type { Metadata } from "next"
 
 import { InnerProvider, OuterProvider } from "@/app/providers"
 import { Navbar } from "@/components/common/navbar"
+import { TauriExternalLinks } from "@/components/common/tauri-external-links"
+import { UpdateNotice } from "@/components/common/update-notice"
 import { dmSans, jetbrainsMono } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
 
@@ -38,6 +40,8 @@ export default function RootLayout({
             }}
           />
           <InnerProvider>
+            <TauriExternalLinks />
+            <UpdateNotice />
             <Navbar />
             {children}
           </InnerProvider>
