@@ -23,7 +23,7 @@ or another worktree, and never touches your real `~/.peerzero` state or download
 on PATH.
 
 ```bash
-PORT=9400                                    # isolated; NOT the default 9336
+PORT=9400                                    # a fixed, known port for scripted testing (the app's default is ephemeral)
 export PATH="$HOME/.cargo/bin:$PATH"          # tauri needs cargo
 
 # 1. Hono bundle (embeds the engine + the baked-in WebRTC stub)

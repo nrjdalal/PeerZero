@@ -1,0 +1,11 @@
+{
+  "status": 200,
+  "providerKeys": [
+    "directoryTracked",
+    "name",
+    "origin"
+  ],
+  "hasApibay": true,
+  "trackersType": "object",
+  "directory": "<directory>"
+}

@@ -8,9 +8,10 @@
 > you download and for complying with copyright law where you live. The maintainers do not
 > endorse or facilitate copyright infringement and will honor valid legal notices.
 
-A local-only **BitTorrent client** in one web UI. Search, paste a magnet link, or add a
-`.torrent`, and watch it download with live progress - all on your own machine. No account,
-no cloud, nothing hosted.
+A local-only **BitTorrent client with a built-in video player**. Search, paste a magnet
+link, or drop a `.torrent`, then watch it download live and play the video right in the
+app, even before it finishes. No account, no cloud, nothing hosted - it all runs on your
+own machine.
 
 ---
 
@@ -21,7 +22,6 @@ Grab the desktop app for your OS from the **[latest release](https://github.com/
 | OS                    | File                         |
 | --------------------- | ---------------------------- |
 | macOS (Apple Silicon) | `.dmg`                       |
-| macOS (Intel)         | `.dmg`                       |
 | Windows               | `.exe` installer (or `.msi`) |
 | Linux (Debian/Ubuntu) | `.deb`                       |
 
@@ -41,7 +41,26 @@ Prefer to run from source instead? See below.
 
 ---
 
-## Get started
+## What it does
+
+- **Search** public indexes from the **Search** tab, or paste a magnet link / drop a
+  `.torrent`.
+- **Download** with a real [WebTorrent](https://webtorrent.io) client over the normal
+  TCP/uTP/DHT swarm. Pause, resume, remove, and watch live progress (speed, peers, ETA)
+  stream over a WebSocket into the **Transfers** tab.
+- **Watch it in the app.** Click any video and it plays in a built-in player that streams
+  as the file downloads, so you can start before it finishes. It handles the containers and
+  codecs a browser normally refuses - **MKV, HEVC/H.265, AV1, AC3/E-AC3** - decoded in-app
+  with embedded subtitles, no external player like VLC required.
+- **Browse every file.** Expand a torrent to see its file tree with per-file progress; play
+  or reveal any single file.
+- **Stays a downloader.** Completed torrents auto-stop instead of seeding.
+- **Runs entirely locally.** Nothing is uploaded to a server; downloads land in
+  `~/Downloads/PeerZero` by default (change it any time in the app's Settings).
+
+---
+
+## Run from source
 
 ### 1. Install the prerequisites (one-time)
 
@@ -75,29 +94,16 @@ rarely need to - the app keeps its trackers and indexes fresh on its own in the 
 
 ---
 
-## What it does
-
-- **Search** across public indexes from the **Search** tab, or paste a magnet link / drop a
-  `.torrent`.
-- **Download** with a real [WebTorrent](https://webtorrent.io) client over the normal
-  TCP/uTP/DHT swarm. Pause, resume, remove, and watch live progress (speed, peers, ETA)
-  stream over a WebSocket into the **Transfers** tab.
-- **Stays a downloader.** Completed torrents auto-stop instead of seeding.
-- **Runs entirely locally.** Nothing is uploaded to a server; downloads land in
-  `~/Downloads/PeerZero` by default (change it any time in the app's Settings).
-
----
-
 ## How it works
 
-Two processes start together with `bun run dev`:
+Two Bun processes start together with `bun run dev`:
 
 | Service    | Runtime | Role                                                  |
 | ---------- | ------- | ----------------------------------------------------- |
-| `web/next` | Bun     | Next.js UI                                            |
+| `web/next` | Bun     | Next.js UI + the in-app video player                  |
 | `api/hono` | Bun     | API layer + the in-process WebTorrent download engine |
 
-The WebTorrent engine runs in-process inside the Hono API (a Bun process), so a torrent
+**The download engine** runs in-process inside the Hono API (a Bun process), so a torrent
 operation is a direct function call, not an HTTP hop. WebTorrent's two Bun-incompatible native
 addons are kept out of the process: WebRTC (`node-datachannel`) is neutralized by a stub plugin
 (`api/hono/src/lib/torrent/webrtc-stub.mjs`, preloaded via `bunfig.toml` in dev/test and applied
@@ -106,9 +112,15 @@ otherwise crash Bun on an unsupported libuv function. Peers are found via the DH
 trackers over TCP. The engine sits behind a small typed seam
 (`api/hono/src/lib/torrent/engine.ts`), so it could later be swapped for another client.
 
+**The video player** plays through [libmedia](https://github.com/zhaohappy/libmedia) (FFmpeg
+compiled to WebAssembly, driving WebCodecs), self-hosted under `/libmedia` so it works offline.
+The API serves each file over an HTTP **Range** endpoint (`/api/torrents/:infoHash/stream/:idx`),
+so the player demuxes the container and decodes the stream while the download is still in flight.
+
 Dev URLs are named `.localhost` hosts served by [portless](https://www.npmjs.com/package/portless)
 (`bunx portless list` shows them). `PORTLESS=0 bun run dev` uses plain ports instead
-(web `:9410`, api `:9336`).
+(web `:9410`, api `:9336`). The packaged desktop app picks a free port per launch, so several
+copies can run side by side.
 
 ### How updates work
 

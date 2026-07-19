@@ -1,0 +1,7 @@
+{
+  "status": 206,
+  "content-type": "application/octet-stream",
+  "content-length": "16",
+  "content-range": "bytes 1008-1023/1024",
+  "accept-ranges": "bytes"
+}

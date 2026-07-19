@@ -18,16 +18,21 @@ fn parse_api_port(text: &str) -> Option<u16> {
     .and_then(|value| value.trim().parse().ok())
 }
 
-// Create the single "main" window once the backend has reported its (ephemeral) port. We inject
-// the API URL as an initialization script so window.__PEERZERO_API_URL__ is set before any app JS
-// runs, letting the statically-exported frontend read it synchronously (see web/next lib/config.ts).
-// The port is dynamic now, so it cannot be baked at build time - this runtime handoff replaces it.
+// Create the single "main" window once the backend has reported its (ephemeral) port. The window
+// loads the UI over http://127.0.0.1:<port> - the SAME loopback origin the sidecar serves the API on
+// (PZ_FRONTEND_DIR makes it serve the static export too). We do this instead of the tauri:// custom
+// scheme specifically so the WebView can spawn Web Workers: libmedia decodes off the main thread there
+// (WKWebView blocks Workers on custom schemes), which is what keeps playback smooth. Same origin means
+// no CORS; we still inject window.__PEERZERO_API_URL__ so the frontend's config resolves without a race.
 fn create_main_window(app: &AppHandle, port: u16) {
   if app.get_webview_window("main").is_some() {
     return;
   }
   let script = format!("window.__PEERZERO_API_URL__ = 'http://127.0.0.1:{port}';");
-  let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+  let url: tauri::Url = format!("http://127.0.0.1:{port}")
+    .parse()
+    .expect("valid loopback url");
+  let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
     .title("PeerZero")
     .inner_size(1080.0, 720.0)
     .min_inner_size(1080.0, 720.0)
@@ -60,11 +65,15 @@ pub fn run() {
       }
 
       // Start the bundled backend (one Bun binary = Hono API + in-process WebTorrent engine). It
-      // binds a free loopback port and prints `PZ_API_PORT=<port>`; we parse that line, then create
-      // the webview pointed at the tauri:// UI with the matching API URL injected. Keeping the UI on
-      // the tauri:// scheme (rather than loading it from the sidecar) preserves Tauri IPC for the
-      // opener/updater plugins; the webview calls the API cross-origin, allowed via HONO_TRUSTED_ORIGINS.
-      let sidecar = app.shell().sidecar("peerzero-backend")?;
+      // binds a free loopback port and prints `PZ_API_PORT=<port>`; we parse that line, then load the
+      // webview from that http origin. We hand the sidecar PZ_FRONTEND_DIR (the static export, shipped
+      // as a bundle resource) so it serves the UI too - one loopback origin for UI + API, which lets
+      // the WebView spawn Web Workers (tauri:// can't) so decode runs off the main thread.
+      let frontend_dir = app.path().resource_dir().map(|dir| dir.join("frontend")).ok();
+      let mut sidecar = app.shell().sidecar("peerzero-backend")?;
+      if let Some(dir) = &frontend_dir {
+        sidecar = sidecar.env("PZ_FRONTEND_DIR", dir.to_string_lossy().to_string());
+      }
       let (mut rx, child) = sidecar.spawn()?;
       app.manage(Backend(Mutex::new(Some(child))));
 

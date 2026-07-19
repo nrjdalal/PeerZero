@@ -40,12 +40,13 @@ function fmtTime(ms: number): string {
 
 const CTRL = "cursor-pointer text-white/90 transition hover:text-white"
 
-// Tauri's WKWebView serves the app from a custom `tauri://` scheme that can't load Web Workers, so
-// libmedia's worker pipeline (io/demux/decode) never spawns there and `load()` never completes. Run on
-// the main thread in the desktop app - hardware WebCodecs still offloads decode - and keep workers only
-// in a plain browser (served over http, where they work) so buffering never freezes the UI.
-function isTauri(): boolean {
-  return typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "isTauri" in window)
+// WKWebView can't create Web Workers from a custom scheme (tauri://), so libmedia's io/demux/decode
+// worker pipeline only runs off the main thread when the page is served over http/https. The desktop
+// app serves its UI from http://127.0.0.1 exactly so this holds (a tauri:// page, e.g. an old build,
+// would fall back to main-thread decode and freeze the UI). Decide by the page's own scheme.
+function canUseWorkers(): boolean {
+  if (typeof window === "undefined") return false
+  return window.location.protocol === "http:" || window.location.protocol === "https:"
 }
 
 // Full-screen Netflix-style player for every playable file. Uses @libmedia (headless) as the decode
@@ -155,9 +156,10 @@ export function LibmediaPlayer({
         const inst = new AVPlayer({
           container: boxRef.current,
           wasmBaseUrl: "/libmedia",
-          // Workers in a plain browser (smooth); main thread in the Tauri WebView (workers can't load
-          // from the tauri:// scheme). See isTauri() above.
-          enableWorker: !isTauri(),
+          // Off-main-thread decode whenever the page origin allows Workers (http/https). The desktop
+          // app serves its UI over http://127.0.0.1 for exactly this, so the UI stays responsive while
+          // libmedia demuxes/decodes. See canUseWorkers() above.
+          enableWorker: canUseWorkers(),
         })
         player = inst
         playerRef.current = inst
@@ -363,10 +365,13 @@ export function LibmediaPlayer({
             </div>
           )}
 
-          {/* Top scrim + back */}
+          {/* Top scrim + back. data-tauri-drag-region makes this band the window's title-bar drag
+              handle in the desktop app (no-op in a browser); the back button, as a child, still
+              clicks. Matches the navbar's drag pattern, which the full-screen player covers. */}
           <div
+            data-tauri-drag-region
             className={cn(
-              "absolute inset-x-0 top-0 z-30 flex items-start bg-gradient-to-b from-black/70 to-transparent px-6 pt-5 pb-20 transition-opacity duration-200",
+              "absolute inset-x-0 top-0 z-30 flex items-start bg-gradient-to-b from-black/70 to-transparent px-6 py-8 pb-20 transition-opacity duration-200",
               uiVisible ? "opacity-100" : "pointer-events-none opacity-0",
             )}
           >
@@ -375,15 +380,17 @@ export function LibmediaPlayer({
             </button>
           </div>
 
-          {/* Bottom controls */}
+          {/* Bottom controls. Symmetric vertical padding (pt-8 above the scrubber mirrors pb-8 below
+              the buttons) so the control cluster is not flush against the screen edge; pt-24 stays
+              the gradient fade above that. */}
           <div
             className={cn(
-              "absolute inset-x-0 bottom-0 z-30 flex flex-col gap-3 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-6 pt-24 pb-6 text-white transition-opacity duration-200",
+              "absolute inset-x-0 bottom-0 z-30 flex flex-col gap-3 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-6 pt-24 pb-8 text-white transition-opacity duration-200",
               uiVisible ? "opacity-100" : "pointer-events-none opacity-0",
             )}
           >
             {/* Scrubber row */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 pt-8">
               <input
                 type="range"
                 min={0}
