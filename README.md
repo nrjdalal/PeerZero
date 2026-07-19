@@ -25,9 +25,17 @@ Grab the desktop app for your OS from the **[latest release](https://github.com/
 | Windows               | `.exe` installer (or `.msi`) |
 | Linux (Debian/Ubuntu) | `.deb`                       |
 
-The app self-updates on new releases. Builds are unsigned for now, so the first launch needs
-a one-time bypass: on macOS right-click the app and choose **Open**; on Windows click
-**More info -> Run anyway** on the SmartScreen prompt.
+The app self-updates on new releases. Builds are unsigned for now, so first launch needs a
+one-time bypass:
+
+- **macOS:** drag `PeerZero.app` to `Applications`, then run this once (macOS quarantines
+  unsigned downloads and reports them as "damaged"; this clears the flag):
+
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/PeerZero.app
+  ```
+
+- **Windows:** on the SmartScreen prompt, click **More info -> Run anyway**.
 
 Prefer to run from source instead? See below.
 
