@@ -1,5 +1,6 @@
 "use client"
 
+import "./libmedia-player.css"
 import { RiCloseLine } from "@remixicon/react"
 import { useEffect, useRef, useState } from "react"
 

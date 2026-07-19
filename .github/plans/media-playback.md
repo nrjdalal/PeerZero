@@ -45,11 +45,12 @@ Caveats: AC3-in-fMP4 plays on macOS WKWebView but **not** Windows WebView2 (no A
 AC3->AAC audio transcode. DTS and VVC decode nowhere natively -> transcode or libmedia. ffmpeg adds a
 few MB/platform to the installer (fine for self-contained) plus the remux/transcode pipeline + serving.
 
-### 3. Replace the @libmedia demo chrome
+### 3. @libmedia demo chrome - hidden (CSS)
 
-`@libmedia/avplayer-ui` ships a demo control bar with "Open Fold / Open File / Input Url" + a GitHub
-icon, which don't belong in an embedded player. Either CSS-hide them, or drop to the headless
-`@libmedia/avplayer` and render our own controls (cleaner, more work).
+`@libmedia/avplayer-ui` ships standalone-demo chrome (the "Open Fold / Open File / Input Url / Live"
+file picker and a GitHub link) that doesn't belong in an embedded player. `libmedia-player.css` hides
+`.avplayer-ui-folder-container` + the header GitHub link, keeping the video + control bar. A cleaner but
+larger alternative remains open: drop to the headless `@libmedia/avplayer` and render our own controls.
 
 ### 4. Subtitles + audio-track UX
 

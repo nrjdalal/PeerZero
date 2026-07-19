@@ -1,0 +1,8 @@
+/* @libmedia/avplayer-ui ships standalone-demo chrome that has no place in an embedded player: a
+   file-source picker (Open Fold / Open File / Input Url / Live) and a GitHub link icon. Hide them; the
+   video (.avplayer-ui-player) and the control bar (.avplayer-ui-footer) are kept. !important beats the
+   library's own injected styles. Selectors are stable for the pinned/vendored 1.3.1. */
+.avplayer-ui-folder-container,
+.avplayer-ui-header a[href*="github.com"] {
+  display: none !important;
+}
