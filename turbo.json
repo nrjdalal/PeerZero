@@ -41,7 +41,9 @@
     "TORRENT_MAX_CONNS",
     // Client variables
     "NEXT_PUBLIC_API_URL",
-    "NEXT_PUBLIC_APP_URL"
+    "NEXT_PUBLIC_APP_URL",
+    // Build variables (desktop build emits a static export; web deploy stays standalone)
+    "NEXT_OUTPUT"
   ],
   "globalPassThroughEnv": ["PORTLESS", "PORTLESS_HTTPS", "PORTLESS_PORT", "PORTLESS_SYNC_HOSTS"]
 }
