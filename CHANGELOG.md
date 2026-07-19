@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.14
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.13...v0.0.14)
+
+### 🩹 Fixes
+
+- **web:** Keyboard-navigate the Search grid like Transfers ([#59](https://github.com/nrjdalal/PeerZero/pull/59))
+- **web:** Make the app chrome non-selectable (desktop feel) ([#61](https://github.com/nrjdalal/PeerZero/pull/61))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.13
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.12...v0.0.13)

@@ -536,6 +536,63 @@ export function TorrentsGrid({ completed = false }: { completed?: boolean } = {}
 
   const data = completed ? torrents.filter((t) => t.done) : torrents
 
+  const queryClient = useQueryClient()
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: TORRENTS_QUERY_KEY })
+
+  // Remove keeps the files and offers Undo (re-add the magnet), so a stray Delete is recoverable.
+  const removeWithUndo = async (t: Torrent) => {
+    const { error } = await unwrap(
+      apiClient.torrents[":infoHash"].$delete({
+        param: { infoHash: t.infoHash },
+        query: { destroyStore: "false" },
+      }),
+    )
+    if (error) return toast.error(error.message)
+    invalidate()
+    toast.success(`Removed ${t.name}`, {
+      action: {
+        label: "Undo",
+        onClick: () =>
+          void unwrap(apiClient.torrents.$post({ json: { magnet: t.magnetURI } })).then(invalidate),
+      },
+    })
+  }
+
+  // Single-key actions on the arrow-focused row: p pause, r resume, o open its folder,
+  // Backspace/Delete remove. Enter (play/expand) is handled by the grid itself.
+  const rowKey = (key: string, t: Torrent): boolean => {
+    const call = (p: Promise<unknown>) => void p.then(invalidate)
+    switch (key) {
+      case "p":
+        if (!t.done && !t.paused)
+          call(
+            unwrap(
+              apiClient.torrents[":infoHash"].pause.$post({ param: { infoHash: t.infoHash } }),
+            ),
+          )
+        return true
+      case "r":
+        if (t.paused && !t.done)
+          call(
+            unwrap(
+              apiClient.torrents[":infoHash"].resume.$post({ param: { infoHash: t.infoHash } }),
+            ),
+          )
+        return true
+      case "o":
+        call(
+          unwrap(apiClient.torrents[":infoHash"].reveal.$post({ param: { infoHash: t.infoHash } })),
+        )
+        return true
+      case "Backspace":
+      case "Delete":
+        void removeWithUndo(t)
+        return true
+      default:
+        return false
+    }
+  }
+
   // Show a loader until the first snapshot actually arrives - not just until the socket
   // connects - so we never flash "No torrents yet" before the list has loaded.
   const empty = !loaded ? (
@@ -577,6 +634,8 @@ export function TorrentsGrid({ completed = false }: { completed?: boolean } = {}
       columnLabels={COLUMN_LABELS}
       getRowId={(t) => t.infoHash}
       selectable
+      label="Torrents"
+      onRowKey={rowKey}
       getRowCanExpand={(t) => t.files.length > 0}
       renderSubRow={(t, nav, columns) => (
         <TorrentFileTree

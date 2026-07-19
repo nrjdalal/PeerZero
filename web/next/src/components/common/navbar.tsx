@@ -12,6 +12,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 
+import { CommandHint } from "@/components/command/command-hint"
 import { Logo } from "@/components/common/logo"
 import { ModeToggle } from "@/components/common/mode-toggle"
 import { OpenFolderButton } from "@/components/torrents/open-folder-button"
@@ -73,12 +74,11 @@ export function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
 
   // Search is an off-by-default advanced feature (Settings > Advanced > Enable Search); its tab
-  // appears after Completed only once enabled.
+  // appears after Transfers only once enabled.
   const enableSearch = usePrefs((s) => s.enableSearch)
 
   const navLinks: { href: string; label: string; external?: boolean }[] = [
     { href: "/", label: "Transfers" },
-    { href: "/completed", label: "Completed" },
     ...(enableSearch ? [{ href: "/search", label: "Search" }] : []),
   ]
 
@@ -136,6 +136,7 @@ export function Navbar() {
             <SocialLinks />
           </div>
 
+          <CommandHint />
           <OpenFolderButton />
           <SettingsDialog />
           <ModeToggle />
