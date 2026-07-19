@@ -18,12 +18,9 @@ import { type KeyboardEvent, useCallback, useMemo, useRef, useState } from "reac
 import { toast } from "sonner"
 
 import { LibmediaPlayer } from "@/components/torrents/libmedia-player"
-import { Player } from "@/components/torrents/player"
 import { Progress } from "@/components/ui/progress"
 import { formatBytes, formatPercent } from "@/lib/format"
-import { mimeFor, openInExternalPlayer, streamUrl } from "@/lib/play-file"
-import { detectCapabilities } from "@/lib/playback/capabilities"
-import { pickStrategy } from "@/lib/playback/strategy"
+import { openInExternalPlayer, streamUrl } from "@/lib/play-file"
 import { cn } from "@/lib/utils"
 
 type TorrentFile = TorrentSnapshot["files"][number]
@@ -289,36 +286,26 @@ export function TorrentFileTree({
   // Highlight the active row only while the tree holds focus, so a freshly expanded row's tree
   // never renders its first item as "selected" before the user navigates into it.
   const [hasFocus, setHasFocus] = useState(false)
-  const [playing, setPlaying] = useState<
-    | { mode: "native"; url: string; name: string; type: string }
-    | { mode: "libmedia"; url: string; name: string }
-    | null
-  >(null)
+  const [playing, setPlaying] = useState<{ url: string; name: string } | null>(null)
   // Hand the stream to a native player (VLC) on desktop; in a plain browser, tell the user why not.
   const handoff = useCallback((url: string, name: string) => {
     void openInExternalPlayer(url).then((handled) => {
       if (!handled) {
-        toast.error(`Can't play ${name} in the browser`, {
+        toast.error(`Can't play ${name}`, {
           description:
-            "Its codecs (e.g. HEVC video or AC3/DTS audio) aren't browser-supported. Open it in the desktop app, or a player like VLC.",
+            "This file could not be decoded. Open it in the desktop app, or a player like VLC.",
         })
       }
     })
   }, [])
+  // Every playable file plays in the in-browser libmedia player (mp4 included) for one consistent UI;
+  // it decodes via hardware WebCodecs when available, else its own WASM. The VLC handoff is the
+  // fallback only if libmedia can't load/decode the stream (see the LibmediaPlayer onError below).
   const playFile = useCallback(
     (fileIndex: number, name: string) => {
-      const url = streamUrl(infoHash, fileIndex)
-      // Probe this machine's decode support, then route to the best path (see lib/playback): a plain
-      // <video> for browser-safe files, the in-browser libmedia decoder for mkv/HEVC/AC3/DTS, or the
-      // native-player handoff when only a software WASM decode would be left (desktop) and VLC is better.
-      void detectCapabilities().then((caps) => {
-        const strategy = pickStrategy(name, caps)
-        if (strategy === "native") setPlaying({ mode: "native", url, name, type: mimeFor(name) })
-        else if (strategy === "libmedia") setPlaying({ mode: "libmedia", url, name })
-        else handoff(url, name)
-      })
+      setPlaying({ url: streamUrl(infoHash, fileIndex), name })
     },
-    [infoHash, handoff],
+    [infoHash],
   )
 
   const rowEls = useRef(new Map<string, HTMLDivElement>())
@@ -425,15 +412,7 @@ export function TorrentFileTree({
           />
         ))}
       </div>
-      {playing?.mode === "native" && (
-        <Player
-          src={playing.url}
-          type={playing.type}
-          name={playing.name}
-          onClose={() => setPlaying(null)}
-        />
-      )}
-      {playing?.mode === "libmedia" && (
+      {playing && (
         <LibmediaPlayer
           src={playing.url}
           name={playing.name}
