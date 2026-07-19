@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "providerKeys": [
+    "directoryTracked",
+    "name",
+    "origin"
+  ],
+  "providersNonEmpty": true,
+  "hasApibay": true,
+  "healthIsArray": true,
+  "trackersType": "object",
+  "directory": "<directory>"
+}

@@ -5,6 +5,7 @@
   "workspaces": [
     "api/*",
     "packages/*",
+    "tests",
     "web/*"
   ],
   "scripts": {
