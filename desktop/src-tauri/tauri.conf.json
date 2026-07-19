@@ -13,10 +13,10 @@
         "title": "PeerZero",
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "width": 1180,
-        "height": 800,
-        "minWidth": 900,
-        "minHeight": 600,
+        "width": 1080,
+        "height": 720,
+        "minWidth": 1080,
+        "minHeight": 720,
         "resizable": true,
         "fullscreen": false
       }
