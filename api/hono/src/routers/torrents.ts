@@ -57,7 +57,8 @@ export const torrentsRouter = new Hono()
       let upstream: Response
       try {
         upstream = await engineStream(
-          `/stream/${c.req.param("infoHash")}/${c.req.param("fileIdx")}`,
+          c.req.param("infoHash"),
+          c.req.param("fileIdx"),
           c.req.header("range"),
         )
       } catch (err) {

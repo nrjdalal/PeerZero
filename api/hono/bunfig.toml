@@ -1,0 +1,9 @@
+# Preload the WebRTC stub before anything imports webtorrent (via the in-process torrent engine
+# in src/lib/torrent/webtorrent.mjs), so the node-datachannel native addon that crashes Bun is
+# never loaded. See src/lib/torrent/webrtc-stub.mjs for the rationale. `preload` covers `bun` /
+# `bun --hot` (dev, start); `[test].preload` is re-declared because `bun test` ignores the
+# top-level preload, and the e2e test drives the engine in-process.
+preload = ["./src/lib/torrent/webrtc-stub.mjs"]
+
+[test]
+preload = ["./src/lib/torrent/webrtc-stub.mjs"]
