@@ -78,8 +78,9 @@ preload stub (`api/torrent-engine/src/webrtc-stub.mjs`, wired via `bunfig.toml`)
 (`utp-native`) is disabled with `{ utp: false }`; both otherwise crash Bun on an unsupported
 libuv function. Peers are found via the DHT plus udp/http trackers over TCP. It stays a
 separate process so a crashing torrent can't take the backend down. The Bun API talks to it
-over plain HTTP on `127.0.0.1:4444`, so the engine could later be swapped for another client
-behind the same seam (`api/hono/src/lib/torrent/engine.ts`).
+over plain HTTP (in dev through portless at `engine.<name>.localhost`, otherwise `127.0.0.1:6339`),
+so the engine could later be swapped for another client behind the same seam
+(`api/hono/src/lib/torrent/engine.ts`).
 
 Dev URLs are named `.localhost` hosts served by [portless](https://www.npmjs.com/package/portless)
 (`bunx portless list` shows them). `PORTLESS=0 bun run dev` uses plain ports instead

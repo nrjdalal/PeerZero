@@ -5,11 +5,20 @@
   "description": "Bun sidecar that runs the WebTorrent download engine and exposes a small local HTTP API. WebRTC (node-datachannel) and uTP (utp-native) native addons are disabled so webtorrent runs under Bun; see src/webrtc-stub.mjs.",
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/index.mjs",
+    "dev": "portless",
+    "dev:app": "bun --watch src/index.mjs",
     "start": "bun src/index.mjs",
     "check-types": "true"
   },
   "dependencies": {
     "webtorrent": "catalog:"
+  },
+  "devDependencies": {
+    "portless": "catalog:"
+  },
+  "portless": {
+    "name": "engine.peerzero",
+    "script": "dev:app",
+    "appPort": 6339
   }
 }

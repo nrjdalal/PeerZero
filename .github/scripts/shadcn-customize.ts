@@ -167,6 +167,11 @@ function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
   )
 }`
 
+// Give DialogHeader the same muted bar shadcn ships on DialogFooter, mirrored to the top, so the
+// header and footer read as matching bars bookending the body (design skill "Dialogs").
+const HEADER_PLAIN = '"flex flex-col gap-2"'
+const HEADER_BARRED = '"-mx-4 -mt-4 flex flex-col gap-2 rounded-t-xl border-b bg-muted/50 p-4"'
+
 function patchDialog() {
   const sf = project.addSourceFileAtPath(DIALOG)
   if (!sf.getFunction("DialogBody")) {
@@ -180,6 +185,12 @@ function patchDialog() {
     throw new Error("shadcn-customize: dialog.tsx named export block not found; shape changed")
   if (!exportDecl.getNamedExports().some((n) => n.getName() === "DialogBody"))
     exportDecl.addNamedExport("DialogBody")
+  const text = sf.getFullText()
+  if (text.includes(HEADER_PLAIN)) sf.replaceWithText(text.replace(HEADER_PLAIN, HEADER_BARRED))
+  else if (!text.includes(HEADER_BARRED))
+    throw new Error(
+      "shadcn-customize: DialogHeader className anchor not found in dialog.tsx; shape changed",
+    )
   sf.saveSync()
   log(`patched: ${DIALOG}`)
 }
