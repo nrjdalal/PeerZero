@@ -3,6 +3,23 @@
 Deferred work and known issues, newest first. Pick from here when there's time; move an item into a
 real plan/PR when you start it. The larger media roadmap lives in [media-playback.md](./media-playback.md).
 
+## Player: native decode (mpv/libmpv) - the "best player" north star
+
+Chosen direction (2026-07-19): after the Workers-via-localhost fix lands (serve the desktop UI over
+`http://127.0.0.1` so libmedia decodes off the main thread via WebCodecs - the quick smoothness win),
+pursue a **native video surface** for true VLC/IINA-class playback on desktop: hardware decode of
+everything, perfect A/V sync, every codec.
+
+**Approach sketch:** embed **libmpv** (what IINA wraps) via a Tauri Rust plugin, rendering to a native
+NSView/surface composited with the WebView (the web UI stays the control overlay; mpv draws the video).
+A large, multi-week effort: a custom plugin, native surface compositing + z-ordering with the webview,
+and per-OS work (macOS first). Alternatives to weigh: a separate borderless mpv window slaved to the
+app, or the `libmpv` render API into a shared GL/Metal texture. Keep libmedia as the fallback.
+
+**Why after the Workers fix:** off-main-thread WebCodecs gets most of the smoothness for a fraction of
+the effort and unblocks daily use; native is the quality ceiling to chase once that's validated on real
+hardware.
+
 ## Known issues
 
 ### libmedia stalls on large multi-track MKVs (e.g. the Obsession main movie)

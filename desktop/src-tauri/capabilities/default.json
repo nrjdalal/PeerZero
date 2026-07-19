@@ -3,6 +3,7 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": ["main"],
+  "remote": { "urls": ["http://127.0.0.1:*"] },
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
