@@ -24,7 +24,7 @@ B-Roll.mkv`, 364 MB) play fine.
   tracks (PGS + SRT) and multiple audio tracks (AC3/E-AC3). Likely libmedia chokes on the complex
   container (or mis-selects the attached-pic as the video stream via `findBestStream`).
 
-**Mitigation shipped:** a 20s load-timeout in `libmedia-player.tsx` falls back to the native VLC
+**Mitigation shipped:** a 10s load-timeout in `libmedia-player.tsx` falls back to the native VLC
 handoff, so these files open in VLC instead of an infinite spinner.
 
 **Real fix ideas (pick one):**
