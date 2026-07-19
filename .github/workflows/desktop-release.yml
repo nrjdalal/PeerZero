@@ -1,6 +1,6 @@
 name: Desktop Release
 
-# Builds the PeerZero desktop app for macOS (Apple Silicon + Intel), Windows, and Linux and
+# Builds the PeerZero desktop app for macOS (Apple Silicon), Windows, and Linux and
 # attaches the installers to an EXISTING GitHub release (the one auto-release.yml creates).
 #
 # Runs as a reusable job called from auto-release.yml right after it publishes a release, so

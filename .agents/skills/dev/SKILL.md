@@ -25,7 +25,7 @@ Ready when the health curl prints `"message":"ok"` and `/` returns `200`. `bunx 
 - Scalar API docs: `$API/api/docs`
 - Logs: `tail -f /tmp/zerostarter-dev.log`
 
-**Fixed ports:** `PORTLESS=0 bun run dev` skips the proxy and serves web on `:9410`, api on `:9336` (also the Docker/production defaults, and what the installed desktop app binds). Single stack only: two worktrees on fixed ports collide, which is why portless - with its random per-app ports - is the default.
+**Fixed ports:** `PORTLESS=0 bun run dev` skips the proxy and serves web on `:9410`, api on `:9336` (also the Docker/production defaults). The packaged desktop app now binds a random free port per launch, so it no longer squats these - only an old installed version (v0.0.11 or earlier) still binds `9336`. Single stack only: two worktrees on fixed ports collide, which is why portless - with its random per-app ports - is the default.
 
 ## Stale-route trap
 
