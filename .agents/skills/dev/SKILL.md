@@ -25,7 +25,7 @@ Ready when the health curl prints `"message":"ok"` and `/` returns `200`. `bunx 
 - Scalar API docs: `$API/api/docs`
 - Logs: `tail -f /tmp/zerostarter-dev.log`
 
-**Fixed ports:** `PORTLESS=0 bun run dev` skips the proxy and serves web on `:3000`, api on `:4000` (the ports the curl examples in other skills assume). Single stack only: two worktrees on fixed ports collide, which is why portless is the default.
+**Fixed ports:** `PORTLESS=0 bun run dev` skips the proxy and serves web on `:9410`, api on `:9336` (the ports the curl examples in other skills assume). Single stack only: two worktrees on fixed ports collide, which is why portless is the default.
 
 ## Stale-route trap
 

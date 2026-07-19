@@ -110,7 +110,7 @@ so the engine could later be swapped for another client behind the same seam
 
 Dev URLs are named `.localhost` hosts served by [portless](https://www.npmjs.com/package/portless)
 (`bunx portless list` shows them). `PORTLESS=0 bun run dev` uses plain ports instead
-(web `:3000`, api `:4000`).
+(web `:9410`, api `:9336`).
 
 ### How updates work
 

@@ -8,9 +8,9 @@ services:
     env_file:
       - .env
     environment:
-      - INTERNAL_API_URL=http://api:4000
+      - INTERNAL_API_URL=http://api:9336
     ports:
-      - "4000:4000"
+      - "9336:9336"
 
   web:
     build:
@@ -21,9 +21,9 @@ services:
     env_file:
       - .env
     environment:
-      - INTERNAL_API_URL=http://api:4000
+      - INTERNAL_API_URL=http://api:9336
     ports:
-      - "3000:3000"
+      - "9410:9410"
 
 secrets:
   dotenv:

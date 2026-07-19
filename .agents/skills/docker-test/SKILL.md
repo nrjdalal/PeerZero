@@ -15,7 +15,7 @@ Scope to one service while iterating:
 
 ```bash
 docker compose build --no-cache api && docker compose up -d api
-curl -sf --retry 30 --retry-delay 1 --retry-connrefused http://localhost:4000/api/health
+curl -sf --retry 30 --retry-delay 1 --retry-connrefused http://localhost:9336/api/health
 docker compose logs -f api
 docker compose down
 ```
@@ -37,10 +37,10 @@ docker compose down
 
   Empty optionals (e.g. `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=`) pass via `emptyStringAsUndefined`. A smoke build is disposable: Next inlines `NEXT_PUBLIC_*` into the bundle at build, so a dummy-built web image carries dummy URLs forever. Deploy images build with the real `.env`.
 - **`--no-cache` after any `.env` edit.** Secret contents are not part of BuildKit's cache key, so a plain rebuild reuses the cached build RUN and silently ships stale baked values (web's `NEXT_PUBLIC_*`).
-- **Skip `SKIP_ENV_VALIDATION`.** Build and runtime both load a real `.env`, so both validate real values. The flag no longer bypasses validation anyway: it only substitutes shape-valid dummies for *missing* required vars while zod defaults and transforms still run (`HONO_PORT` defaults to 4000, `HONO_TRUSTED_ORIGINS` parses to an array). Reserve it for CI, which genuinely lacks a `.env`. The web deploy uses the narrower `SKIP_ENV_VALIDATION_SERVER`, which dummies only server secrets while still validating the `NEXT_PUBLIC_*` it inlines.
+- **Skip `SKIP_ENV_VALIDATION`.** Build and runtime both load a real `.env`, so both validate real values. The flag no longer bypasses validation anyway: it only substitutes shape-valid dummies for *missing* required vars while zod defaults and transforms still run (`HONO_PORT` defaults to 9336, `HONO_TRUSTED_ORIGINS` parses to an array). Reserve it for CI, which genuinely lacks a `.env`. The web deploy uses the narrower `SKIP_ENV_VALIDATION_SERVER`, which dummies only server secrets while still validating the `NEXT_PUBLIC_*` it inlines.
 - **Database.** Without a reachable `POSTGRES_URL`, DB-backed routes (e.g. `/api/v1/user`) return 500 while `/api/health` stays green; full e2e needs a real database URL.
 - **Direct `docker run --env-file`** does not strip inline comments: `HONO_RATE_LIMIT=60 # note` arrives as `"60 # note"`, coerces to NaN, and validation rejects it. Compose's parser strips them; for `docker run`, sanitize first: `sed 's/ #.*//' .env > .env.docker`.
-- **Ports** `4000` and `3000` collide with a running dev stack; for side-by-side testing bump the compose mappings (e.g. `14000:4000`) in a scratch checkout.
+- **Ports** `9336` and `9410` collide with a running dev stack; for side-by-side testing bump the compose mappings (e.g. `19336:9336`) in a scratch checkout.
 
 ## Self-containment check (catches runtime auto-install)
 
@@ -49,7 +49,7 @@ The api runner ships only `bundle/`, so the bundle must resolve every import wit
 ```bash
 sed 's/ #.*//' .env > .env.docker
 docker run -d --name t-offline --network=none --env-file .env.docker <image>
-docker exec t-offline sh -c 'for i in $(seq 1 30); do wget -qO- http://localhost:4000/api/health && exit 0; sleep 1; done; exit 1'
+docker exec t-offline sh -c 'for i in $(seq 1 30); do wget -qO- http://localhost:9336/api/health && exit 0; sleep 1; done; exit 1'
 docker logs t-offline        # on failure: "Cannot find package 'X'" = unresolved import
 docker rm -f t-offline
 ```
