@@ -144,6 +144,11 @@ export type FacetFilter = {
   options: readonly string[]
 }
 
+// The visible columns after Name (id, rendered width, alignment), handed to renderSubRow so an
+// expanded sub-row can lay its cells out under the same columns as the parent rows instead of
+// inventing its own layout.
+export type SubRowColumn = { id: string; width: number; align?: "center" | "right" }
+
 // The single grid used by both tabs. Everything shared lives here once; each tab supplies
 // only its columns, data, faceted filter, and empty state.
 export function DataGrid<T>({
@@ -186,7 +191,12 @@ export function DataGrid<T>({
   bulkActions?: (rows: T[], clear: () => void) => ReactNode
   // Adds row expansion: a full-width sub-row rendered below an expanded row. The expand
   // affordance lives in the consumer's cells via row.getCanExpand()/getToggleExpandedHandler().
-  renderSubRow?: (row: T, nav: { onExitUp: () => void; onExitDown: () => void }) => ReactNode
+  // `columns` are the visible after-Name columns so the sub-row aligns to the real grid columns.
+  renderSubRow?: (
+    row: T,
+    nav: { onExitUp: () => void; onExitDown: () => void },
+    columns: SubRowColumn[],
+  ) => ReactNode
   getRowCanExpand?: (row: T) => boolean
 }) {
   const { status } = useTorrents()
@@ -654,7 +664,10 @@ export function DataGrid<T>({
                             cell.column.id === "select" ? (e) => e.stopPropagation() : undefined
                           }
                           className={cn(
-                            "truncate",
+                            // Uniform 32px row height across every grid (downloads / completed /
+                            // search); h-8 floors rows with short content, the tight py keeps the
+                            // 28px action buttons from growing past it.
+                            "h-8 truncate py-0.5",
                             // Match the header's first-column inset.
                             i === 0 && "pl-4",
                             align === "center" && "text-center",
@@ -675,7 +688,22 @@ export function DataGrid<T>({
                         data-subrow-of={row.id}
                       >
                         <TableCell colSpan={row.getVisibleCells().length} className="p-0">
-                          {renderSubRow(row.original, makeSubRowNav(row.id))}
+                          {renderSubRow(
+                            row.original,
+                            makeSubRowNav(row.id),
+                            // Visible columns after Name, so the sub-row aligns to the real grid.
+                            row
+                              .getVisibleCells()
+                              .slice(
+                                row.getVisibleCells().findIndex((c) => c.column.id === "name") + 1,
+                              )
+                              .map((c) => ({
+                                id: c.column.id,
+                                width: c.column.getSize(),
+                                align: (c.column.columnDef.meta as { align?: "center" | "right" })
+                                  ?.align,
+                              })),
+                          )}
                         </TableCell>
                       </TableRow>
                     )}
