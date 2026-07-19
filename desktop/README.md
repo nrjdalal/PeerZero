@@ -51,7 +51,7 @@ OS (no native addons), e.g. `bun desktop/backend/build.ts out bun-windows-x64`.
 Desktop installers are built **automatically as part of a release**. When the auto-created
 `canary -> main` PR is merged, `auto-release.yml` bumps the version, tags `v<x.y.z>`, and
 creates the GitHub release, then it calls `desktop-release.yml` (a reusable workflow) which
-builds macOS (arm64 + Intel), Windows, and Linux in parallel and attaches the installers to
+builds macOS (arm64), Windows, and Linux in parallel and attaches the installers to
 that release. It runs as a called job in the same run rather than on a separate `on: release`
 event, because a release created with `GITHUB_TOKEN` cannot trigger another workflow.
 
