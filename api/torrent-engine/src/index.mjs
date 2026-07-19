@@ -23,7 +23,9 @@ const REPO_ROOT = resolve(__dirname, "../../..")
 
 // In dev the engine runs under portless (see package.json "portless"), which injects PORT/HOST;
 // TORRENT_ENGINE_PORT/HOST stay as the fixed-port fallback for production (PORTLESS off).
-const PORT = Number(process.env.PORT || process.env.TORRENT_ENGINE_PORT || 4444)
+// The 6339 fallback matches the API's TORRENT_ENGINE_URL default and portless appPort, so
+// `PORTLESS=0` works out of the box even when the root .env isn't loaded into this sidecar.
+const PORT = Number(process.env.PORT || process.env.TORRENT_ENGINE_PORT || 6339)
 const HOST = process.env.HOST || process.env.TORRENT_ENGINE_HOST || "127.0.0.1"
 
 // Where new torrents download by default (overridable in Settings; env wins as the hard default).
