@@ -14,11 +14,15 @@ const ENGINE_PORT = Number(process.env.PZ_ENGINE_PORT || 47822)
 // Set every env the Hono + engine modules read, BEFORE importing them (both validate/read
 // process.env at module init). The engine reads TORRENT_ENGINE_PORT directly; Hono reads
 // the rest through @packages/env.
-process.env.NODE_ENV ||= "production"
+//
+// Use unconditional `=` (not `||=`): Bun auto-loads any .env in the cwd before this file
+// runs, so `||=` would silently keep a stray .env value (e.g. HONO_TRUSTED_ORIGINS from a
+// dev checkout) and break CORS for the Tauri webview. These desktop values must always win.
+process.env.NODE_ENV = "production"
 process.env.HONO_PORT = String(API_PORT)
-process.env.HONO_APP_URL ||= `http://127.0.0.1:${API_PORT}`
+process.env.HONO_APP_URL = `http://127.0.0.1:${API_PORT}`
 // Same-origin (browser) plus the Tauri webview origins, so CORS passes in both shells.
-process.env.HONO_TRUSTED_ORIGINS ||= [
+process.env.HONO_TRUSTED_ORIGINS = [
   `http://127.0.0.1:${API_PORT}`,
   `http://localhost:${API_PORT}`,
   "tauri://localhost",

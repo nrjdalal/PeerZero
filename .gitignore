@@ -49,6 +49,8 @@ next-env.d.ts
 bundle/
 dist/
 vercel-bundle/
+# desktop: compiled Bun sidecar binaries (rebuilt via desktop/backend/build.ts)
+desktop/src-tauri/binaries/
 
 # custom files
 .github/scripts/*.d.ts
