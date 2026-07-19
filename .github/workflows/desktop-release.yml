@@ -1,0 +1,115 @@
+name: Desktop Release
+
+# Builds the PeerZero desktop app for macOS (Apple Silicon + Intel), Windows, and Linux and
+# attaches the installers to an EXISTING GitHub release (the one auto-release.yml creates).
+#
+# Runs as a reusable job called from auto-release.yml right after it publishes a release, so
+# every `v*` release gets OS-native binaries. Also runnable manually against any existing tag.
+# Signing/notarization + the updater signature come from repo secrets (see desktop/README.md);
+# builds run unsigned without them.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to build and attach to (e.g. v0.0.2)
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build and attach to (e.g. v0.0.2)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest # Apple Silicon (arm64)
+            rust_target: aarch64-apple-darwin
+          - platform: macos-13 # Intel (x86_64)
+            rust_target: x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            rust_target: x86_64-unknown-linux-gnu
+          - platform: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
+            libayatana-appindicator3-dev libxdo-dev patchelf \
+            build-essential curl wget file libssl-dev
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./desktop/src-tauri -> target
+
+      - name: Install JS dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Sync the desktop app version to the release tag
+        shell: bash
+        run: |
+          VERSION="${{ inputs.tag }}"
+          VERSION="${VERSION#v}"
+          bunx json -I -f desktop/src-tauri/tauri.conf.json -e "this.version='$VERSION'"
+
+      - name: Build backend bundle, static UI, and the Bun sidecar
+        shell: bash
+        env:
+          NODE_ENV: production
+          # Emit the static SPA (only the desktop build does this; the web deploy stays standalone).
+          NEXT_OUTPUT: export
+          # The static UI bakes this and calls the sidecar's local Hono API at runtime.
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:47821
+        run: |
+          bunx turbo run build --filter=@api/hono
+          bunx turbo run build --filter=@web/next
+          mkdir -p desktop/src-tauri/binaries
+          EXT=""
+          [ "${{ matrix.platform }}" = "windows-latest" ] && EXT=".exe"
+          bun desktop/backend/build.ts "desktop/src-tauri/binaries/peerzero-backend-${{ matrix.rust_target }}${EXT}"
+
+      - name: Build app + upload installers to the release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Auto-updater signature (required for the updater artifacts; see desktop/README.md).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS code signing + notarization (optional: unsigned/ad-hoc if these are unset).
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: desktop
+          # The release already exists (auto-release.yml created it); tauri-action finds it
+          # by tag and uploads the installers as assets.
+          tagName: ${{ inputs.tag }}
+          args: --target ${{ matrix.rust_target }}
