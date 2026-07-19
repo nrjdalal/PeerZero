@@ -62,20 +62,20 @@ export function LibmediaPlayer({
 
     ;(async () => {
       try {
-        // Load libmedia's ESM entry from the CDN via a bundler-ignored dynamic import. The player
-        // code-splits into numbered chunks (573.avplayer.js, ...) that Turbopack doesn't emit, so
-        // importing the npm package fails with a ChunkLoadError; loading from jsdelivr lets the browser
-        // resolve those chunks relative to the CDN. A string variable (not a literal) keeps TS from
-        // trying to resolve the URL. The self-contained desktop build would self-host this under
-        // /public (copied from node_modules/@libmedia/avplayer-ui/dist) instead of hitting a CDN.
-        const entry =
-          "https://cdn.jsdelivr.net/npm/@libmedia/avplayer-ui@1.3.1/dist/esm/avplayer.js"
+        // Load libmedia's ESM entry via a bundler-ignored dynamic import. The player code-splits into
+        // numbered chunks (573.avplayer.js, ...) and spins up workers that Turbopack doesn't emit, so
+        // importing the npm package fails with a ChunkLoadError. We self-host the whole tree under
+        // /public/libmedia (see .github/scripts/vendor-libmedia.ts): the browser resolves the chunks, workers,
+        // and wasm relative to this same-origin path, so it works fully offline in the desktop build.
+        // A string variable (not a literal) keeps TS from trying to resolve the URL.
+        const entry = "/libmedia/esm/avplayer.js"
         const { default: AVPlayer } = await import(/* turbopackIgnore: true */ entry)
         if (disposed || !boxRef.current) return
 
         const instance = new AVPlayer({
           container: boxRef.current,
-          wasmBaseUrl: "https://cdn.jsdelivr.net/gh/zhaohappy/libmedia@1.3.1/dist",
+          // Self-hosted codec wasm: getWasmUrl builds `${wasmBaseUrl}/decode/<codec>-simd.wasm` etc.
+          wasmBaseUrl: "/libmedia",
           // Workers move io/demux/decode/render off the main thread so buffering ahead doesn't freeze
           // the UI. Hardware WebCodecs stays on (default) - HEVC on the GPU where present, WASM otherwise.
           enableWorker: true,

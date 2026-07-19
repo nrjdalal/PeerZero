@@ -20,20 +20,14 @@ routes each file to the cheapest path that works:
 
 ## Follow-ups (roughly by value)
 
-### 1. Self-host libmedia (offline, self-contained)
+### 1. Self-host libmedia (offline, self-contained) - DONE
 
-libmedia's ESM entry + numbered chunks and the codec WASM currently load from the **jsdelivr CDN**
-(`components/torrents/libmedia-player.tsx`). PeerZero is offline/self-contained, so the desktop build
-(`NEXT_OUTPUT=export`) must serve them locally:
-
-- Copy `node_modules/@libmedia/avplayer-ui/dist/esm/*` (entry + `*.avplayer.js` chunks) into
-  `web/next/public/libmedia/esm/`, and the codec WASM (`decode/*.wasm`, `resample/*.wasm`,
-  `stretchpitch/*.wasm`) into `web/next/public/libmedia/`. WASM come from the libmedia repo `dist`
-  (jsdelivr `gh/zhaohappy/libmedia@1.3.1/dist/...`), not the npm package - fetch once via a build/
-  postinstall script rather than committing ~2 MB binaries.
-- Load the entry from `/libmedia/esm/avplayer.js` and set `wasmBaseUrl: '/libmedia'`. Same-origin also
-  sidesteps any cross-origin worker concern.
-- Keep both `-simd`/`-atomic`/baseline variants of each codec used (libmedia picks one per device).
+The ESM chunks + codec WASM are vendored into `web/next/public/libmedia/` and the player loads the
+entry from `/libmedia/esm/avplayer.js` with `wasmBaseUrl: '/libmedia'` - no CDN, works fully offline in
+the `NEXT_OUTPUT=export` desktop build. `.github/scripts/vendor-libmedia.ts` reproduces the vendored
+tree (copies the ESM from node_modules, downloads the `-simd` codec WASM from the libmedia GitHub dist);
+re-run it after bumping `@libmedia/avplayer-ui`. Only the `-simd` variants are shipped (universal on
+modern browsers/WebViews); add `-atomic`/baseline in the script if an ancient runtime ever needs them.
 
 ### 2. Native ffmpeg remux - best desktop performance (the Jellyfin model)
 
