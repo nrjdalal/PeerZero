@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.0.9
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.8...v0.0.9)
+
+### 🚀 Enhancements
+
+- **transfers:** Expandable per-torrent file tree + WAI-ARIA treegrid nav ([#32](https://github.com/nrjdalal/PeerZero/pull/32))
+
+### 🩹 Fixes
+
+- **api:** Bind dev server to loopback so a port collision fails loud ([#33](https://github.com/nrjdalal/PeerZero/pull/33))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.8
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.7...v0.0.8)

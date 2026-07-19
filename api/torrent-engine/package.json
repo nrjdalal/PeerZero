@@ -9,7 +9,8 @@
     "dev:app": "bun --watch src/index.mjs",
     "start": "bun src/index.mjs",
     "build:binary": "bun scripts/build-binary.mjs",
-    "check-types": "true"
+    "check-types": "true",
+    "test": "bun test src"
   },
   "dependencies": {
     "webtorrent": "catalog:"
