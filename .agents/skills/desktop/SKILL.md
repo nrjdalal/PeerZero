@@ -11,10 +11,10 @@ and (standalone) the static UI. One process, one port - there is no separate eng
 
 ## Pieces
 
-- `desktop/backend/main.ts` - the sidecar: serves `/api/*` (the pre-built Hono bundle, which embeds the engine) + the static UI; binds `PZ_PORT` (default 9336).
+- `desktop/backend/main.ts` - the sidecar: serves `/api/*` (the pre-built Hono bundle, which embeds the engine) + the static UI. Binds an **ephemeral free port** by default and prints `PZ_API_PORT=<port>`; `PZ_PORT` pins it (Docker/tests).
 - `desktop/backend/build.ts` - compiles `main.ts` into one Bun executable (the Tauri `externalBin`). Optional 2nd arg is a cross-compile target (`bun-windows-x64`, `bun-linux-x64`, `bun-darwin-arm64`, ...).
-- `desktop/src-tauri/` - the Tauri shell. `tauri.conf.json`: `frontendDist: ../../web/next/out`, `externalBin: binaries/peerzero-backend`.
-- The frontend is a **static export** (`NEXT_OUTPUT=export`) with `NEXT_PUBLIC_API_URL` **baked at build time**, so it must match the port the sidecar binds.
+- `desktop/src-tauri/` - the Tauri shell. `tauri.conf.json`: `frontendDist: ../../web/next/out`, `externalBin: binaries/peerzero-backend`. `src-tauri/src/lib.rs` waits for the sidecar's `PZ_API_PORT` line, then creates the window with `window.__PEERZERO_API_URL__` injected (before any app JS).
+- The frontend is a **static export** (`NEXT_OUTPUT=export`). It prefers the injected `window.__PEERZERO_API_URL__` over the **baked** `NEXT_PUBLIC_API_URL`, so under Tauri it finds the API on a random port. The baked URL is only a fallback - it matters for the sidecar-standalone path (no injection there), where it must match `PZ_PORT`.
 
 ## Build + run (isolated, for testing)
 
@@ -64,10 +64,12 @@ HOME=$H PZ_PORT=$PORT PZ_FRONTEND_DIR="$PWD/web/next/out" \
 
 ## Gotchas
 
-- **Fixed ports collide.** An installed `PeerZero.app` and other worktrees squat 9336. Always test on an isolated `PZ_PORT` with a matching baked `NEXT_PUBLIC_API_URL`, or you get `EADDRINUSE`, or a stale backend answers with the wrong version + CORS and the UI shows "Network request failed".
-- **Orphaned sidecar.** `pkill` on the app can leave the child sidecar running (SIGTERM doesn't fire the Tauri cleanup). Kill both: `pkill -f "target/release/app"; pkill -f peerzero-backend`.
+- **Bun breaks `Readable.toWeb()`.** The engine streams a file by handing the Node `Readable` **straight** to `Response` - never `Readable.toWeb()`, which throws `QueuingStrategyInit.highWaterMark member is required` under Bun ([oven-sh/bun#2935](https://github.com/oven-sh/bun/issues/2935)) and 500s **every** `/stream` request. `/api/health` stays green while every video fails, so verify the stream itself, not just health.
+- **Verify streaming, not health.** A `Range` GET must return `206` with real bytes: `curl -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-7' "$API/api/torrents/<hash>/stream/0"`; an MKV starts `1a45 dfa3`. The fastest full check (backend + player) is the sidecar-standalone + `agent-browser` path above: click Play and screenshot the decoded frame.
+- **Ports are ephemeral now.** The packaged app binds a random free port and injects it into the webview (`window.__PEERZERO_API_URL__`), so an installed app / other worktrees coexist without `EADDRINUSE` or a stale backend answering. For a scriptable test, pin a KNOWN port with `PZ_PORT`, and (sidecar-standalone) bake `NEXT_PUBLIC_API_URL` to match.
+- **Orphaned sidecar.** Force-quitting the app leaves the child sidecar running, **reparented to launchd** (a `ppid` check shows `launchd`, not the app). Kill both by name: `pkill -f "target/release/app"; pkill -f peerzero-backend` (scope the pattern so an installed app is untouched).
 - **Turbo cache.** A cached `turbo run build` replays a stale bundle after an engine/hono edit - re-run with `--force` if the change isn't taking.
-- **Can't script clicks.** No Accessibility for the dev binary; verify with `screencapture -x out.png` (whole screen) + the API over curl, or drive the UI via the sidecar-standalone + `agent-browser` path above.
+- **Can't script clicks (Tauri).** No Accessibility for the dev binary; `screencapture -x out.png` + curl the API. To verify PLAYBACK, use the sidecar-standalone + `agent-browser` path (real Chrome decodes what the WKWebView would show).
 - **macOS quarantine.** A downloaded (not locally built) `.app` needs `xattr -dr com.apple.quarantine /Applications/PeerZero.app` on first launch.
 
 For the hot-reload dev stack (web + API on portless `.localhost` URLs), use the `dev` skill.
