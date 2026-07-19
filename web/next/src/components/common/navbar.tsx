@@ -73,12 +73,11 @@ export function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
 
   // Search is an off-by-default advanced feature (Settings > Advanced > Enable Search); its tab
-  // appears after Completed only once enabled.
+  // appears after Transfers only once enabled.
   const enableSearch = usePrefs((s) => s.enableSearch)
 
   const navLinks: { href: string; label: string; external?: boolean }[] = [
     { href: "/", label: "Transfers" },
-    { href: "/completed", label: "Completed" },
     ...(enableSearch ? [{ href: "/search", label: "Search" }] : []),
   ]
 

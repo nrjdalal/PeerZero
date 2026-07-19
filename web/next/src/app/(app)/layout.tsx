@@ -1,3 +1,5 @@
+import { CommandPalette } from "@/components/command/command-palette"
+import { GlobalShortcuts } from "@/components/command/global-shortcuts"
 import { FadeIn } from "@/components/common/fade-in"
 import { TorrentsProvider } from "@/components/torrents/torrents-context"
 
@@ -13,6 +15,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <FadeIn>{children}</FadeIn>
         </div>
       </main>
+      {/* One keyboard surface (⌘K) for navigation + core actions, plus g-t/s/c view jumps. */}
+      <CommandPalette />
+      <GlobalShortcuts />
     </TorrentsProvider>
   )
 }
