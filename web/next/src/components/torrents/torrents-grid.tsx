@@ -16,6 +16,7 @@ import { useState } from "react"
 import { toast } from "sonner"
 
 import { DataGrid, SortHeader } from "@/components/torrents/data-grid"
+import { TorrentFileTree } from "@/components/torrents/file-tree"
 import { useTorrents } from "@/components/torrents/torrents-context"
 import { TORRENTS_QUERY_KEY } from "@/components/torrents/use-torrents-live"
 import {
@@ -373,7 +374,7 @@ const columns: ColumnDef<Torrent>[] = [
     enableResizing: false,
     header: ({ column, table }) => <SortHeader column={column} table={table} label="Name" />,
     cell: ({ row }) => (
-      <span className="block truncate font-medium" title={row.original.name}>
+      <span className="truncate font-medium" title={row.original.name}>
         {row.original.name}
       </span>
     ),
@@ -576,6 +577,15 @@ export function TorrentsGrid({ completed = false }: { completed?: boolean } = {}
       columnLabels={COLUMN_LABELS}
       getRowId={(t) => t.infoHash}
       selectable
+      getRowCanExpand={(t) => t.files.length > 0}
+      renderSubRow={(t, nav) => (
+        <TorrentFileTree
+          files={t.files}
+          rootName={t.name}
+          onExitUp={nav.onExitUp}
+          onExitDown={nav.onExitDown}
+        />
+      )}
       bulkActions={(selected, clear) => <BulkActions torrents={selected} onDone={clear} />}
       storageKey={completed ? "completed" : "transfers"}
       primaryInput="filter"

@@ -13,8 +13,10 @@ import {
   type Column,
   type ColumnDef,
   type ColumnFiltersState,
+  type ExpandedState,
   flexRender,
   getCoreRowModel,
+  getExpandedRowModel,
   getFilteredRowModel,
   getSortedRowModel,
   type RowSelectionState,
@@ -24,7 +26,7 @@ import {
   useReactTable,
   type VisibilityState,
 } from "@tanstack/react-table"
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 
 import { SourcesDialog } from "@/components/torrents/sources-dialog"
 import { useTorrents } from "@/components/torrents/torrents-context"
@@ -59,6 +61,18 @@ import { cn } from "@/lib/utils"
 // switch; this flag (survives navigation, resets on a full reload) records that first reveal so
 // the fade never replays.
 let engineStatusRevealed = false
+
+// Move real DOM focus to the first/last treeitem of a row's expanded sub-row, so keyboard
+// navigation flows continuously between the grid's row cursor and a nested tree (WAI-ARIA
+// treegrid). Returns false when the row has no rendered sub-row/tree to enter.
+function focusSubRowEdge(rowId: string, edge: "first" | "last"): boolean {
+  const subRow = document.querySelector(`[data-subrow-of="${rowId}"]`)
+  const items = subRow?.querySelectorAll<HTMLElement>('[role="treeitem"]')
+  const item = items?.[edge === "first" ? 0 : items.length - 1]
+  if (!item) return false
+  item.focus()
+  return true
+}
 
 // Sortable column header shared by every grid. Sort direction is read from live table
 // state (via `table`), not column.getIsSorted() - that captures a stale table reference.
@@ -147,6 +161,8 @@ export function DataGrid<T>({
   empty,
   selectable = false,
   bulkActions,
+  renderSubRow,
+  getRowCanExpand,
 }: {
   data: T[]
   columns: ColumnDef<T>[]
@@ -168,6 +184,10 @@ export function DataGrid<T>({
   selectable?: boolean
   // Rendered in the bulk bar with the selected rows and a callback to clear the selection.
   bulkActions?: (rows: T[], clear: () => void) => ReactNode
+  // Adds row expansion: a full-width sub-row rendered below an expanded row. The expand
+  // affordance lives in the consumer's cells via row.getCanExpand()/getToggleExpandedHandler().
+  renderSubRow?: (row: T, nav: { onExitUp: () => void; onExitDown: () => void }) => ReactNode
+  getRowCanExpand?: (row: T) => boolean
 }) {
   const { status } = useTorrents()
   // Sort + column visibility persist in the store (surviving reloads); column filters stay
@@ -194,6 +214,8 @@ export function DataGrid<T>({
   const [animateStatus] = useState(() => !engineStatusRevealed)
   if (status !== "connecting") engineStatusRevealed = true
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  // Which rows are expanded (keyed by getRowId). Survives live data updates since the id is stable.
+  const [expanded, setExpanded] = useState<ExpandedState>({})
   // Anchor = where a Shift range starts; active = the "cursor" row for arrow-key navigation.
   const [anchorId, setAnchorId] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -231,14 +253,21 @@ export function DataGrid<T>({
     columns: allColumns,
     getRowId,
     enableRowSelection: selectable,
-    state: { sorting, columnFilters, columnVisibility, rowSelection },
+    state: { sorting, columnFilters, columnVisibility, rowSelection, expanded },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
+    onExpandedChange: setExpanded,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    // No getSubRows: the expanded content is a manual full-width sub-row, so expanded rows never
+    // enter getRowModel().rows - arrow-key nav and selection stay 1:1 with data rows.
+    getExpandedRowModel: getExpandedRowModel(),
+    getRowCanExpand: getRowCanExpand
+      ? (row) => getRowCanExpand(row.original)
+      : () => Boolean(renderSubRow),
   })
 
   const nameFilter = (table.getColumn("name")?.getFilterValue() as string) ?? ""
@@ -264,41 +293,107 @@ export function DataGrid<T>({
   const navRef = useRef({ rowIds, anchorId, activeId })
   navRef.current = { rowIds, anchorId, activeId }
 
-  // Whole-app keyboard selection: Cmd/Ctrl+A selects all; Up/Down move the active row and
-  // Shift+Up/Down extend the range from the anchor. Ignored while typing or inside a menu/dialog.
+  // Boundary callbacks handed to each expanded sub-row so its tree can continue the treegrid
+  // traversal: exiting up returns the cursor to this row, exiting down advances to the next row.
+  const makeSubRowNav = (rowId: string) => ({
+    onExitUp: () => {
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      setActiveId(rowId)
+      setAnchorId(rowId)
+    },
+    onExitDown: () => {
+      const ids = navRef.current.rowIds
+      const nextId = ids[ids.indexOf(rowId) + 1]
+      if (!nextId) return
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      setActiveId(nextId)
+      setAnchorId(nextId)
+    },
+  })
+
+  // Keyboard model (WAI-ARIA grid pattern, mirroring AG Grid / DataTables / Windows Explorer):
+  // Up/Down move the focus cursor only, Space toggles the focused row's selection, Enter opens or
+  // closes its sub-row, Shift+Up/Down extend the range from the anchor, and Cmd/Ctrl+A selects all.
+  // Navigation never selects on its own - selection is a deliberate act (checkbox or Space). Ignored
+  // while typing or when focus is on a control that owns the key (a button, the file tree, a menu).
   useEffect(() => {
     if (!selectable) return
     const onKeyDown = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable))
         return
-      if (el?.closest('[role="menu"], [role="dialog"], [role="listbox"], [role="combobox"]')) return
+      if (
+        el?.closest(
+          'button, a, [role="checkbox"], [role="menu"], [role="dialog"], [role="listbox"], [role="combobox"], [role="tree"]',
+        )
+      )
+        return
+      const { rowIds, anchorId, activeId } = navRef.current
+      if (rowIds.length === 0) return
+
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
         e.preventDefault()
         table.toggleAllRowsSelected(true)
         return
       }
-      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return
-      const { rowIds, anchorId, activeId } = navRef.current
-      if (rowIds.length === 0) return
-      e.preventDefault()
-      const dir = e.key === "ArrowDown" ? 1 : -1
-      const cur = activeId ? rowIds.indexOf(activeId) : -1
-      const nextIdx =
-        cur === -1
-          ? dir === 1
-            ? 0
-            : rowIds.length - 1
-          : Math.min(rowIds.length - 1, Math.max(0, cur + dir))
-      const nextId = rowIds[nextIdx]
-      if (!nextId) return
-      if (e.shiftKey && anchorId) {
-        selectRange(rowIds, anchorId, nextId)
-      } else {
-        setRowSelection({ [nextId]: true })
-        setAnchorId(nextId)
+
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault()
+        const dir = e.key === "ArrowDown" ? 1 : -1
+        const cur = activeId ? rowIds.indexOf(activeId) : -1
+
+        // Treegrid traversal (plain moves only): Down descends into the current row's expanded
+        // tree; Up lands on the last item of the previous row's expanded tree. The tree then owns
+        // the keys until it hands focus back at its boundaries (see makeSubRowNav).
+        if (!e.shiftKey) {
+          const byId = table.getRowModel().rowsById
+          // Descending hands real focus to the tree; drop the grid cursor so its row highlight
+          // doesn't linger behind the tree's own focus highlight.
+          if (dir === 1) {
+            if (activeId && byId[activeId]?.getIsExpanded() && focusSubRowEdge(activeId, "first")) {
+              setActiveId(null)
+              return
+            }
+          } else {
+            const prevId = cur <= 0 ? undefined : rowIds[cur - 1]
+            if (prevId && byId[prevId]?.getIsExpanded() && focusSubRowEdge(prevId, "last")) {
+              setActiveId(null)
+              return
+            }
+          }
+        }
+
+        const nextIdx =
+          cur === -1
+            ? dir === 1
+              ? 0
+              : rowIds.length - 1
+            : Math.min(rowIds.length - 1, Math.max(0, cur + dir))
+        const nextId = rowIds[nextIdx]
+        if (!nextId) return
+        // Shift extends the selection as the cursor moves; a plain move only repositions the anchor.
+        if (e.shiftKey && anchorId) selectRange(rowIds, anchorId, nextId)
+        else setAnchorId(nextId)
+        setActiveId(nextId)
+        return
       }
-      setActiveId(nextId)
+
+      if (e.key === " " || e.key === "Spacebar") {
+        const row = activeId ? table.getRowModel().rowsById[activeId] : undefined
+        if (!row) return
+        e.preventDefault()
+        row.toggleSelected()
+        setAnchorId(activeId)
+        return
+      }
+
+      if (e.key === "Enter") {
+        const row = activeId ? table.getRowModel().rowsById[activeId] : undefined
+        if (row?.getCanExpand()) {
+          e.preventDefault()
+          row.toggleExpanded()
+        }
+      }
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
@@ -465,19 +560,23 @@ export function DataGrid<T>({
         </div>
       </div>
 
+      {/* Bulk-action dock: floats at the bottom over the content (like the macOS Dock) so showing
+          it never shifts the table. Fixed to the viewport, centered, pointer-through around it. */}
       {selectable && selectedRows.length > 0 && (
-        <div className="bg-muted/40 flex items-center gap-3 rounded-lg border px-3 py-1.5">
-          <span className="text-sm font-medium">{selectedRows.length} selected</span>
-          <div className="ml-auto flex items-center gap-2">
-            {bulkActions?.(selectedRows, () => table.resetRowSelection())}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8"
-              onClick={() => table.resetRowSelection()}
-            >
-              Clear
-            </Button>
+        <div className="pointer-events-none fixed inset-x-0 bottom-10 z-50 flex justify-center px-4">
+          <div className="bg-popover text-popover-foreground animate-in fade-in-0 slide-in-from-bottom-4 pointer-events-auto flex items-center gap-3 rounded-full border py-2 pr-2 pl-4 shadow-lg">
+            <span className="text-sm font-medium">{selectedRows.length} selected</span>
+            <div className="flex items-center gap-2">
+              {bulkActions?.(selectedRows, () => table.resetRowSelection())}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8"
+                onClick={() => table.resetRowSelection()}
+              >
+                Clear
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -516,56 +615,71 @@ export function DataGrid<T>({
               </TableRow>
             ) : (
               rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() ? "selected" : undefined}
-                  className={cn(
-                    selectable && "cursor-pointer select-none",
-                    selectable && activeId === row.id && "ring-primary/40 ring-2 ring-inset",
-                  )}
-                  onClick={
-                    selectable
-                      ? (e) => {
-                          // Let clicks on interactive content (checkbox, buttons, links) act
-                          // normally rather than selecting the row.
-                          if ((e.target as HTMLElement).closest("button, a, input, label")) return
-                          const id = row.id
-                          if (e.shiftKey && anchorId) {
-                            selectRange(rowIds, anchorId, id)
-                            setActiveId(id)
-                          } else if (e.metaKey || e.ctrlKey) {
-                            // Toggle: Cmd/Ctrl+Click adds or removes this row from the selection.
-                            row.toggleSelected()
-                            setAnchorId(id)
-                            setActiveId(id)
-                          } else {
-                            setRowSelection({ [id]: true })
-                            setAnchorId(id)
-                            setActiveId(id)
+                <Fragment key={row.id}>
+                  <TableRow
+                    data-state={row.getIsSelected() ? "selected" : undefined}
+                    className={cn(
+                      renderSubRow && "select-none",
+                      row.getCanExpand() && "cursor-pointer",
+                      // Selection (checkbox) gets a subtle half-opacity fill; the keyboard focus
+                      // cursor is a full fill that always wins, so it stays visible even on a
+                      // selected row. (--accent == --muted in this theme, which is why a plain
+                      // bg-accent was indistinguishable from the selected-row background.)
+                      "data-[state=selected]:bg-muted/50",
+                      selectable &&
+                        activeId === row.id &&
+                        "bg-muted data-[state=selected]:bg-muted",
+                    )}
+                    onClick={
+                      renderSubRow
+                        ? (e) => {
+                            // Clicks on interactive content (checkbox, action buttons, links) act
+                            // normally. A bare row click opens/closes this row's sub-row (the file
+                            // tree); selection is left to the checkbox and keyboard.
+                            if ((e.target as HTMLElement).closest("button, a, input, label")) return
+                            if (row.getCanExpand()) row.toggleExpanded()
                           }
-                        }
-                      : undefined
-                  }
-                >
-                  {row.getVisibleCells().map((cell, i) => {
-                    const align = (cell.column.columnDef.meta as { align?: string } | undefined)
-                      ?.align
-                    return (
-                      <TableCell
-                        key={cell.id}
-                        className={cn(
-                          "truncate",
-                          // Match the header's first-column inset.
-                          i === 0 && "pl-4",
-                          align === "center" && "text-center",
-                          (align === "right" || cell.column.id === "actions") && "text-right",
-                        )}
+                        : undefined
+                    }
+                  >
+                    {row.getVisibleCells().map((cell, i) => {
+                      const align = (cell.column.columnDef.meta as { align?: string } | undefined)
+                        ?.align
+                      return (
+                        <TableCell
+                          key={cell.id}
+                          // The checkbox cell selects; swallow its clicks so they don't also toggle
+                          // the row's expansion.
+                          onClick={
+                            cell.column.id === "select" ? (e) => e.stopPropagation() : undefined
+                          }
+                          className={cn(
+                            "truncate",
+                            // Match the header's first-column inset.
+                            i === 0 && "pl-4",
+                            align === "center" && "text-center",
+                            (align === "right" || cell.column.id === "actions") && "text-right",
+                          )}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      )
+                    })}
+                  </TableRow>
+                  {row.getIsExpanded() &&
+                    renderSubRow && (
+                      // The tree's folders carry aria-expanded; neutralize the base row's
+                      // has-aria-expanded / hover tints so an open folder never shades the whole tree.
+                      <TableRow
+                        className="hover:bg-transparent has-aria-expanded:bg-transparent"
+                        data-subrow-of={row.id}
                       >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    )
-                  })}
-                </TableRow>
+                        <TableCell colSpan={row.getVisibleCells().length} className="p-0">
+                          {renderSubRow(row.original, makeSubRowNav(row.id))}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                </Fragment>
               ))
             )}
           </TableBody>
