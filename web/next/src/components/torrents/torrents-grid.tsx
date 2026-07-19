@@ -374,8 +374,8 @@ const columns: ColumnDef<Torrent>[] = [
     enableResizing: false,
     header: ({ column, table }) => <SortHeader column={column} table={table} label="Name" />,
     cell: ({ row }) => (
-      <span className="truncate font-medium" title={row.original.displayName ?? row.original.name}>
-        {row.original.displayName ?? row.original.name}
+      <span className="truncate font-medium" title={row.original.name}>
+        {row.original.name}
       </span>
     ),
   },
@@ -582,6 +582,7 @@ export function TorrentsGrid({ completed = false }: { completed?: boolean } = {}
         <TorrentFileTree
           files={t.files}
           rootName={t.name}
+          infoHash={t.infoHash}
           onExitUp={nav.onExitUp}
           onExitDown={nav.onExitDown}
         />

@@ -3,7 +3,6 @@
 import type { TorrentSnapshot } from "@api/hono"
 import { createContext, useContext, useEffect } from "react"
 
-import { useAutoDisplayName } from "@/components/torrents/use-auto-display-name"
 import { useTorrentsLive } from "@/components/torrents/use-torrents-live"
 import { usePrefs } from "@/lib/prefs-store"
 
@@ -19,8 +18,6 @@ const TorrentsContext = createContext<TorrentsContextValue | null>(null)
 // the Transfers / Search tabs never drops the live feed or reconnects.
 export function TorrentsProvider({ children }: { children: React.ReactNode }) {
   const value = useTorrentsLive()
-  // Auto-generate a clean display name for genuinely-new torrents (no-op for restored ones).
-  useAutoDisplayName(value.torrents)
   // Rehydrate persisted prefs after mount (store uses skipHydration to avoid a hydration
   // mismatch between SSR and first client paint).
   useEffect(() => {

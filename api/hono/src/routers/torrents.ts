@@ -7,7 +7,7 @@ import { z } from "zod"
 import { ApiError, jsonError } from "@/lib/error"
 import { upgradeWebSocket } from "@/lib/server"
 import { ensureDirectory } from "@/lib/torrent/directory"
-import { engine, EngineError } from "@/lib/torrent/engine"
+import { engine, EngineError, engineStream } from "@/lib/torrent/engine"
 import { addLiveClient, removeLiveClient } from "@/lib/torrent/live"
 import {
   activeProviders,
@@ -45,6 +45,31 @@ export const torrentsRouter = new Hono()
       const { q } = c.req.valid("query")
       const { results, sources } = await searchTorrents(q)
       return c.json({ data: { query: q, results, sources } })
+    },
+  )
+  .get(
+    "/:infoHash/stream/:fileIdx",
+    describeRoute({
+      tags: ["Torrents"],
+      description: "Stream a torrent file over HTTP Range for the in-app or external player.",
+    }),
+    async (c) => {
+      let upstream: Response
+      try {
+        upstream = await engineStream(
+          `/stream/${c.req.param("infoHash")}/${c.req.param("fileIdx")}`,
+          c.req.header("range"),
+        )
+      } catch (err) {
+        return handleEngineError(c, err)
+      }
+      // Relay the raw byte stream + Range headers straight through - NOT the { data } envelope.
+      const headers = new Headers()
+      for (const h of ["content-type", "content-length", "content-range", "accept-ranges"]) {
+        const v = upstream.headers.get(h)
+        if (v) headers.set(h, v)
+      }
+      return new Response(upstream.body, { status: upstream.status, headers })
     },
   )
   .get(
@@ -89,10 +114,7 @@ export const torrentsRouter = new Hono()
   )
   .get(
     "/settings",
-    describeRoute({
-      tags: ["Torrents"],
-      description: "Get the current download folder and media library settings.",
-    }),
+    describeRoute({ tags: ["Torrents"], description: "Get the current download folder." }),
     async (c) => {
       try {
         return c.json({ data: await engine.getSettings() })
@@ -140,45 +162,6 @@ export const torrentsRouter = new Hono()
     async (c) => {
       try {
         return c.json({ data: await engine.chooseDir() })
-      } catch (err) {
-        return handleEngineError(c, err)
-      }
-    },
-  )
-  .put(
-    "/settings/media-library",
-    describeRoute({
-      tags: ["Torrents"],
-      description:
-        "Update the media library: toggle organizing finished video torrents into a Jellyfin-friendly library and/or set its folder. Video files are hardlinked (the original download is never moved or renamed).",
-    }),
-    sValidator(
-      "json",
-      z
-        .object({ enabled: z.boolean().optional(), dir: z.string().trim().min(1).optional() })
-        .refine((v) => v.enabled !== undefined || v.dir !== undefined, {
-          message: "provide enabled and/or dir",
-        }),
-      onInvalid,
-    ),
-    async (c) => {
-      try {
-        return c.json({ data: await engine.setMediaLibrary(c.req.valid("json")) })
-      } catch (err) {
-        return handleEngineError(c, err)
-      }
-    },
-  )
-  .post(
-    "/choose-library-dir",
-    describeRoute({
-      tags: ["Torrents"],
-      description:
-        "Open a native folder picker on the host and set the chosen media library folder.",
-    }),
-    async (c) => {
-      try {
-        return c.json({ data: await engine.chooseLibraryDir() })
       } catch (err) {
         return handleEngineError(c, err)
       }
@@ -261,24 +244,6 @@ export const torrentsRouter = new Hono()
     async (c) => {
       try {
         return c.json({ data: { ok: await engine.reveal(c.req.param("infoHash")) } })
-      } catch (err) {
-        return handleEngineError(c, err)
-      }
-    },
-  )
-  .patch(
-    "/:infoHash",
-    describeRoute({
-      tags: ["Torrents"],
-      description:
-        "Set a torrent's locally-generated display name (cosmetic; never renames files on disk).",
-    }),
-    sValidator("json", z.object({ displayName: z.string().trim().min(1).max(300) }), onInvalid),
-    async (c) => {
-      const { displayName } = c.req.valid("json")
-      try {
-        const torrent = await engine.setDisplayName(c.req.param("infoHash"), displayName)
-        return c.json({ data: { torrent } })
       } catch (err) {
         return handleEngineError(c, err)
       }

@@ -3,5 +3,5 @@
   "semi": false,
   "experimentalSortImports": {},
   "experimentalTailwindcss": {},
-  "ignorePatterns": [".agents/**"],
+  "ignorePatterns": [".agents/**", "web/next/public/libmedia/**"],
 }

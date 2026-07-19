@@ -1,0 +1,66 @@
+# Media playback roadmap
+
+Follow-up work for in-app video playback. The current state and the deferred items live here so the
+next session can pick up without re-deriving the research. See the design skill "Media player" for how
+the shipped pieces fit together.
+
+## Current state (branch `libmedia-player`)
+
+Playback is adaptive (`web/next/src/lib/playback/`): `detectCapabilities()` probes the machine's decode
+support (WebCodecs `VideoDecoder`/`AudioDecoder` + a native `<video>`), and `pickStrategy(name, caps)`
+routes each file to the cheapest path that works:
+
+- **native** - browser-safe (mp4/webm + H.264/AAC) -> the Vidstack full-screen player.
+- **libmedia** - mkv/HEVC/AC3/E-AC3/DTS -> an in-browser [@libmedia](https://github.com/zhaohappy/libmedia)
+  player (FFmpeg-to-WASM + hardware WebCodecs when available). Decodes container + codecs a plain
+  `<video>` can't, streaming from our Range endpoint. `enableWorker: true` keeps decode off the main
+  thread (verified: MKV/H.264/E-AC3 and MKV/HEVC-10bit/E-AC3-Atmos both play).
+- **handoff** - a native player (VLC) via `@tauri-apps/plugin-opener`, as the desktop fallback and the
+  runtime fallback when libmedia errors.
+
+## Follow-ups (roughly by value)
+
+### 1. Self-host libmedia (offline, self-contained) - DONE
+
+The ESM chunks + codec WASM are vendored into `web/next/public/libmedia/` and the player loads the
+entry from `/libmedia/esm/avplayer.js` with `wasmBaseUrl: '/libmedia'` - no CDN, works fully offline in
+the `NEXT_OUTPUT=export` desktop build. `.github/scripts/vendor-libmedia.ts` reproduces the vendored
+tree (copies the ESM from node_modules, downloads the `-simd` codec WASM from the libmedia GitHub dist);
+re-run it after bumping `@libmedia/avplayer-ui`. Only the `-simd` variants are shipped (universal on
+modern browsers/WebViews); add `-atomic`/baseline in the script if an ancient runtime ever needs them.
+
+### 2. Native ffmpeg remux - best desktop performance (the Jellyfin model)
+
+The most performant path on the desktop is **not** in-browser WASM: bundle a native ffmpeg in the Tauri
+sidecar and, for files the WebView can natively decode, **remux MKV -> fragmented MP4 by stream-copy**
+(no re-encode, near-zero CPU), then play via the native `<video>`/Vidstack with the **OS hardware
+decoders**. On macOS WebKit, HEVC and AC3/E-AC3 are OS-native, so `mkv(HEVC+AC3)` -> `fMP4(HEVC+AC3)`
+Direct-Plays hardware-accelerated with no main-thread jank.
+
+Extend `pickStrategy` into the full ladder: **direct-play -> remux (desktop) -> transcode-audio-only
+-> full-transcode/handoff**, probing with `MediaSource.isTypeSupported` / `VideoDecoder.isConfigSupported`.
+libmedia stays the fallback for the web/dev build (no native ffmpeg there) and rare codecs.
+
+Caveats: AC3-in-fMP4 plays on macOS WKWebView but **not** Windows WebView2 (no AC3) - Windows needs an
+AC3->AAC audio transcode. DTS and VVC decode nowhere natively -> transcode or libmedia. ffmpeg adds a
+few MB/platform to the installer (fine for self-contained) plus the remux/transcode pipeline + serving.
+
+### 3. @libmedia demo chrome - hidden (CSS)
+
+`@libmedia/avplayer-ui` ships standalone-demo chrome (the "Open Fold / Open File / Input Url / Live"
+file picker and a GitHub link) that doesn't belong in an embedded player. `libmedia-player.css` hides
+`.avplayer-ui-folder-container` + the header GitHub link, keeping the video + control bar. A cleaner but
+larger alternative remains open: drop to the headless `@libmedia/avplayer` and render our own controls.
+
+### 4. Subtitles + audio-track UX
+
+libmedia already exposes audio/subtitle track pickers (seen on the multi-track Obsession file). Wire
+external `.srt`/`.ass` sidecars from the torrent (`externalSubtitles` in `load()`), and persist the
+chosen audio/subtitle track across opens.
+
+### 5. Smaller items
+
+- **Configurable external player** for the handoff (Settings: VLC/mpv/IINA path) - currently hardcoded
+  to `"VLC"` in `lib/play-file.ts`.
+- **Exact codec metadata from the engine** so `pickStrategy` routes on real stream info instead of the
+  filename `hintsHevc` heuristic (`lib/playback/strategy.ts`).

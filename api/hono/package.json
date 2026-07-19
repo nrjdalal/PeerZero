@@ -40,7 +40,6 @@
   },
   "portless": {
     "name": "api.peerzero",
-    "script": "dev:app",
-    "appPort": 9336
+    "script": "dev:app"
   }
 }
