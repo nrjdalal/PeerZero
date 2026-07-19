@@ -14,6 +14,33 @@ no cloud, nothing hosted.
 
 ---
 
+## Download
+
+Grab the desktop app for your OS from the **[latest release](https://github.com/nrjdalal/PeerZero/releases/latest)**:
+
+| OS                    | File                         |
+| --------------------- | ---------------------------- |
+| macOS (Apple Silicon) | `.dmg`                       |
+| macOS (Intel)         | `.dmg`                       |
+| Windows               | `.exe` installer (or `.msi`) |
+| Linux (Debian/Ubuntu) | `.deb`                       |
+
+The app self-updates on new releases. Builds are unsigned for now, so first launch needs a
+one-time bypass:
+
+- **macOS:** drag `PeerZero.app` to `Applications`, then run this once (macOS quarantines
+  unsigned downloads and reports them as "damaged"; this clears the flag):
+
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/PeerZero.app
+  ```
+
+- **Windows:** on the SmartScreen prompt, click **More info -> Run anyway**.
+
+Prefer to run from source instead? See below.
+
+---
+
 ## Get started
 
 ### 1. Install the prerequisites (one-time)
@@ -83,7 +110,7 @@ so the engine could later be swapped for another client behind the same seam
 
 Dev URLs are named `.localhost` hosts served by [portless](https://www.npmjs.com/package/portless)
 (`bunx portless list` shows them). `PORTLESS=0 bun run dev` uses plain ports instead
-(web `:3000`, api `:4000`).
+(web `:9410`, api `:9336`).
 
 ### How updates work
 

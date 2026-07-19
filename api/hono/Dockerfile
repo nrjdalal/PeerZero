@@ -19,4 +19,4 @@ COPY --from=builder --chown=bun:bun /app/api/hono/bundle ./bundle
 
 USER bun
 CMD ["bun", "bundle/index.mjs"]
-EXPOSE 4000
+EXPOSE 9336

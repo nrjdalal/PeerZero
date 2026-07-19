@@ -30,7 +30,7 @@
 <g id="node3" class="node">
 <title>@packages/env</title>
 <ellipse fill="none" stroke="#3b82f6" cx="377.19" cy="-162" rx="113.52" ry="18"/>
-<text xml:space="preserve" text-anchor="middle" x="377.19" y="-157.8" font-family="Times,serif" font-size="14.00" fill="#3b82f6">@packages/env (3.55 KB)</text>
+<text xml:space="preserve" text-anchor="middle" x="377.19" y="-157.8" font-family="Times,serif" font-size="14.00" fill="#3b82f6">@packages/env (2.93 KB)</text>
 </g>
 <!-- @api/hono&#45;&gt;@packages/env -->
 <g id="edge2" class="edge">

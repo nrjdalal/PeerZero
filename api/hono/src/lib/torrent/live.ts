@@ -7,11 +7,16 @@ import { engine, type TorrentSnapshot } from "@/lib/torrent/engine"
 
 const clients = new Map<object, WSContext>()
 let latest: TorrentSnapshot[] = []
+// Only true once a real poll has landed. Until then `latest` is just the empty seed, which we
+// must never broadcast: the client can't tell a placeholder-empty from a genuine-empty list, so
+// it would flash "No torrents yet" before the first real frame arrives.
+let primed = false
 let poller: ReturnType<typeof setInterval> | null = null
 
 async function tick() {
   try {
     latest = await engine.list()
+    primed = true
   } catch {
     return // engine blip: keep the last snapshot, keep the feed alive
   }
@@ -31,8 +36,13 @@ const key = (ws: WSContext): object => (ws.raw as object) ?? ws
 
 export function addLiveClient(ws: WSContext) {
   clients.set(key(ws), ws)
-  if (!poller) poller = setInterval(() => void tick(), 1000)
-  ws.send(JSON.stringify({ torrents: latest })) // immediate paint from the cache
+  if (!poller) {
+    poller = setInterval(() => void tick(), 1000)
+    void tick() // poll now so the first real frame lands in ms, not after the 1s interval
+  }
+  // Paint immediately only from a real snapshot; if not primed yet, the imminent tick() delivers
+  // the first frame, so the client waits on the loader instead of flashing the empty state.
+  if (primed) ws.send(JSON.stringify({ torrents: latest }))
 }
 
 export function removeLiveClient(ws: WSContext) {

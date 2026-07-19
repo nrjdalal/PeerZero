@@ -40,9 +40,23 @@ const CONTENTS = `
   export default {}
 `
 
+// Inert stand-in for node-datachannel's native-addon module. Any property is another inert
+// (chainable), constructing yields {}, and calling is a no-op - enough for webtorrent to import
+// the WebRTC surface without ever loading the .node binary (WebRTC peers are never constructed).
+const NDC_CONTENTS = `
+  const noop = function () {}
+  const inert = new Proxy(noop, {
+    get: (_t, key) => (key === "then" ? undefined : inert),
+    construct: () => ({}),
+    apply: () => undefined,
+  })
+  export default inert
+`
+
 export const webrtcStubPlugin = {
   name: "stub-webrtc-polyfill",
   setup(build) {
+    // Bundler path (bun build --compile): the bare `webrtc-polyfill` specifier resolves here.
     build.onResolve({ filter: /^webrtc-polyfill$/ }, () => ({
       path: "webrtc-polyfill",
       namespace: "wrtc-stub",
@@ -50,6 +64,18 @@ export const webrtcStubPlugin = {
     build.onLoad({ filter: /.*/, namespace: "wrtc-stub" }, () => ({
       loader: "js",
       contents: CONTENTS,
+    }))
+    // Runtime path (bun preload): Bun does NOT fire onResolve for the bare `webrtc-polyfill`
+    // import, but it DOES for node-datachannel's own `./node-datachannel.mjs` (the module that
+    // require()s the .node binary). Stub that directly so the addon is never loaded - the binary
+    // is absent under `bun install --ignore-scripts` (CI), and loading it crashes Bun anyway.
+    build.onResolve({ filter: /node-datachannel\.mjs$/ }, (args) => ({
+      path: args.path,
+      namespace: "ndc-stub",
+    }))
+    build.onLoad({ filter: /.*/, namespace: "ndc-stub" }, () => ({
+      loader: "js",
+      contents: NDC_CONTENTS,
     }))
   },
 }

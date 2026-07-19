@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.0.5
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.4...v0.0.5)
+
+### 🩹 Fixes
+
+- **engine:** Tolerate existing dirs when setting the download folder ([#19](https://github.com/nrjdalal/PeerZero/pull/19))
+
+### 💅 Refactors
+
+- **env:** Make the app local-first with no env required ([#23](https://github.com/nrjdalal/PeerZero/pull/23))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+- Siddharth Gaikwad @sidgaikwad
+
 ## v0.0.4
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.3...v0.0.4)

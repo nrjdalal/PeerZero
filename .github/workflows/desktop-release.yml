@@ -37,6 +37,8 @@ jobs:
             rust_target: x86_64-apple-darwin
           - platform: ubuntu-22.04
             rust_target: x86_64-unknown-linux-gnu
+            # AppImage (linuxdeploy) is flaky on CI runners; ship the .deb instead.
+            bundles: deb
           - platform: windows-latest
             rust_target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.platform }}
@@ -69,12 +71,16 @@ jobs:
       - name: Install JS dependencies
         run: bun install --frozen-lockfile
 
-      - name: Sync the desktop app version to the release tag
+      - name: Sync versions to the release tag
         shell: bash
         run: |
           VERSION="${{ inputs.tag }}"
           VERSION="${VERSION#v}"
           bunx json -I -f desktop/src-tauri/tauri.conf.json -e "this.version='$VERSION'"
+          # The release tag is cut before auto-release bumps package.json, so the tagged commit
+          # still holds the previous version. Sync it here too, since the backend build version
+          # (@packages/env, baked into the Hono bundle) reads the root package.json.
+          bunx json -I -f package.json -e "this.version='$VERSION'"
 
       - name: Build backend bundle, static UI, and the Bun sidecar
         shell: bash
@@ -108,4 +114,4 @@ jobs:
           # The release already exists (auto-release.yml created it); tauri-action finds it
           # by tag and uploads the installers as assets.
           tagName: ${{ inputs.tag }}
-          args: --target ${{ matrix.rust_target }}
+          args: --target ${{ matrix.rust_target }}${{ matrix.bundles && format(' --bundles {0}', matrix.bundles) || '' }}

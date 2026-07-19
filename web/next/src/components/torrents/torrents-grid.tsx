@@ -53,7 +53,7 @@ const COMPLETED_COLUMN_VISIBILITY: VisibilityState = {
   seeders: false,
 }
 
-const STATUSES = ["Downloading", "Completed", "Paused", "Fetching"] as const
+const STATUSES = ["Downloading", "Completed", "Paused", "Fetching", "Syncing"] as const
 type Status = (typeof STATUSES)[number]
 
 // Status shown as a shadcn "Custom Colors" badge (ui.shadcn.com/docs/components/base/
@@ -67,6 +67,8 @@ const STATUS_BADGE: Record<Status, string> = {
   Paused: "border-current bg-muted text-muted-foreground",
   // Same muted look as Paused; the pulse (added in the cell) is what sets Fetching apart.
   Fetching: "border-current bg-muted text-muted-foreground",
+  // Restored torrent re-verifying its pieces on boot; same muted + pulse treatment as Fetching.
+  Syncing: "border-current bg-muted text-muted-foreground",
 }
 
 // Icon color per status. State-action icons use the status they produce (resume =
@@ -77,6 +79,7 @@ const STATUS_ICON: Record<Status, string> = {
   Completed: "text-green-600 dark:text-green-400",
   Paused: "text-muted-foreground",
   Fetching: "text-muted-foreground",
+  Syncing: "text-muted-foreground",
 }
 
 // Human labels for the Columns dropdown so it matches the table headers exactly.
@@ -93,8 +96,11 @@ const COLUMN_LABELS: Record<string, string> = {
 }
 
 // Completed torrents are auto-stopped (we don't seed), so "Completed" covers done.
-// "Fetching" means the torrent is still resolving metadata/peers (not yet ready).
+// "Syncing" is a restored torrent re-verifying its on-disk pieces on boot (checked first: it's
+// paused-and-not-ready but shouldn't read as "Paused"). "Fetching" is a fresh torrent still
+// resolving metadata/peers (not yet ready).
 function torrentStatus(t: Torrent): Status {
+  if (t.syncing) return "Syncing"
   if (t.done) return "Completed"
   if (t.paused) return "Paused"
   if (t.ready) return "Downloading"
@@ -395,7 +401,7 @@ const columns: ColumnDef<Torrent>[] = [
             // Fixed width so every stage badge is equal width and lines up down the column.
             "w-36 justify-center border-[0.5px] font-normal tabular-nums",
             STATUS_BADGE[s],
-            s === "Fetching" && "animate-pulse",
+            (s === "Fetching" || s === "Syncing") && "animate-pulse",
           )}
         >
           {label}
