@@ -109,7 +109,16 @@ export function SettingsDialog() {
                   onClick={() => browse.mutate()}
                   disabled={browse.isPending}
                 >
-                  {browse.isPending ? <Spinner /> : "Browse…"}
+                  {/* Stack label + spinner in one grid cell so the button keeps the label's
+                      width while loading (the spinner shows in place of the text, no reflow). */}
+                  <span className="grid place-items-center">
+                    <span
+                      className={`col-start-1 row-start-1 ${browse.isPending ? "invisible" : ""}`}
+                    >
+                      Browse…
+                    </span>
+                    {browse.isPending && <Spinner className="col-start-1 row-start-1" />}
+                  </span>
                 </Button>
               </div>
               <FieldDescription>
