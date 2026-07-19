@@ -13,6 +13,7 @@
         "title": "PeerZero",
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
+        "backgroundColor": "#0A0A0A",
         "width": 1080,
         "height": 720,
         "minWidth": 1080,
