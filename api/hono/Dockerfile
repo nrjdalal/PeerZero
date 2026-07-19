@@ -18,5 +18,8 @@ WORKDIR /app/api/hono
 COPY --from=builder --chown=bun:bun /app/api/hono/bundle ./bundle
 
 USER bun
+# The server binds loopback by default (so a local-dev port collision fails loud); inside a
+# container it must listen on all interfaces to be reachable from outside.
+ENV HOST=0.0.0.0
 CMD ["bun", "bundle/index.mjs"]
 EXPOSE 9336
