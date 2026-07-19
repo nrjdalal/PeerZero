@@ -112,6 +112,11 @@ function saveState() {
     path: t.path || downloadDir,
     paused: meta.get(t.infoHash)?.paused ?? false,
     addedAt: meta.get(t.infoHash)?.addedAt ?? null,
+    // Settled size/progress, replayed while a restored torrent re-verifies on boot (see snapshot's
+    // `syncing`) so its bar is truthful instead of 0% until webtorrent finishes checking pieces.
+    length: t.length || 0,
+    downloaded: t.downloaded || 0,
+    progress: t.progress || 0,
   }))
   try {
     writeFileSync(STATE_FILE, JSON.stringify({ settings: { downloadDir }, torrents }, null, 2))
@@ -156,16 +161,23 @@ function fileSnapshot(file) {
 }
 
 function snapshot(t) {
+  const m = meta.get(t.infoHash) ?? {}
+  // Syncing = a restored torrent still re-verifying its on-disk pieces (before webtorrent's
+  // `ready`). In that window webtorrent reports zero size/progress, so we replay the persisted
+  // values for a truthful bar; `done` stays live, so the torrent only counts as Completed once
+  // the pieces are actually verified (and self-corrects if the files turned out to be gone).
+  const restored = t.ready ? null : m.restored
+  const syncing = !!restored
   return {
     infoHash: t.infoHash,
-    name: t.name || t.infoHash,
+    name: t.name || restored?.name || t.infoHash,
     magnetURI: t.magnetURI,
-    length: t.length || 0,
-    downloaded: t.downloaded || 0,
+    length: t.length || restored?.length || 0,
+    downloaded: restored ? restored.downloaded : t.downloaded || 0,
     uploaded: t.uploaded || 0,
     downloadSpeed: t.downloadSpeed || 0,
     uploadSpeed: t.uploadSpeed || 0,
-    progress: t.progress || 0,
+    progress: restored ? restored.progress : t.progress || 0,
     numPeers: t.numPeers || 0,
     seeders: seederCount(t),
     // webtorrent reports ms; NaN/Infinity before metadata -> null so JSON stays clean.
@@ -173,8 +185,9 @@ function snapshot(t) {
     ratio: t.ratio || 0,
     done: t.done,
     ready: t.ready,
-    paused: meta.get(t.infoHash)?.paused ?? false,
-    addedAt: meta.get(t.infoHash)?.addedAt ?? 0,
+    syncing,
+    paused: m.paused ?? false,
+    addedAt: m.addedAt ?? 0,
     downloadDir: t.path || downloadDir,
     files: t.ready ? t.files.map(fileSnapshot) : [],
   }
@@ -508,7 +521,18 @@ server.listen(PORT, HOST, () => {
       // Each torrent restores to its own saved folder; path-less legacy entries lived in .downloads.
       const t = client.add(source, { path: saved.path || LEGACY_DOWNLOAD_DIR }, () => saveState())
       // Use saved.infoHash (always present) - t.infoHash can be unset synchronously.
-      setMeta(saved.infoHash, { paused: !!saved.paused, addedAt: saved.addedAt ?? nowUnix() })
+      // `restored` is the last-known size/progress, replayed by snapshot() while this torrent
+      // shows as "syncing" (re-verifying its pieces) and dropped once webtorrent is ready.
+      setMeta(saved.infoHash, {
+        paused: !!saved.paused,
+        addedAt: saved.addedAt ?? nowUnix(),
+        restored: {
+          name: saved.name,
+          length: saved.length ?? 0,
+          downloaded: saved.downloaded ?? 0,
+          progress: saved.progress ?? 0,
+        },
+      })
       if (saved.paused) t.pause()
       t.on("done", () => stopSeeding(t))
     } catch (err) {
