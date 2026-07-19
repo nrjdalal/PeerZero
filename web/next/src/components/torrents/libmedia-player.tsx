@@ -37,10 +37,28 @@ export function LibmediaPlayer({
 }) {
   const boxRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
+  // Keep onError current without making it an effect dependency. The file tree re-renders on every
+  // live torrent tick (once a second), so depending on this callback would tear down and rebuild the
+  // whole player each second - restarting playback and orphaning half-initialized instances.
+  const onErrorRef = useRef(onError)
+  useEffect(() => {
+    onErrorRef.current = onError
+  }, [onError])
 
   useEffect(() => {
     let disposed = false
-    let player: { destroy: () => Promise<void> } | undefined
+    let player: { stop?: () => Promise<void>; destroy?: () => Promise<void> } | undefined
+
+    // Stop playback (halts audio immediately) then fully release. Guarded because stop/destroy can
+    // reject when called mid-load, and closing must never leave the AudioContext or decoders running.
+    const teardown = (p: typeof player) => {
+      if (!p) return
+      Promise.resolve()
+        .then(() => p.stop?.())
+        .catch(() => {})
+        .then(() => p.destroy?.())
+        .catch(() => {})
+    }
 
     ;(async () => {
       try {
@@ -63,28 +81,32 @@ export function LibmediaPlayer({
           enableWorker: false,
         })
         player = instance
+        // Closed while the module/instance was still initializing: the cleanup below already ran
+        // against an undefined player, so tear this fresh instance down now.
+        if (disposed) return teardown(instance)
 
         instance.on("loaded", () => !disposed && setLoading(false))
         instance.on("playing", () => !disposed && setLoading(false))
         instance.on("error", (e: unknown) => {
           console.error("[libmedia]", e)
-          if (!disposed) onError()
+          if (!disposed) onErrorRef.current()
         })
 
         await instance.load(src)
-        if (disposed) return
+        if (disposed) return teardown(instance)
         await instance.play() // Audio needs a user gesture; the ▶ click that opened this usually counts.
+        if (disposed) teardown(instance)
       } catch (e) {
         console.error("[libmedia] load failed", e)
-        if (!disposed) onError()
+        if (!disposed) onErrorRef.current()
       }
     })()
 
     return () => {
       disposed = true
-      player?.destroy()
+      teardown(player)
     }
-  }, [src, onError])
+  }, [src])
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
