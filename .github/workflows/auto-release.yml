@@ -16,6 +16,10 @@ jobs:
     name: Update changelog branch
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'canary'
+    outputs:
+      # set to the released tag (e.g. v0.0.2) whenever a release is created/backfilled; the
+      # desktop job below builds OS-native installers for it. Empty means no release happened.
+      tag: ${{ steps.release.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -33,6 +37,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Commit changelog to canary
+        id: release
         run: |
           # the changelog commit is mechanical (generated from already-reviewed PR titles),
           # so it lands directly on canary instead of going through a PR
@@ -53,6 +58,8 @@ jobs:
               if ! gh release view "$LAST_TAG" > /dev/null 2>&1; then
                 NOTES=$(awk -v ver="## $LAST_TAG" '$0 == ver { flag = 1; next } /^## / { flag = 0 } flag' CHANGELOG.md)
                 gh release create "$LAST_TAG" --title "$LAST_TAG" --notes "$NOTES" --latest
+                # a backfilled release also needs desktop installers built for it
+                echo "tag=$LAST_TAG" >> "$GITHUB_OUTPUT"
               fi
               echo "No releasable commits since $LAST_TAG, skipping changelog"
               exit 0
@@ -113,8 +120,22 @@ jobs:
             if ! gh release view "v$NEW_VERSION" > /dev/null 2>&1; then
               gh release create "v$NEW_VERSION" --title "v$NEW_VERSION" --notes "$NOTES" --latest
             fi
+            # signal the desktop job (below) to build + attach OS-native installers to this release
+            echo "tag=v$NEW_VERSION" >> "$GITHUB_OUTPUT"
           else
             echo "No releasable changelog content, skipping release"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # After a release is published, build the macOS/Windows/Linux installers and attach them
+  # to that release. A reusable workflow (workflow_call) so it runs in THIS run - a release
+  # created with GITHUB_TOKEN can't trigger a separate `on: release` workflow.
+  desktop:
+    name: Desktop installers
+    needs: update-changelog
+    if: needs.update-changelog.outputs.tag != ''
+    uses: ./.github/workflows/desktop-release.yml
+    with:
+      tag: ${{ needs.update-changelog.outputs.tag }}
+    secrets: inherit

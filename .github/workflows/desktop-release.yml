@@ -1,19 +1,26 @@
 name: Desktop Release
 
-# Builds the PeerZero desktop app for macOS (Apple Silicon + Intel), Windows, and Linux,
-# and uploads the installers to a draft GitHub release. Trigger by pushing a `desktop-v*`
-# tag or running the workflow manually. Signing/notarization + the updater signature are
-# read from repo secrets (see desktop/README.md); the build works unsigned without them.
+# Builds the PeerZero desktop app for macOS (Apple Silicon + Intel), Windows, and Linux and
+# attaches the installers to an EXISTING GitHub release (the one auto-release.yml creates).
+#
+# Runs as a reusable job called from auto-release.yml right after it publishes a release, so
+# every `v*` release gets OS-native binaries. Also runnable manually against any existing tag.
+# Signing/notarization + the updater signature come from repo secrets (see desktop/README.md);
+# builds run unsigned without them.
 
 on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to build and attach to (e.g. v0.0.2)
+        required: true
+        type: string
   workflow_dispatch:
-  push:
-    tags:
-      - "desktop-v*"
-
-concurrency:
-  group: desktop-release-${{ github.ref }}
-  cancel-in-progress: false
+    inputs:
+      tag:
+        description: Existing release tag to build and attach to (e.g. v0.0.2)
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -35,6 +42,8 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
 
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -60,6 +69,13 @@ jobs:
       - name: Install JS dependencies
         run: bun install --frozen-lockfile
 
+      - name: Sync the desktop app version to the release tag
+        shell: bash
+        run: |
+          VERSION="${{ inputs.tag }}"
+          VERSION="${VERSION#v}"
+          bunx json -I -f desktop/src-tauri/tauri.conf.json -e "this.version='$VERSION'"
+
       - name: Build backend bundle, static UI, and the Bun sidecar
         shell: bash
         env:
@@ -75,7 +91,7 @@ jobs:
           [ "${{ matrix.platform }}" = "windows-latest" ] && EXT=".exe"
           bun desktop/backend/build.ts "desktop/src-tauri/binaries/peerzero-backend-${{ matrix.rust_target }}${EXT}"
 
-      - name: Build app + create draft release
+      - name: Build app + upload installers to the release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -91,16 +107,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: desktop
-          tagName: desktop-v__VERSION__
-          releaseName: PeerZero v__VERSION__
-          releaseBody: |
-            Desktop builds of PeerZero. Download the installer for your OS below.
-
-            - macOS: `.dmg` (separate Apple Silicon / Intel builds)
-            - Windows: `.exe` (NSIS) / `.msi`
-            - Linux: `.AppImage` / `.deb`
-
-            Unsigned builds need a manual bypass on first launch (macOS: right-click -> Open).
-          releaseDraft: true
-          prerelease: false
+          # The release already exists (auto-release.yml created it); tauri-action finds it
+          # by tag and uploads the installers as assets.
+          tagName: ${{ inputs.tag }}
           args: --target ${{ matrix.rust_target }}

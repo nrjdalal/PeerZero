@@ -40,10 +40,16 @@ OS (no native addons), e.g. `bun desktop/backend/build.ts out bun-windows-x64`.
 
 ## Release via CI
 
-`.github/workflows/desktop-release.yml` builds macOS (arm64 + Intel), Windows, and Linux in
-parallel and uploads the installers to a **draft** GitHub release. Trigger it by pushing a
-tag `desktop-v<version>` (matching `version` in `src-tauri/tauri.conf.json`) or by running
-the workflow manually. Review the draft release, then publish it.
+Desktop installers are built **automatically as part of a release**. When the auto-created
+`canary -> main` PR is merged, `auto-release.yml` bumps the version, tags `v<x.y.z>`, and
+creates the GitHub release, then it calls `desktop-release.yml` (a reusable workflow) which
+builds macOS (arm64 + Intel), Windows, and Linux in parallel and attaches the installers to
+that release. It runs as a called job in the same run rather than on a separate `on: release`
+event, because a release created with `GITHUB_TOKEN` cannot trigger another workflow.
+
+The desktop app version is synced to the release tag at build time, so no separate version
+bump is needed here. To (re)build installers for an existing tag by hand: **Actions ->
+Desktop Release -> Run workflow**, and enter the tag (e.g. `v0.0.2`).
 
 ## Required GitHub secrets
 
