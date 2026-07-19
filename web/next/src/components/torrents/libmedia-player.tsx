@@ -76,9 +76,9 @@ export function LibmediaPlayer({
         const instance = new AVPlayer({
           container: boxRef.current,
           wasmBaseUrl: "https://cdn.jsdelivr.net/gh/zhaohappy/libmedia@1.3.1/dist",
-          // Main-thread pipeline: no worker chunks to copy under Turbopack. Hardware WebCodecs stays
-          // on (the default) so HEVC uses the GPU decoder where present, WASM otherwise.
-          enableWorker: false,
+          // Workers move io/demux/decode/render off the main thread so buffering ahead doesn't freeze
+          // the UI. Hardware WebCodecs stays on (default) - HEVC on the GPU where present, WASM otherwise.
+          enableWorker: true,
         })
         player = instance
         // Closed while the module/instance was still initializing: the cleanup below already ran
