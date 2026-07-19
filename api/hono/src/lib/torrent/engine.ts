@@ -29,6 +29,8 @@ export type TorrentSnapshot = {
   ratio: number
   done: boolean
   ready: boolean
+  // Restored torrent re-verifying its on-disk pieces on boot (shows as "Syncing" until ready).
+  syncing: boolean
   paused: boolean
   addedAt: number // unix seconds the torrent was added, 0 if unknown
   downloadDir: string
