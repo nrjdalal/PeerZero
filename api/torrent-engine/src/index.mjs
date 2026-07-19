@@ -21,8 +21,10 @@ import WebTorrent from "webtorrent"
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = resolve(__dirname, "../../..")
 
-const PORT = Number(process.env.TORRENT_ENGINE_PORT || 4444)
-const HOST = process.env.TORRENT_ENGINE_HOST || "127.0.0.1"
+// In dev the engine runs under portless (see package.json "portless"), which injects PORT/HOST;
+// TORRENT_ENGINE_PORT/HOST stay as the fixed-port fallback for production (PORTLESS off).
+const PORT = Number(process.env.PORT || process.env.TORRENT_ENGINE_PORT || 4444)
+const HOST = process.env.HOST || process.env.TORRENT_ENGINE_HOST || "127.0.0.1"
 
 // Where new torrents download by default (overridable in Settings; env wins as the hard default).
 const DEFAULT_DOWNLOAD_DIR = resolve(
