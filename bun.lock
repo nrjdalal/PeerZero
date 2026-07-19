@@ -57,6 +57,9 @@
       "dependencies": {
         "webtorrent": "catalog:",
       },
+      "devDependencies": {
+        "portless": "catalog:",
+      },
     },
     "packages/config": {
       "name": "@packages/config",
