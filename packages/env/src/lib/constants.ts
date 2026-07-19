@@ -19,7 +19,10 @@ export const getBuildVersion = (): string => {
   return sha ? `${VERSION}-${sha}` : BUILD_VERSION
 }
 
-export const NODE_ENV = z.enum(["local", "development", "test", "staging", "production"])
+// Defaults to "local" so the app runs with no env; deploys/desktop set "production".
+export const NODE_ENV = z
+  .enum(["local", "development", "test", "staging", "production"])
+  .default("local")
 
 export type NodeEnv = z.infer<typeof NODE_ENV>
 

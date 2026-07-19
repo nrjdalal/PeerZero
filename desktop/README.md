@@ -24,7 +24,7 @@ From the repo root:
 # 1. backend bundle + static UI (bake the local API url) + native sidecar
 # NEXT_OUTPUT=export makes the web build a static SPA; without it the web app stays standalone.
 NODE_ENV=production bunx turbo run build --filter=@api/hono
-NEXT_OUTPUT=export NEXT_PUBLIC_API_URL=http://127.0.0.1:47821 NEXT_PUBLIC_APP_URL=http://127.0.0.1:47821 \
+NEXT_OUTPUT=export NEXT_PUBLIC_API_URL=http://127.0.0.1:9336 NEXT_PUBLIC_APP_URL=http://127.0.0.1:9336 \
   bunx turbo run build --filter=@web/next
 bun desktop/backend/build.ts desktop/src-tauri/binaries/peerzero-backend-$(rustc -Vv | sed -n 's/host: //p')
 
@@ -52,20 +52,18 @@ The desktop app version is synced to the release tag at build time, so no separa
 bump is needed here. To (re)build installers for an existing tag by hand: **Actions ->
 Desktop Release -> Run workflow**, and enter the tag (e.g. `v0.0.2`).
 
-## Required GitHub secrets
+## GitHub secrets
 
-| Secret                                          | Needed for        | Notes                                                                                                        |
-| ----------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------ |
-| `TAURI_SIGNING_PRIVATE_KEY`                     | updater artifacts | Contents of `desktop/.keys/peerzero-updater.key`. The matching public key is committed in `tauri.conf.json`. |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`            | updater artifacts | Empty string (the key was generated without a password).                                                     |
-| `APPLE_CERTIFICATE`                             | signed macOS      | base64 of the Developer ID Application `.p12`.                                                               |
-| `APPLE_CERTIFICATE_PASSWORD`                    | signed macOS      | password for the `.p12`.                                                                                     |
-| `APPLE_SIGNING_IDENTITY`                        | signed macOS      | e.g. `Developer ID Application: Your Name (TEAMID)`.                                                         |
-| `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID` | notarization      | Apple ID + an app-specific password + team id.                                                               |
+| Secret                               | Needed for        | Notes                                                                                                        |
+| ------------------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| `TAURI_SIGNING_PRIVATE_KEY`          | updater artifacts | Contents of `desktop/.keys/peerzero-updater.key`. The matching public key is committed in `tauri.conf.json`. |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | updater artifacts | Empty (the key was generated without a password).                                                            |
 
-Without the Apple secrets the macOS build is **unsigned** (ad-hoc): first launch needs
-right-click -> Open. Windows is currently unsigned too (SmartScreen warning) — Authenticode
-signing is a follow-up. Linux (`.AppImage`/`.deb`) needs no signing.
+Only the updater key is wired, so builds are currently **unsigned**: macOS is ad-hoc (first
+launch needs right-click -> Open), Windows triggers SmartScreen, Linux needs no signing. To
+enable signed + notarized macOS later, add the Apple Developer ID secrets (`APPLE_CERTIFICATE`,
+`APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`,
+`APPLE_TEAM_ID`) and pass them through in `desktop-release.yml`.
 
 ## Auto-updater
 

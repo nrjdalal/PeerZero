@@ -28,7 +28,6 @@
     "SKIP_ENV_VALIDATION_SERVER",
     // Server variables
     "NODE_ENV",
-    "HONO_APP_URL",
     "HONO_PORT",
     "HONO_RATE_LIMIT",
     "HONO_RATE_LIMIT_WINDOW_MS",
