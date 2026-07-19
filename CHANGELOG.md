@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.8
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.7...v0.0.8)
+
+### 🩹 Fixes
+
+- **desktop:** 1080x720 window floor and a branded startup splash ([#30](https://github.com/nrjdalal/PeerZero/pull/30))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.7
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.6...v0.0.7)

@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 
 import { InnerProvider, OuterProvider } from "@/app/providers"
 import { Navbar } from "@/components/common/navbar"
+import { SplashScreen } from "@/components/common/splash-screen"
 import { TauriExternalLinks } from "@/components/common/tauri-external-links"
 import { UpdateNotice } from "@/components/common/update-notice"
 import { dmSans, jetbrainsMono } from "@/lib/fonts"
@@ -44,6 +45,7 @@ export default function RootLayout({
             <UpdateNotice />
             <Navbar />
             {children}
+            <SplashScreen />
           </InnerProvider>
         </body>
       </html>
