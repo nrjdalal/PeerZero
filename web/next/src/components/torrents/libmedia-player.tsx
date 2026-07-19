@@ -334,7 +334,7 @@ export function LibmediaPlayer({
 
           {(buffering || !ready) && (
             <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
-              <Spinner className="size-12 text-[#e50914]" />
+              <Spinner className="size-16 text-[#e50914]" />
             </div>
           )}
 
@@ -346,7 +346,7 @@ export function LibmediaPlayer({
             )}
           >
             <button type="button" onClick={onClose} aria-label="Back" className={CTRL}>
-              <RiArrowLeftLine className="size-8" />
+              <RiArrowLeftLine className="size-10" />
             </button>
           </div>
 
@@ -376,14 +376,18 @@ export function LibmediaPlayer({
 
             {/* Button row: left cluster / centered title / right cluster */}
             <div className="relative flex items-center justify-between">
-              <div className="flex items-center gap-5">
+              <div className="flex items-center gap-6">
                 <button
                   type="button"
                   onClick={togglePlay}
                   aria-label={playing ? "Pause" : "Play"}
                   className={CTRL}
                 >
-                  {playing ? <RiPauseFill className="size-8" /> : <RiPlayFill className="size-8" />}
+                  {playing ? (
+                    <RiPauseFill className="size-12" />
+                  ) : (
+                    <RiPlayFill className="size-12" />
+                  )}
                 </button>
                 <button
                   type="button"
@@ -391,7 +395,7 @@ export function LibmediaPlayer({
                   aria-label="Back 10 seconds"
                   className={CTRL}
                 >
-                  <RiReplay10Line className="size-7" />
+                  <RiReplay10Line className="size-10" />
                 </button>
                 <button
                   type="button"
@@ -399,7 +403,7 @@ export function LibmediaPlayer({
                   aria-label="Forward 10 seconds"
                   className={CTRL}
                 >
-                  <RiForward10Line className="size-7" />
+                  <RiForward10Line className="size-10" />
                 </button>
                 <div className="group flex items-center gap-2">
                   <button
@@ -409,9 +413,9 @@ export function LibmediaPlayer({
                     className={CTRL}
                   >
                     {muted || vol === 0 ? (
-                      <RiVolumeMuteFill className="size-7" />
+                      <RiVolumeMuteFill className="size-10" />
                     ) : (
-                      <RiVolumeUpFill className="size-7" />
+                      <RiVolumeUpFill className="size-10" />
                     )}
                   </button>
                   <input
@@ -431,7 +435,7 @@ export function LibmediaPlayer({
                 {name}
               </div>
 
-              <div className="flex items-center gap-5">
+              <div className="flex items-center gap-6">
                 {subs.length > 0 && (
                   <div className="relative">
                     <button
@@ -440,7 +444,7 @@ export function LibmediaPlayer({
                       aria-label="Subtitles"
                       className={CTRL}
                     >
-                      <RiClosedCaptioningLine className="size-7" />
+                      <RiClosedCaptioningLine className="size-10" />
                     </button>
                     {subOpen && (
                       <div className="absolute right-0 bottom-10 min-w-32 overflow-hidden rounded-md bg-[#262626] py-1 text-sm shadow-lg">
@@ -478,7 +482,7 @@ export function LibmediaPlayer({
                     aria-label="Playback speed"
                     className={CTRL}
                   >
-                    <RiSpeedUpLine className="size-7" />
+                    <RiSpeedUpLine className="size-10" />
                   </button>
                   {speedOpen && (
                     <div className="absolute right-0 bottom-10 min-w-32 overflow-hidden rounded-md bg-[#262626] py-1 text-sm shadow-lg">
@@ -500,9 +504,9 @@ export function LibmediaPlayer({
                 </div>
                 <button type="button" onClick={toggleFs} aria-label="Fullscreen" className={CTRL}>
                   {fs ? (
-                    <RiFullscreenExitLine className="size-7" />
+                    <RiFullscreenExitLine className="size-10" />
                   ) : (
-                    <RiFullscreenLine className="size-7" />
+                    <RiFullscreenLine className="size-10" />
                   )}
                 </button>
               </div>
