@@ -7,7 +7,7 @@ import { z } from "zod"
 import { ApiError, jsonError } from "@/lib/error"
 import { upgradeWebSocket } from "@/lib/server"
 import { ensureDirectory } from "@/lib/torrent/directory"
-import { engine, EngineError } from "@/lib/torrent/engine"
+import { engine, EngineError, engineStream } from "@/lib/torrent/engine"
 import { addLiveClient, removeLiveClient } from "@/lib/torrent/live"
 import {
   activeProviders,
@@ -45,6 +45,31 @@ export const torrentsRouter = new Hono()
       const { q } = c.req.valid("query")
       const { results, sources } = await searchTorrents(q)
       return c.json({ data: { query: q, results, sources } })
+    },
+  )
+  .get(
+    "/:infoHash/stream/:fileIdx",
+    describeRoute({
+      tags: ["Torrents"],
+      description: "Stream a torrent file over HTTP Range for the in-app or external player.",
+    }),
+    async (c) => {
+      let upstream: Response
+      try {
+        upstream = await engineStream(
+          `/stream/${c.req.param("infoHash")}/${c.req.param("fileIdx")}`,
+          c.req.header("range"),
+        )
+      } catch (err) {
+        return handleEngineError(c, err)
+      }
+      // Relay the raw byte stream + Range headers straight through - NOT the { data } envelope.
+      const headers = new Headers()
+      for (const h of ["content-type", "content-length", "content-range", "accept-ranges"]) {
+        const v = upstream.headers.get(h)
+        if (v) headers.set(h, v)
+      }
+      return new Response(upstream.body, { status: upstream.status, headers })
     },
   )
   .get(

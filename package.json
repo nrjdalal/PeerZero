@@ -81,6 +81,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
+    "@vidstack/react": "1.15.6",
     "@viz-js/viz": "^3.28.0",
     "babel-plugin-react-compiler": "^1.0.0",
     "changelogen": "0.6.2",

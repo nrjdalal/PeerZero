@@ -11,12 +11,16 @@ import {
   RiFileZipLine,
   RiFilmLine,
   RiFolderLine,
+  RiPlayFill,
   type RemixiconComponentType,
 } from "@remixicon/react"
 import { type KeyboardEvent, useCallback, useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
 
+import { Player } from "@/components/torrents/player"
 import { Progress } from "@/components/ui/progress"
 import { formatBytes, formatPercent } from "@/lib/format"
+import { isBrowserSafe, mimeFor, openInExternalPlayer, streamUrl } from "@/lib/play-file"
 import { cn } from "@/lib/utils"
 
 type TorrentFile = TorrentSnapshot["files"][number]
@@ -24,6 +28,8 @@ type TorrentFile = TorrentSnapshot["files"][number]
 type FileLeaf = {
   type: "file"
   name: string
+  // Position in the torrent's `files` array (== webtorrent `torrent.files[i]`), the stream URL's id.
+  index: number
   length: number
   downloaded: number
   progress: number
@@ -49,7 +55,9 @@ export function buildFileTree(files: TorrentFile[], rootName: string): TreeNode[
     length: 0,
     downloaded: 0,
   }
-  for (const file of files) {
+  // `index` is the file's position in the flat `files` array; it survives the folder sort below and
+  // is what the stream URL references (`torrent.files[index]`).
+  files.forEach((file, index) => {
     const segments = file.path.split(/[/\\]/).filter(Boolean)
     const parts = segments[0] === rootName ? segments.slice(1) : segments
     const leafName = parts.length ? parts[parts.length - 1] : file.name
@@ -66,11 +74,12 @@ export function buildFileTree(files: TorrentFile[], rootName: string): TreeNode[
     node.children.push({
       type: "file",
       name: leafName,
+      index,
       length: file.length,
       downloaded: file.downloaded,
       progress: file.progress,
     })
-  }
+  })
   // Bottom-up: aggregate each folder's size/downloaded from its children, then sort folders-first.
   const finalize = (folder: FolderNode) => {
     for (const c of folder.children) if (c.type === "folder") finalize(c)
@@ -99,6 +108,13 @@ function iconForFile(name: string): RemixiconComponentType {
   if (TEXT.has(ext)) return RiFileTextLine
   if (ext === "pdf") return RiFilePdf2Line
   return RiFileLine
+}
+
+// Video/audio files are "playable": the desktop app streams them to a native player (any codec),
+// the browser to the inline <video> (browser-native codecs only).
+export function isPlayable(name: string): boolean {
+  const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase()
+  return VIDEO.has(ext) || AUDIO.has(ext)
 }
 
 // A flattened, currently-visible tree row. `path` is the node's unique slash-joined path from the
@@ -148,6 +164,7 @@ function TreeRow({
   registerEl,
   onFocusRow,
   onToggle,
+  onPlay,
 }: {
   row: FlatRow
   // `active` is the roving-tabindex target (always one row); `highlighted` is the visible
@@ -160,6 +177,8 @@ function TreeRow({
   registerEl: (el: HTMLDivElement | null) => void
   onFocusRow: () => void
   onToggle: () => void
+  // Play a video/audio file (by its `torrent.files` index). A no-op for non-playable files.
+  onPlay: (fileIndex: number, name: string) => void
 }) {
   const { node } = row
   const isFolder = node.type === "folder"
@@ -193,7 +212,26 @@ function TreeRow({
       ) : showDisclosure ? (
         <span className="size-4 shrink-0" aria-hidden />
       ) : null}
-      <Icon className="text-muted-foreground size-4 shrink-0" />
+      {node.type === "file" && isPlayable(node.name) ? (
+        // The file icon doubles as a Play button (swaps to ▶ on hover) - no layout shift, so the
+        // percent/size columns stay aligned. tabIndex=-1 keeps the tree's roving focus intact.
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={(e) => {
+            e.stopPropagation()
+            onPlay(node.index, node.name)
+          }}
+          title={`Play ${node.name}`}
+          aria-label={`Play ${node.name}`}
+          className="group/play text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+        >
+          <Icon className="size-4 group-hover/play:hidden" />
+          <RiPlayFill className="hidden size-4 group-hover/play:block" />
+        </button>
+      ) : (
+        <Icon className="text-muted-foreground size-4 shrink-0" />
+      )}
       <span className={cn("min-w-0 flex-1 truncate", isFolder && "font-medium")} title={node.name}>
         {node.name}
       </span>
@@ -223,11 +261,13 @@ function TreeRow({
 export function TorrentFileTree({
   files,
   rootName,
+  infoHash,
   onExitUp,
   onExitDown,
 }: {
   files: TorrentFile[]
   rootName: string
+  infoHash: string
   // Called at the tree's boundaries so the grid can continue the unified treegrid traversal:
   // onExitUp when Up is pressed on the first row, onExitDown when Down is pressed on the last.
   onExitUp?: () => void
@@ -246,6 +286,27 @@ export function TorrentFileTree({
   // Highlight the active row only while the tree holds focus, so a freshly expanded row's tree
   // never renders its first item as "selected" before the user navigates into it.
   const [hasFocus, setHasFocus] = useState(false)
+  const [playing, setPlaying] = useState<{ url: string; name: string; type: string } | null>(null)
+  const playFile = useCallback(
+    (fileIndex: number, name: string) => {
+      const url = streamUrl(infoHash, fileIndex)
+      // Browser-safe (mp4/webm + H.264/AAC): play inline. Everything else (mkv/HEVC/AC3/DTS) needs a
+      // native decoder - hand off to the desktop's external player, or tell a plain browser to.
+      if (isBrowserSafe(name)) {
+        setPlaying({ url, name, type: mimeFor(name) })
+        return
+      }
+      void openInExternalPlayer(url).then((handled) => {
+        if (!handled) {
+          toast.error(`Can't play ${name} in the browser`, {
+            description:
+              "Its codecs (e.g. HEVC video or AC3/DTS audio) aren't browser-supported. Open it in the desktop app, or a player like VLC.",
+          })
+        }
+      })
+    },
+    [infoHash],
+  )
 
   const rowEls = useRef(new Map<string, HTMLDivElement>())
   const focusRow = useCallback((path: string | null | undefined) => {
@@ -310,40 +371,55 @@ export function TorrentFileTree({
           e.preventDefault()
           e.stopPropagation()
           toggle(row.path)
+        } else if (row.node.type === "file" && isPlayable(row.node.name)) {
+          e.preventDefault()
+          e.stopPropagation()
+          playFile(row.node.index, row.node.name)
         }
         break
     }
   }
 
   return (
-    <div
-      role="tree"
-      aria-label={`Files in ${rootName}`}
-      className="flex flex-col gap-0.5 text-sm"
-      onKeyDown={onKeyDown}
-      onFocus={() => setHasFocus(true)}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHasFocus(false)
-      }}
-    >
-      {rows.map((row) => (
-        <TreeRow
-          key={row.path}
-          row={row}
-          active={row.path === active}
-          highlighted={row.path === active && hasFocus}
-          showDisclosure={hasFolders}
-          registerEl={(el) => {
-            if (el) rowEls.current.set(row.path, el)
-            else rowEls.current.delete(row.path)
-          }}
-          onFocusRow={() => setActivePath(row.path)}
-          onToggle={() => {
-            setActivePath(row.path)
-            toggle(row.path)
-          }}
+    <>
+      <div
+        role="tree"
+        aria-label={`Files in ${rootName}`}
+        className="flex flex-col gap-0.5 text-sm"
+        onKeyDown={onKeyDown}
+        onFocus={() => setHasFocus(true)}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHasFocus(false)
+        }}
+      >
+        {rows.map((row) => (
+          <TreeRow
+            key={row.path}
+            row={row}
+            active={row.path === active}
+            highlighted={row.path === active && hasFocus}
+            showDisclosure={hasFolders}
+            registerEl={(el) => {
+              if (el) rowEls.current.set(row.path, el)
+              else rowEls.current.delete(row.path)
+            }}
+            onFocusRow={() => setActivePath(row.path)}
+            onToggle={() => {
+              setActivePath(row.path)
+              toggle(row.path)
+            }}
+            onPlay={playFile}
+          />
+        ))}
+      </div>
+      {playing && (
+        <Player
+          src={playing.url}
+          type={playing.type}
+          name={playing.name}
+          onClose={() => setPlaying(null)}
         />
-      ))}
-    </div>
+      )}
+    </>
   )
 }

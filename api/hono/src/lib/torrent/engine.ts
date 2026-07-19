@@ -61,6 +61,16 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T
 }
 
+// Proxy a byte-range stream from the engine WITHOUT JSON-decoding it: forwards the browser's Range
+// header and returns the raw Response (200/206 + body) to pipe into a <video> or an external player.
+export async function engineStream(path: string, range?: string): Promise<Response> {
+  try {
+    return await fetch(`${BASE}${path}`, range ? { headers: { range } } : undefined)
+  } catch {
+    throw new EngineError("torrent engine unreachable (is the sidecar running?)", 503)
+  }
+}
+
 export const engine = {
   async health(): Promise<boolean> {
     try {
