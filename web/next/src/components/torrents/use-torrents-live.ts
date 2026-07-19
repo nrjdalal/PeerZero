@@ -15,7 +15,11 @@ export const TORRENTS_QUERY_KEY = ["torrents"] as const
 
 // Live torrent list: each WebSocket frame is pushed straight into the TanStack Query
 // cache, whose refetchInterval acts as a poll fallback only while the socket is down.
-export function useTorrentsLive(): { torrents: TorrentSnapshot[]; status: Status } {
+export function useTorrentsLive(): {
+  torrents: TorrentSnapshot[]
+  status: Status
+  loaded: boolean
+} {
   const queryClient = useQueryClient()
   const [connected, setConnected] = useState(false)
 
@@ -65,5 +69,8 @@ export function useTorrentsLive(): { torrents: TorrentSnapshot[]; status: Status
   }, [queryClient])
 
   const status: Status = connected ? "online" : isError ? "offline" : data ? "online" : "connecting"
-  return { torrents: data ?? [], status }
+  // Distinct from status: true once the first snapshot has arrived (query or socket), so the
+  // grid shows a loader until then instead of flashing the empty state when the socket connects
+  // before the first frame.
+  return { torrents: data ?? [], status, loaded: data !== undefined }
 }

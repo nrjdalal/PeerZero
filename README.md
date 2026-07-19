@@ -20,8 +20,8 @@ no cloud, nothing hosted.
 
 Install these two yourself first - each link has a normal installer:
 
-- **Bun** - runs the app · [bun.sh](https://bun.sh)
-- **Node.js** - runs the download engine, pick the **LTS** build · [nodejs.org](https://nodejs.org)
+- **Bun** - runs the app, including the download engine · [bun.sh](https://bun.sh)
+- **Node.js** - runs the dev tooling (turbo, Next.js), pick the **LTS** build · [nodejs.org](https://nodejs.org)
 
 ### 2. Get the project and start it
 
@@ -58,7 +58,7 @@ rarely need to - the app keeps its trackers and indexes fresh on its own in the 
   stream over a WebSocket into the **Transfers** tab.
 - **Stays a downloader.** Completed torrents auto-stop instead of seeding.
 - **Runs entirely locally.** Nothing is uploaded to a server; downloads land in
-  `.downloads/` at the project root.
+  `~/Downloads/PeerZero` by default (change it any time in the app's Settings).
 
 ---
 
@@ -66,17 +66,20 @@ rarely need to - the app keeps its trackers and indexes fresh on its own in the 
 
 Three processes start together with `bun run dev`:
 
-| Service              | Runtime  | Role                                                     |
-| -------------------- | -------- | -------------------------------------------------------- |
-| `web/next`           | Bun      | Next.js UI                                               |
-| `api/hono`           | Bun      | API layer + proxy to the download engine                 |
-| `api/torrent-engine` | **Node** | WebTorrent download engine behind a small local HTTP API |
+| Service              | Runtime | Role                                                     |
+| -------------------- | ------- | -------------------------------------------------------- |
+| `web/next`           | Bun     | Next.js UI                                               |
+| `api/hono`           | Bun     | API layer + proxy to the download engine                 |
+| `api/torrent-engine` | Bun     | WebTorrent download engine behind a small local HTTP API |
 
-The engine is a **Node sidecar** (not Bun) because WebTorrent's `node-datachannel` native
-addon can't load under Bun. It is pinned to `webtorrent@2.8.5` (the 3.0.x line crashes
-mid-download). The Bun API talks to it over plain HTTP on `127.0.0.1:4444`, so the engine
-could later be swapped for another client behind the same seam
-(`api/hono/src/lib/torrent/engine.ts`).
+The engine runs under Bun like the rest of the stack. WebTorrent's two Bun-incompatible
+native addons are kept out of the process: WebRTC (`node-datachannel`) is neutralized by a
+preload stub (`api/torrent-engine/src/webrtc-stub.mjs`, wired via `bunfig.toml`) and uTP
+(`utp-native`) is disabled with `{ utp: false }`; both otherwise crash Bun on an unsupported
+libuv function. Peers are found via the DHT plus udp/http trackers over TCP. It stays a
+separate process so a crashing torrent can't take the backend down. The Bun API talks to it
+over plain HTTP on `127.0.0.1:4444`, so the engine could later be swapped for another client
+behind the same seam (`api/hono/src/lib/torrent/engine.ts`).
 
 Dev URLs are named `.localhost` hosts served by [portless](https://www.npmjs.com/package/portless)
 (`bunx portless list` shows them). `PORTLESS=0 bun run dev` uses plain ports instead
@@ -102,11 +105,11 @@ refreshes happen in the background. No git pull required to stay current.
 
 Everything works out of the box; `.env` is only for tweaks. Highlights:
 
-| Variable               | Default       | What it does                                                                       |
-| ---------------------- | ------------- | ---------------------------------------------------------------------------------- |
-| `TORRENT_DOWNLOAD_DIR` | `.downloads/` | Where finished files land                                                          |
-| `TORRENT_MAX_CONNS`    | `50`          | Per-torrent connection cap (kept low to be gentle on home routers)                 |
-| `REGISTRY_SYNC_URL`    | canary mirror | Where background refresh falls back to; set to any non-URL (e.g. `off`) to disable |
+| Variable               | Default                | What it does                                                                       |
+| ---------------------- | ---------------------- | ---------------------------------------------------------------------------------- |
+| `TORRENT_DOWNLOAD_DIR` | `~/Downloads/PeerZero` | Where finished files land (also changeable in the app's Settings)                  |
+| `TORRENT_MAX_CONNS`    | `25`                   | Per-torrent connection cap (kept low to be gentle on home routers)                 |
+| `REGISTRY_SYNC_URL`    | canary mirror          | Where background refresh falls back to; set to any non-URL (e.g. `off`) to disable |
 
 See `.env.example` for the full list.
 

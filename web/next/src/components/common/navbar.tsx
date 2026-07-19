@@ -1,6 +1,6 @@
 "use client"
 
-import { features, type Feature, site } from "@packages/config/site"
+import { site } from "@packages/config/site"
 import {
   RiArrowRightUpFill,
   RiDiscordFill,
@@ -19,6 +19,7 @@ import { SettingsDialog } from "@/components/torrents/settings-dialog"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { usePrefs } from "@/lib/prefs-store"
 import { cn, isActive } from "@/lib/utils"
 
 const socialLinks = [
@@ -71,14 +72,15 @@ export function Navbar() {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
 
-  if (pathname?.startsWith("/console") || pathname?.startsWith("/dashboard")) return null
+  // Search is an off-by-default advanced feature (Settings > Advanced > Enable Search); its tab
+  // appears after Completed only once enabled.
+  const enableSearch = usePrefs((s) => s.enableSearch)
 
-  // A link with a `feature` is shown only when that feature is enabled; /hire has none, so it always shows (and is stripped from forks by the CLI).
-  const allNavLinks: { href: string; label: string; external?: boolean; feature?: Feature }[] = [
+  const navLinks: { href: string; label: string; external?: boolean }[] = [
     { href: "/", label: "Transfers" },
-    { href: "/search", label: "Search" },
+    { href: "/completed", label: "Completed" },
+    ...(enableSearch ? [{ href: "/search", label: "Search" }] : []),
   ]
-  const navLinks = allNavLinks.filter((link) => !link.feature || features[link.feature])
 
   return (
     <header className="bg-background fixed top-0 left-0 z-50 w-full border-b">
@@ -122,21 +124,8 @@ export function Navbar() {
           </nav>
         </div>
 
-        {/* Right: docs + social links + settings + theme toggle + mobile menu */}
+        {/* Right: social links + settings + theme toggle + mobile menu */}
         <div className="flex items-center gap-3.5">
-          {features.docs && (
-            <Link
-              href="/docs"
-              className={cn(
-                "hidden font-medium transition-colors lg:inline",
-                isActive(pathname, "/docs", { exact: false })
-                  ? "text-foreground"
-                  : "hover:text-foreground/80 text-foreground/60",
-              )}
-            >
-              Docs
-            </Link>
-          )}
           {/* Social Links */}
           <div className="hidden items-center gap-2.5 lg:flex">
             <SocialLinks />
@@ -207,20 +196,6 @@ export function Navbar() {
                     </Link>
                   )
                 })}
-                {features.docs && (
-                  <Link
-                    href="/docs"
-                    className={cn(
-                      "font-medium transition-colors",
-                      isActive(pathname, "/docs", { exact: false })
-                        ? "text-foreground"
-                        : "hover:text-foreground/80 text-foreground/60",
-                    )}
-                    onClick={() => setIsOpen(false)}
-                  >
-                    Docs
-                  </Link>
-                )}
                 {site.social.github && (
                   <Button
                     role="link"
