@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.0.12
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.11...v0.0.12)
+
+### 🚀 Enhancements
+
+- **files:** Align the expanded file tree to the grid columns ([#52](https://github.com/nrjdalal/PeerZero/pull/52))
+
+### 🩹 Fixes
+
+- **desktop:** Run libmedia on the main thread in the Tauri WebView ([#48](https://github.com/nrjdalal/PeerZero/pull/48))
+- **desktop:** Play videos in the packaged app (Bun stream fix + ephemeral ports) ([#51](https://github.com/nrjdalal/PeerZero/pull/51))
+
+### 💅 Refactors
+
+- Fold the torrent-engine into api-hono (in-process) ([#49](https://github.com/nrjdalal/PeerZero/pull/49))
+
+### 📖 Documentation
+
+- **plans:** Icebox machine-native AI media naming ([#45](https://github.com/nrjdalal/PeerZero/pull/45))
+- Fix portless/port docs after the random-ports change ([#47](https://github.com/nrjdalal/PeerZero/pull/47))
+- **skills:** Add a desktop skill for building and running the app ([#50](https://github.com/nrjdalal/PeerZero/pull/50))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.11
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.10...v0.0.11)
