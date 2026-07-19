@@ -11,7 +11,7 @@ COPY --from=prepare /app/.github/scripts .github/scripts
 COPY --from=prepare /app/out/json/ .
 RUN bun install --frozen-lockfile --ignore-scripts
 COPY --from=prepare /app/out/full/ .
-ENV INTERNAL_API_URL=http://api:4000
+ENV INTERNAL_API_URL=http://api:9336
 RUN --mount=type=secret,id=dotenv,target=/app/.env,required=true bunx turbo run build --filter=@web/next
 RUN cp -r /app/web/next/.next/static /app/web/next/.next/standalone/web/next/.next/static
 RUN cp -r /app/web/next/public /app/web/next/.next/standalone/web/next
@@ -22,5 +22,7 @@ COPY --from=builder --chown=bun:bun /app/web/next/.next/standalone /app
 RUN mkdir -p .next && chown bun:bun .next
 
 USER bun
+# Pin Next's standalone server to the app's canonical port.
+ENV PORT=9410
 CMD ["bun", "server.js"]
-EXPOSE 3000
+EXPOSE 9410
