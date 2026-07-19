@@ -12,10 +12,11 @@ import { spawn } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { homedir, platform } from "node:os"
 import { dirname, resolve } from "node:path"
-import { Readable } from "node:stream"
 import { fileURLToPath } from "node:url"
 
 import WebTorrent from "webtorrent"
+
+import { nodeToWebStream } from "./stream-adapter.mjs"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 // api/hono/src/lib/torrent -> repo root (only used for the legacy .downloads migration in dev).
@@ -468,7 +469,7 @@ export function streamFile(infoHash, idx, range, method = "GET") {
   if (method === "HEAD") return new Response(null, { status, headers })
   const nodeStream = file.createReadStream({ start, end })
   nodeStream.on("error", (err) => console.error("[engine] stream error:", err?.message || err))
-  return new Response(Readable.toWeb(nodeStream), { status, headers })
+  return new Response(nodeToWebStream(nodeStream), { status, headers })
 }
 
 // ---------- boot: restore previously-added torrents (runs once at module load) ----------
