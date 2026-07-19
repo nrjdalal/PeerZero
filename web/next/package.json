@@ -62,7 +62,6 @@
   ],
   "portless": {
     "name": "peerzero",
-    "script": "dev:app",
-    "appPort": 9410
+    "script": "dev:app"
   }
 }

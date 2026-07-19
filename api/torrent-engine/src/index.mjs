@@ -23,8 +23,10 @@ const REPO_ROOT = resolve(__dirname, "../../..")
 
 // In dev the engine runs under portless (see package.json "portless"), which injects PORT/HOST;
 // TORRENT_ENGINE_PORT/HOST stay as the fixed-port fallback for production (PORTLESS off).
-// The 6339 fallback matches the API's TORRENT_ENGINE_URL default and portless appPort, so
-// `PORTLESS=0` works out of the box even when the root .env isn't loaded into this sidecar.
+// The 6339 fallback matches the API's TORRENT_ENGINE_URL default, so `PORTLESS=0` works out of
+// the box even when the root .env isn't loaded into this sidecar. In portless dev mode there is no
+// fixed appPort (matches ZeroStarter): portless assigns a free port and injects it as PORT, so the
+// dev stack never collides with the installed desktop app on 6339.
 const PORT = Number(process.env.PORT || process.env.TORRENT_ENGINE_PORT || 6339)
 const HOST = process.env.HOST || process.env.TORRENT_ENGINE_HOST || "127.0.0.1"
 
