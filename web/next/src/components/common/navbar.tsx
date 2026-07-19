@@ -12,6 +12,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 
+import { CommandHint } from "@/components/command/command-hint"
 import { Logo } from "@/components/common/logo"
 import { ModeToggle } from "@/components/common/mode-toggle"
 import { OpenFolderButton } from "@/components/torrents/open-folder-button"
@@ -135,6 +136,7 @@ export function Navbar() {
             <SocialLinks />
           </div>
 
+          <CommandHint />
           <OpenFolderButton />
           <SettingsDialog />
           <ModeToggle />

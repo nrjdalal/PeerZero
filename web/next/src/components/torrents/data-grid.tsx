@@ -169,6 +169,7 @@ export function DataGrid<T>({
   renderSubRow,
   getRowCanExpand,
   onRowActivate,
+  onRowKey,
 }: {
   data: T[]
   columns: ColumnDef<T>[]
@@ -202,6 +203,9 @@ export function DataGrid<T>({
   // Fires when Enter hits a highlighted row that has no sub-row to expand - the row's primary
   // action (e.g. Search downloads the result). Arrow navigation runs on every grid regardless.
   onRowActivate?: (row: T) => void
+  // Single-key shortcut on the focused row (e.g. p/r/o/Backspace on a torrent). Return true to
+  // consume the key. Fires for plain keys not already claimed by the grid model.
+  onRowKey?: (key: string, row: T) => boolean
 }) {
   const { status } = useTorrents()
   // Sort + column visibility persist in the store (surviving reloads); column filters stay
@@ -309,6 +313,8 @@ export function DataGrid<T>({
   // Latest onRowActivate, read by the window listener without re-binding it each render.
   const activateRef = useRef(onRowActivate)
   activateRef.current = onRowActivate
+  const rowKeyRef = useRef(onRowKey)
+  rowKeyRef.current = onRowKey
 
   // Boundary callbacks handed to each expanded sub-row so its tree can continue the treegrid
   // traversal: exiting up returns the cursor to this row, exiting down advances to the next row.
@@ -427,6 +433,14 @@ export function DataGrid<T>({
           e.preventDefault()
           activateRef.current(row.original)
         }
+        return
+      }
+
+      // Consumer row shortcuts on the focused row (e.g. p/r/o/Backspace on a torrent). Plain keys
+      // only; modifiers, arrows, Space, Enter and Cmd/Ctrl+A are handled above.
+      if (rowKeyRef.current && activeId && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const row = table.getRowModel().rowsById[activeId]
+        if (row && rowKeyRef.current(e.key, row.original)) e.preventDefault()
       }
     }
     window.addEventListener("keydown", onKeyDown)
@@ -437,6 +451,9 @@ export function DataGrid<T>({
     <>
       <RiSearchFill className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
       <Input
+        // biome-ignore lint/a11y/noAutofocus: this is the view's leading input; focusing it on
+        // mount makes the app type-ready, matching a keyboard-first desktop app.
+        autoFocus={primaryInput === "search"}
         value={search.value}
         onChange={(e) => search.onChange(e.target.value)}
         placeholder={search.placeholder ?? "Search torrents…"}
@@ -477,6 +494,8 @@ export function DataGrid<T>({
     <div className="relative">
       <RiFilterFill className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
       <Input
+        // biome-ignore lint/a11y/noAutofocus: leading input on Transfers; type-ready on mount.
+        autoFocus={primaryInput === "filter"}
         value={nameFilter}
         onChange={(e) => table.getColumn("name")?.setFilterValue(e.target.value)}
         placeholder="Filter by name…"

@@ -117,7 +117,7 @@ export function CommandPalette() {
     })
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
+    <CommandDialog open={open} onOpenChange={setOpen} className="sm:max-w-2xl">
       <Command shouldFilter={!isMagnet}>
         <CommandInput
           placeholder="Type a command, or paste a magnet link…"
