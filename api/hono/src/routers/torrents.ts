@@ -89,10 +89,7 @@ export const torrentsRouter = new Hono()
   )
   .get(
     "/settings",
-    describeRoute({
-      tags: ["Torrents"],
-      description: "Get the current download folder and media library settings.",
-    }),
+    describeRoute({ tags: ["Torrents"], description: "Get the current download folder." }),
     async (c) => {
       try {
         return c.json({ data: await engine.getSettings() })
@@ -140,45 +137,6 @@ export const torrentsRouter = new Hono()
     async (c) => {
       try {
         return c.json({ data: await engine.chooseDir() })
-      } catch (err) {
-        return handleEngineError(c, err)
-      }
-    },
-  )
-  .put(
-    "/settings/media-library",
-    describeRoute({
-      tags: ["Torrents"],
-      description:
-        "Update the media library: toggle organizing finished video torrents into a Jellyfin-friendly library and/or set its folder. Video files are hardlinked (the original download is never moved or renamed).",
-    }),
-    sValidator(
-      "json",
-      z
-        .object({ enabled: z.boolean().optional(), dir: z.string().trim().min(1).optional() })
-        .refine((v) => v.enabled !== undefined || v.dir !== undefined, {
-          message: "provide enabled and/or dir",
-        }),
-      onInvalid,
-    ),
-    async (c) => {
-      try {
-        return c.json({ data: await engine.setMediaLibrary(c.req.valid("json")) })
-      } catch (err) {
-        return handleEngineError(c, err)
-      }
-    },
-  )
-  .post(
-    "/choose-library-dir",
-    describeRoute({
-      tags: ["Torrents"],
-      description:
-        "Open a native folder picker on the host and set the chosen media library folder.",
-    }),
-    async (c) => {
-      try {
-        return c.json({ data: await engine.chooseLibraryDir() })
       } catch (err) {
         return handleEngineError(c, err)
       }
@@ -261,24 +219,6 @@ export const torrentsRouter = new Hono()
     async (c) => {
       try {
         return c.json({ data: { ok: await engine.reveal(c.req.param("infoHash")) } })
-      } catch (err) {
-        return handleEngineError(c, err)
-      }
-    },
-  )
-  .patch(
-    "/:infoHash",
-    describeRoute({
-      tags: ["Torrents"],
-      description:
-        "Set a torrent's locally-generated display name (cosmetic; never renames files on disk).",
-    }),
-    sValidator("json", z.object({ displayName: z.string().trim().min(1).max(300) }), onInvalid),
-    async (c) => {
-      const { displayName } = c.req.valid("json")
-      try {
-        const torrent = await engine.setDisplayName(c.req.param("infoHash"), displayName)
-        return c.json({ data: { torrent } })
       } catch (err) {
         return handleEngineError(c, err)
       }

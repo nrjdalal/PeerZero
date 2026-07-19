@@ -7,8 +7,7 @@
     "check-types": "tsc --noEmit",
     "dev": "portless",
     "dev:app": "bun ../../.github/scripts/portless.ts next dev",
-    "start": "bun .next/standalone/web/next/server.js",
-    "test": "bun test src/lib/torrent-name"
+    "start": "bun .next/standalone/web/next/server.js"
   },
   "dependencies": {
     "@api/hono": "workspace:*",
