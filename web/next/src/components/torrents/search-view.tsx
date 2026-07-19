@@ -256,6 +256,7 @@ export function SearchView() {
       columns={columns}
       columnLabels={COLUMN_LABELS}
       getRowId={(r) => r.infoHash}
+      label="Search results"
       storageKey="search"
       tableClassName="min-w-256"
       initialSorting={DEFAULT_SORTING}

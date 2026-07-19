@@ -170,6 +170,7 @@ export function DataGrid<T>({
   getRowCanExpand,
   onRowActivate,
   onRowKey,
+  label,
 }: {
   data: T[]
   columns: ColumnDef<T>[]
@@ -206,6 +207,8 @@ export function DataGrid<T>({
   // Single-key shortcut on the focused row (e.g. p/r/o/Backspace on a torrent). Return true to
   // consume the key. Fires for plain keys not already claimed by the grid model.
   onRowKey?: (key: string, row: T) => boolean
+  // Accessible name for the grid (role="grid" aria-label), announced to screen readers.
+  label?: string
 }) {
   const { status } = useTorrents()
   // Sort + column visibility persist in the store (surviving reloads); column filters stay
@@ -315,6 +318,8 @@ export function DataGrid<T>({
   activateRef.current = onRowActivate
   const rowKeyRef = useRef(onRowKey)
   rowKeyRef.current = onRowKey
+  // Stable DOM id per row so the grid can point aria-activedescendant at the focus cursor.
+  const rowDomId = (id: string) => `${storageKey}-row-${id}`
 
   // Boundary callbacks handed to each expanded sub-row so its tree can continue the treegrid
   // traversal: exiting up returns the cursor to this row, exiting down advances to the next row.
@@ -636,13 +641,27 @@ export function DataGrid<T>({
 
       {/* Grid - fills the remaining height and scrolls internally so the page doesn't. */}
       <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-        <Table className={cn("table-fixed", tableClassName)}>
+        {/* aria-activedescendant grid: focus stays on the table while the arrow-key cursor
+            (activeId) moves; the active row's DOM id is announced. Focusing the grid drops the
+            cursor onto the first row so there's always something to move from. */}
+        <Table
+          role="grid"
+          aria-label={label}
+          aria-multiselectable={selectable || undefined}
+          aria-activedescendant={activeId ? rowDomId(activeId) : undefined}
+          tabIndex={0}
+          onFocus={(e) => {
+            if (e.target === e.currentTarget && !activeId && rowIds.length) setActiveId(rowIds[0])
+          }}
+          className={cn("table-fixed focus-visible:outline-none", tableClassName)}
+        >
           <TableHeader className="bg-background sticky top-0 z-10">
             {table.getHeaderGroups().map((hg) => (
-              <TableRow key={hg.id}>
+              <TableRow key={hg.id} role="row">
                 {hg.headers.map((header, i) => (
                   <TableHead
                     key={header.id}
+                    role="columnheader"
                     // Name claims all remaining width (width:100% in a fixed layout), so
                     // every other column stays content-sized and pinned right.
                     style={
@@ -661,8 +680,8 @@ export function DataGrid<T>({
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={allColumns.length} className="h-64 p-0">
+              <TableRow role="row" className="hover:bg-transparent">
+                <TableCell role="gridcell" colSpan={allColumns.length} className="h-64 p-0">
                   {empty}
                 </TableCell>
               </TableRow>
@@ -670,7 +689,10 @@ export function DataGrid<T>({
               rows.map((row) => (
                 <Fragment key={row.id}>
                   <TableRow
+                    role="row"
+                    id={rowDomId(row.id)}
                     data-state={row.getIsSelected() ? "selected" : undefined}
+                    aria-selected={selectable ? row.getIsSelected() : undefined}
                     className={cn(
                       renderSubRow && "select-none",
                       row.getCanExpand() && "cursor-pointer",
@@ -699,6 +721,7 @@ export function DataGrid<T>({
                       return (
                         <TableCell
                           key={cell.id}
+                          role="gridcell"
                           // The checkbox cell selects; swallow its clicks so they don't also toggle
                           // the row's expansion.
                           onClick={
@@ -725,10 +748,15 @@ export function DataGrid<T>({
                       // The tree's folders carry aria-expanded; neutralize the base row's
                       // has-aria-expanded / hover tints so an open folder never shades the whole tree.
                       <TableRow
+                        role="row"
                         className="hover:bg-transparent has-aria-expanded:bg-transparent"
                         data-subrow-of={row.id}
                       >
-                        <TableCell colSpan={row.getVisibleCells().length} className="p-0">
+                        <TableCell
+                          role="gridcell"
+                          colSpan={row.getVisibleCells().length}
+                          className="p-0"
+                        >
                           {renderSubRow(
                             row.original,
                             makeSubRowNav(row.id),

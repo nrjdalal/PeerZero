@@ -634,6 +634,7 @@ export function TorrentsGrid({ completed = false }: { completed?: boolean } = {}
       columnLabels={COLUMN_LABELS}
       getRowId={(t) => t.infoHash}
       selectable
+      label="Torrents"
       onRowKey={rowKey}
       getRowCanExpand={(t) => t.files.length > 0}
       renderSubRow={(t, nav, columns) => (
