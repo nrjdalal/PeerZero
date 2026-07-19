@@ -14,6 +14,25 @@ no cloud, nothing hosted.
 
 ---
 
+## Download
+
+Grab the desktop app for your OS from the **[latest release](https://github.com/nrjdalal/PeerZero/releases/latest)**:
+
+| OS                    | File                         |
+| --------------------- | ---------------------------- |
+| macOS (Apple Silicon) | `.dmg`                       |
+| macOS (Intel)         | `.dmg`                       |
+| Windows               | `.exe` installer (or `.msi`) |
+| Linux (Debian/Ubuntu) | `.deb`                       |
+
+The app self-updates on new releases. Builds are unsigned for now, so the first launch needs
+a one-time bypass: on macOS right-click the app and choose **Open**; on Windows click
+**More info -> Run anyway** on the SmartScreen prompt.
+
+Prefer to run from source instead? See below.
+
+---
+
 ## Get started
 
 ### 1. Install the prerequisites (one-time)
