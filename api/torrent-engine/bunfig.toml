@@ -3,9 +3,3 @@
 # See src/webrtc-stub.mjs for the full rationale. Applies to every `bun` invocation in
 # this package (dev, start, or a bare `bun src/index.mjs`).
 preload = ["./src/webrtc-stub.mjs"]
-
-# `bun test` does NOT honor the top-level preload above, so re-declare it here. Without this,
-# a test that imports webtorrent loads node-datachannel unstubbed - fine locally (the native
-# binary exists) but fatal in CI, where `bun install --ignore-scripts` leaves the binary absent.
-[test]
-preload = ["./src/webrtc-stub.mjs"]

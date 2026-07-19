@@ -36,7 +36,7 @@ app.use(
   cors({
     origin: env.HONO_TRUSTED_ORIGINS,
     allowHeaders: ["content-type", "authorization"],
-    allowMethods: ["GET", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"],
+    allowMethods: ["GET", "OPTIONS", "POST", "PUT", "DELETE"],
     exposeHeaders: ["content-length"],
     maxAge: 600,
     credentials: true,
