@@ -11,6 +11,7 @@ import { toast } from "sonner"
 
 import { DataGrid, SortHeader } from "@/components/torrents/data-grid"
 import { useTorrents } from "@/components/torrents/torrents-context"
+import { markNewlyAdded } from "@/components/torrents/use-auto-display-name"
 import { TORRENTS_QUERY_KEY } from "@/components/torrents/use-torrents-live"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -48,6 +49,7 @@ function AddAction({ result }: { result: SearchResult }) {
       return data
     },
     onSuccess: (d) => {
+      markNewlyAdded(d.torrent.infoHash)
       queryClient.invalidateQueries({ queryKey: TORRENTS_QUERY_KEY })
       toast.success(`Added: ${d.torrent.name}`)
     },
@@ -207,6 +209,7 @@ export function SearchView() {
       return data
     },
     onSuccess: (d) => {
+      markNewlyAdded(d.torrent.infoHash)
       queryClient.invalidateQueries({ queryKey: TORRENTS_QUERY_KEY })
       toast.success(`Added: ${d.torrent.name}`)
     },
