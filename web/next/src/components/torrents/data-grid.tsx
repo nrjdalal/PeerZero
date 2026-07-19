@@ -168,6 +168,7 @@ export function DataGrid<T>({
   bulkActions,
   renderSubRow,
   getRowCanExpand,
+  onRowActivate,
 }: {
   data: T[]
   columns: ColumnDef<T>[]
@@ -198,6 +199,9 @@ export function DataGrid<T>({
     columns: SubRowColumn[],
   ) => ReactNode
   getRowCanExpand?: (row: T) => boolean
+  // Fires when Enter hits a highlighted row that has no sub-row to expand - the row's primary
+  // action (e.g. Search downloads the result). Arrow navigation runs on every grid regardless.
+  onRowActivate?: (row: T) => void
 }) {
   const { status } = useTorrents()
   // Sort + column visibility persist in the store (surviving reloads); column filters stay
@@ -302,6 +306,9 @@ export function DataGrid<T>({
   // The window keydown listener reads live values via a ref so it isn't re-bound each render.
   const navRef = useRef({ rowIds, anchorId, activeId })
   navRef.current = { rowIds, anchorId, activeId }
+  // Latest onRowActivate, read by the window listener without re-binding it each render.
+  const activateRef = useRef(onRowActivate)
+  activateRef.current = onRowActivate
 
   // Boundary callbacks handed to each expanded sub-row so its tree can continue the treegrid
   // traversal: exiting up returns the cursor to this row, exiting down advances to the next row.
@@ -321,17 +328,25 @@ export function DataGrid<T>({
     },
   })
 
-  // Keyboard model (WAI-ARIA grid pattern, mirroring AG Grid / DataTables / Windows Explorer):
-  // Up/Down move the focus cursor only, Space toggles the focused row's selection, Enter opens or
-  // closes its sub-row, Shift+Up/Down extend the range from the anchor, and Cmd/Ctrl+A selects all.
-  // Navigation never selects on its own - selection is a deliberate act (checkbox or Space). Ignored
-  // while typing or when focus is on a control that owns the key (a button, the file tree, a menu).
+  // Keyboard model (WAI-ARIA grid pattern, mirroring AG Grid / DataTables / Windows Explorer),
+  // identical on every grid: Up/Down move the focus cursor, Enter opens the focused row's sub-row
+  // or - when it has none - fires its primary action (onRowActivate, e.g. download on Search). The
+  // selection extras run only on `selectable` grids (Transfers/Completed): Space toggles the focused
+  // row, Shift+Up/Down extend the range from the anchor, and Cmd/Ctrl+A selects all. Navigation
+  // never selects on its own. Ignored while typing - except Up/Down, which hand off from the
+  // search/filter box into the grid - and when focus is on a control that owns the key (a button,
+  // the file tree, a menu).
   useEffect(() => {
-    if (!selectable) return
     const onKeyDown = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null
-      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable))
-        return
+      const inField =
+        !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)
+      // Up/Down move from a text field (the search/filter box) into the grid; every other key is
+      // left to the field while typing.
+      if (inField) {
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") el.blur()
+        else return
+      }
       if (
         el?.closest(
           'button, a, [role="checkbox"], [role="menu"], [role="dialog"], [role="listbox"], [role="combobox"], [role="tree"]',
@@ -341,7 +356,8 @@ export function DataGrid<T>({
       const { rowIds, anchorId, activeId } = navRef.current
       if (rowIds.length === 0) return
 
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+      // Select-all is a selection action - selectable grids only.
+      if (selectable && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
         e.preventDefault()
         table.toggleAllRowsSelected(true)
         return
@@ -381,14 +397,16 @@ export function DataGrid<T>({
             : Math.min(rowIds.length - 1, Math.max(0, cur + dir))
         const nextId = rowIds[nextIdx]
         if (!nextId) return
-        // Shift extends the selection as the cursor moves; a plain move only repositions the anchor.
-        if (e.shiftKey && anchorId) selectRange(rowIds, anchorId, nextId)
+        // Shift extends the selection as the cursor moves (selectable grids); a plain move only
+        // repositions the anchor.
+        if (e.shiftKey && anchorId && selectable) selectRange(rowIds, anchorId, nextId)
         else setAnchorId(nextId)
         setActiveId(nextId)
         return
       }
 
-      if (e.key === " " || e.key === "Spacebar") {
+      // Space toggles the focused row's selection - selectable grids only.
+      if (selectable && (e.key === " " || e.key === "Spacebar")) {
         const row = activeId ? table.getRowModel().rowsById[activeId] : undefined
         if (!row) return
         e.preventDefault()
@@ -399,9 +417,15 @@ export function DataGrid<T>({
 
       if (e.key === "Enter") {
         const row = activeId ? table.getRowModel().rowsById[activeId] : undefined
-        if (row?.getCanExpand()) {
+        if (!row) return
+        // An expandable row (the Transfers file tree) opens/closes; otherwise fire the row's
+        // primary action (Search downloads the highlighted result).
+        if (row.getCanExpand()) {
           e.preventDefault()
           row.toggleExpanded()
+        } else if (activateRef.current) {
+          e.preventDefault()
+          activateRef.current(row.original)
         }
       }
     }
@@ -636,9 +660,7 @@ export function DataGrid<T>({
                       // selected row. (--accent == --muted in this theme, which is why a plain
                       // bg-accent was indistinguishable from the selected-row background.)
                       "data-[state=selected]:bg-muted/50",
-                      selectable &&
-                        activeId === row.id &&
-                        "bg-muted data-[state=selected]:bg-muted",
+                      activeId === row.id && "bg-muted data-[state=selected]:bg-muted",
                     )}
                     onClick={
                       renderSubRow
