@@ -4,6 +4,7 @@ import {
   RiArrowLeftRightLine,
   RiDownloadLine,
   RiFolderOpenLine,
+  RiKeyboardLine,
   RiPauseLine,
   RiPlayLine,
   RiSearchLine,
@@ -27,6 +28,7 @@ import {
   CommandShortcut,
 } from "@/components/ui/command"
 import { apiClient, unwrap } from "@/lib/api/client"
+import { useCheatsheet } from "@/lib/cheatsheet-store"
 import { useCommandPalette } from "@/lib/command-store"
 import { usePrefs } from "@/lib/prefs-store"
 
@@ -45,6 +47,7 @@ export function CommandPalette() {
   // Search is an off-by-default advanced feature; the palette mirrors the navbar - "Go to Search"
   // only appears when it's enabled.
   const enableSearch = usePrefs((s) => s.enableSearch)
+  const openCheatsheet = useCheatsheet((s) => s.setOpen)
 
   // ⌘K / Ctrl+K toggles the palette from anywhere - it's a global accelerator, so it fires even
   // while typing in a field (⌘K is never a text-editing key).
@@ -165,6 +168,14 @@ export function CommandPalette() {
                 <CommandItem onSelect={openFolder}>
                   <RiFolderOpenLine />
                   Open download folder
+                </CommandItem>
+              </CommandGroup>
+              <CommandSeparator />
+              <CommandGroup heading="Help">
+                <CommandItem onSelect={() => run(() => openCheatsheet(true))}>
+                  <RiKeyboardLine />
+                  Keyboard shortcuts
+                  <CommandShortcut>?</CommandShortcut>
                 </CommandItem>
               </CommandGroup>
             </>
