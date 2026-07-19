@@ -143,12 +143,20 @@ const rowStyle = (depth: number) => ({
 function TreeRow({
   row,
   active,
+  highlighted,
+  showDisclosure,
   registerEl,
   onFocusRow,
   onToggle,
 }: {
   row: FlatRow
+  // `active` is the roving-tabindex target (always one row); `highlighted` is the visible
+  // selection, shown only while the tree holds focus.
   active: boolean
+  highlighted: boolean
+  // Whether to reserve the folder chevron column. Only when the tree has folders - a flat,
+  // folder-less torrent (e.g. a single file) shouldn't look like a collapsed folder.
+  showDisclosure: boolean
   registerEl: (el: HTMLDivElement | null) => void
   onFocusRow: () => void
   onToggle: () => void
@@ -164,14 +172,14 @@ function TreeRow({
       role="treeitem"
       aria-level={row.depth + 1}
       aria-expanded={row.hasChildren ? row.expanded : undefined}
-      aria-selected={active}
+      aria-selected={highlighted}
       tabIndex={active ? 0 : -1}
       onFocus={onFocusRow}
       onClick={() => (row.hasChildren ? onToggle() : onFocusRow())}
       style={rowStyle(row.depth)}
       className={cn(
         "flex cursor-pointer items-center gap-2 py-0.5 outline-none",
-        active && "bg-accent",
+        highlighted && "bg-accent",
       )}
     >
       {isFolder ? (
@@ -181,9 +189,9 @@ function TreeRow({
             row.expanded && "rotate-90",
           )}
         />
-      ) : (
+      ) : showDisclosure ? (
         <span className="size-4 shrink-0" aria-hidden />
-      )}
+      ) : null}
       <Icon className="text-muted-foreground size-4 shrink-0" />
       <span className={cn("min-w-0 flex-1 truncate", isFolder && "font-medium")} title={node.name}>
         {node.name}
@@ -211,14 +219,32 @@ function TreeRow({
 // out), Enter/Space toggles a folder, Home/End jump to ends. Folders are collapsed by default and
 // the row grows to fit its content. Files/progress come from the live TorrentSnapshot, so per-file
 // bars advance in place.
-export function TorrentFileTree({ files, rootName }: { files: TorrentFile[]; rootName: string }) {
+export function TorrentFileTree({
+  files,
+  rootName,
+  onExitUp,
+  onExitDown,
+}: {
+  files: TorrentFile[]
+  rootName: string
+  // Called at the tree's boundaries so the grid can continue the unified treegrid traversal:
+  // onExitUp when Up is pressed on the first row, onExitDown when Down is pressed on the last.
+  onExitUp?: () => void
+  onExitDown?: () => void
+}) {
   const nodes = useMemo(() => buildFileTree(files, rootName), [files, rootName])
+  // A folder anywhere means every node sits under a top-level folder, so reserve the chevron
+  // column; a folder-less torrent (single file, or flat files) skips it entirely.
+  const hasFolders = useMemo(() => nodes.some((node) => node.type === "folder"), [nodes])
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
   const rows = useMemo(() => flatten(nodes, open), [nodes, open])
 
   const [activePath, setActivePath] = useState<string | null>(null)
   // Keep the roving focus valid as rows change; default to the first row.
   const active = rows.some((r) => r.path === activePath) ? activePath : (rows[0]?.path ?? null)
+  // Highlight the active row only while the tree holds focus, so a freshly expanded row's tree
+  // never renders its first item as "selected" before the user navigates into it.
+  const [hasFocus, setHasFocus] = useState(false)
 
   const rowEls = useRef(new Map<string, HTMLDivElement>())
   const focusRow = useCallback((path: string | null | undefined) => {
@@ -244,12 +270,16 @@ export function TorrentFileTree({ files, rootName }: { files: TorrentFile[]; roo
       case "ArrowDown":
         e.preventDefault()
         e.stopPropagation()
-        focusRow(rows[Math.min(idx + 1, rows.length - 1)]?.path)
+        // At the last row, hand off to the grid to continue into the next torrent.
+        if (idx >= rows.length - 1) onExitDown?.()
+        else focusRow(rows[idx + 1]?.path)
         break
       case "ArrowUp":
         e.preventDefault()
         e.stopPropagation()
-        focusRow(rows[Math.max(idx - 1, 0)]?.path)
+        // At the first row, hand back to the grid's parent torrent row.
+        if (idx <= 0) onExitUp?.()
+        else focusRow(rows[idx - 1]?.path)
         break
       case "ArrowRight":
         e.preventDefault()
@@ -290,12 +320,18 @@ export function TorrentFileTree({ files, rootName }: { files: TorrentFile[]; roo
       aria-label={`Files in ${rootName}`}
       className="flex flex-col gap-0.5 text-sm"
       onKeyDown={onKeyDown}
+      onFocus={() => setHasFocus(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHasFocus(false)
+      }}
     >
       {rows.map((row) => (
         <TreeRow
           key={row.path}
           row={row}
           active={row.path === active}
+          highlighted={row.path === active && hasFocus}
+          showDisclosure={hasFolders}
           registerEl={(el) => {
             if (el) rowEls.current.set(row.path, el)
             else rowEls.current.delete(row.path)

@@ -578,7 +578,14 @@ export function TorrentsGrid({ completed = false }: { completed?: boolean } = {}
       getRowId={(t) => t.infoHash}
       selectable
       getRowCanExpand={(t) => t.files.length > 0}
-      renderSubRow={(t) => <TorrentFileTree files={t.files} rootName={t.name} />}
+      renderSubRow={(t, nav) => (
+        <TorrentFileTree
+          files={t.files}
+          rootName={t.name}
+          onExitUp={nav.onExitUp}
+          onExitDown={nav.onExitDown}
+        />
+      )}
       bulkActions={(selected, clear) => <BulkActions torrents={selected} onDone={clear} />}
       storageKey={completed ? "completed" : "transfers"}
       primaryInput="filter"

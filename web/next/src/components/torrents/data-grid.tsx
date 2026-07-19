@@ -62,6 +62,18 @@ import { cn } from "@/lib/utils"
 // the fade never replays.
 let engineStatusRevealed = false
 
+// Move real DOM focus to the first/last treeitem of a row's expanded sub-row, so keyboard
+// navigation flows continuously between the grid's row cursor and a nested tree (WAI-ARIA
+// treegrid). Returns false when the row has no rendered sub-row/tree to enter.
+function focusSubRowEdge(rowId: string, edge: "first" | "last"): boolean {
+  const subRow = document.querySelector(`[data-subrow-of="${rowId}"]`)
+  const items = subRow?.querySelectorAll<HTMLElement>('[role="treeitem"]')
+  const item = items?.[edge === "first" ? 0 : items.length - 1]
+  if (!item) return false
+  item.focus()
+  return true
+}
+
 // Sortable column header shared by every grid. Sort direction is read from live table
 // state (via `table`), not column.getIsSorted() - that captures a stale table reference.
 export function SortHeader<T>({
@@ -174,7 +186,7 @@ export function DataGrid<T>({
   bulkActions?: (rows: T[], clear: () => void) => ReactNode
   // Adds row expansion: a full-width sub-row rendered below an expanded row. The expand
   // affordance lives in the consumer's cells via row.getCanExpand()/getToggleExpandedHandler().
-  renderSubRow?: (row: T) => ReactNode
+  renderSubRow?: (row: T, nav: { onExitUp: () => void; onExitDown: () => void }) => ReactNode
   getRowCanExpand?: (row: T) => boolean
 }) {
   const { status } = useTorrents()
@@ -281,6 +293,24 @@ export function DataGrid<T>({
   const navRef = useRef({ rowIds, anchorId, activeId })
   navRef.current = { rowIds, anchorId, activeId }
 
+  // Boundary callbacks handed to each expanded sub-row so its tree can continue the treegrid
+  // traversal: exiting up returns the cursor to this row, exiting down advances to the next row.
+  const makeSubRowNav = (rowId: string) => ({
+    onExitUp: () => {
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      setActiveId(rowId)
+      setAnchorId(rowId)
+    },
+    onExitDown: () => {
+      const ids = navRef.current.rowIds
+      const nextId = ids[ids.indexOf(rowId) + 1]
+      if (!nextId) return
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      setActiveId(nextId)
+      setAnchorId(nextId)
+    },
+  })
+
   // Keyboard model (WAI-ARIA grid pattern, mirroring AG Grid / DataTables / Windows Explorer):
   // Up/Down move the focus cursor only, Space toggles the focused row's selection, Enter opens or
   // closes its sub-row, Shift+Up/Down extend the range from the anchor, and Cmd/Ctrl+A selects all.
@@ -311,6 +341,28 @@ export function DataGrid<T>({
         e.preventDefault()
         const dir = e.key === "ArrowDown" ? 1 : -1
         const cur = activeId ? rowIds.indexOf(activeId) : -1
+
+        // Treegrid traversal (plain moves only): Down descends into the current row's expanded
+        // tree; Up lands on the last item of the previous row's expanded tree. The tree then owns
+        // the keys until it hands focus back at its boundaries (see makeSubRowNav).
+        if (!e.shiftKey) {
+          const byId = table.getRowModel().rowsById
+          // Descending hands real focus to the tree; drop the grid cursor so its row highlight
+          // doesn't linger behind the tree's own focus highlight.
+          if (dir === 1) {
+            if (activeId && byId[activeId]?.getIsExpanded() && focusSubRowEdge(activeId, "first")) {
+              setActiveId(null)
+              return
+            }
+          } else {
+            const prevId = cur <= 0 ? undefined : rowIds[cur - 1]
+            if (prevId && byId[prevId]?.getIsExpanded() && focusSubRowEdge(prevId, "last")) {
+              setActiveId(null)
+              return
+            }
+          }
+        }
+
         const nextIdx =
           cur === -1
             ? dir === 1
@@ -569,7 +621,7 @@ export function DataGrid<T>({
                     className={cn(
                       renderSubRow && "select-none",
                       row.getCanExpand() && "cursor-pointer",
-                      selectable && activeId === row.id && "ring-primary/40 ring-2 ring-inset",
+                      selectable && activeId === row.id && "bg-accent",
                     )}
                     onClick={
                       renderSubRow
@@ -607,13 +659,19 @@ export function DataGrid<T>({
                       )
                     })}
                   </TableRow>
-                  {row.getIsExpanded() && renderSubRow && (
-                    <TableRow className="hover:bg-transparent">
-                      <TableCell colSpan={row.getVisibleCells().length} className="p-0">
-                        {renderSubRow(row.original)}
-                      </TableCell>
-                    </TableRow>
-                  )}
+                  {row.getIsExpanded() &&
+                    renderSubRow && (
+                      // The tree's folders carry aria-expanded; neutralize the base row's
+                      // has-aria-expanded / hover tints so an open folder never shades the whole tree.
+                      <TableRow
+                        className="hover:bg-transparent has-aria-expanded:bg-transparent"
+                        data-subrow-of={row.id}
+                      >
+                        <TableCell colSpan={row.getVisibleCells().length} className="p-0">
+                          {renderSubRow(row.original, makeSubRowNav(row.id))}
+                        </TableCell>
+                      </TableRow>
+                    )}
                 </Fragment>
               ))
             )}
