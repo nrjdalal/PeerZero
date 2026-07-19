@@ -179,7 +179,8 @@ function TreeRow({
       style={rowStyle(row.depth)}
       className={cn(
         "flex cursor-pointer items-center gap-2 py-0.5 outline-none",
-        highlighted && "bg-accent",
+        // Matches the grid's keyboard focus fill (see DataGrid).
+        highlighted && "bg-muted",
       )}
     >
       {isFolder ? (

@@ -621,7 +621,14 @@ export function DataGrid<T>({
                     className={cn(
                       renderSubRow && "select-none",
                       row.getCanExpand() && "cursor-pointer",
-                      selectable && activeId === row.id && "bg-accent",
+                      // Selection (checkbox) gets a subtle half-opacity fill; the keyboard focus
+                      // cursor is a full fill that always wins, so it stays visible even on a
+                      // selected row. (--accent == --muted in this theme, which is why a plain
+                      // bg-accent was indistinguishable from the selected-row background.)
+                      "data-[state=selected]:bg-muted/50",
+                      selectable &&
+                        activeId === row.id &&
+                        "bg-muted data-[state=selected]:bg-muted",
                     )}
                     onClick={
                       renderSubRow
