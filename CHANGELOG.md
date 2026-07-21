@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.15
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.14...v0.0.15)
+
+### 🚀 Enhancements
+
+- **web:** Keyboard-first command palette, shortcuts, and grid a11y ([#62](https://github.com/nrjdalal/PeerZero/pull/62))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.14
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.13...v0.0.14)
