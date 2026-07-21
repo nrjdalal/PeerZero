@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.0.18
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.17...v0.0.18)
+
+### 🩹 Fixes
+
+- **desktop:** Stop idle mpv rendering + version badge ([#69](https://github.com/nrjdalal/PeerZero/pull/69))
+- **desktop:** Black startup splash and cleaner settings dialog ([38aa30b](https://github.com/nrjdalal/PeerZero/commit/38aa30b))
+
+### 🏡 Chore
+
+- **release:** Hand-set version to 0.0.18 ([a5a985d](https://github.com/nrjdalal/PeerZero/commit/a5a985d))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.17
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.16...v0.0.17)
