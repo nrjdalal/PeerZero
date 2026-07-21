@@ -57,6 +57,13 @@ jobs:
             libayatana-appindicator3-dev libxdo-dev patchelf \
             libfuse2 build-essential curl wget file libssl-dev
 
+      # The native mpv player (macOS) links libmpv at build time; install it so the Rust build links.
+      # build.rs finds it via `brew --prefix` (no PKG_CONFIG_PATH needed). The shipped app is made
+      # self-contained separately (desktop/scripts/bundle-libmpv.py vendors the dylibs into the .app).
+      - name: Install libmpv (macOS native player)
+        if: matrix.platform == 'macos-latest'
+        run: bash desktop/scripts/ensure-libmpv.sh
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14

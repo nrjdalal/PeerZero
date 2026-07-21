@@ -22,6 +22,12 @@ Use an isolated `PZ_PORT` + a temp `HOME` so it never collides with an installed
 or another worktree, and never touches your real `~/.peerzero` state or downloads. `cargo` must be
 on PATH.
 
+For a **self-contained** `.app` (native mpv bundled in, no Homebrew needed to run it), skip the manual
+steps and run `desktop/scripts/build-app.sh` - it installs libmpv, builds everything, and vendors the
+dylib closure into the `.app`. The manual steps below are for a quick isolated run. Either way the
+native mpv player needs **libmpv at build time**: run `desktop/scripts/ensure-libmpv.sh` first (or
+`brew install mpv`); `build.rs` then finds it via `brew --prefix`, so no `PKG_CONFIG_PATH` is needed.
+
 ```bash
 PORT=9400                                    # a fixed, known port for scripted testing (the app's default is ephemeral)
 export PATH="$HOME/.cargo/bin:$PATH"          # tauri needs cargo

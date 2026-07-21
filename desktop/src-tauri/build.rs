@@ -12,21 +12,52 @@ fn main() {
   )
   .expect("failed to run tauri-build");
 
-  // libmpv2-sys's build script emits only `cargo:rustc-link-lib=mpv` with NO search path, so provide
-  // it here via pkg-config (Homebrew's mpv.pc on macOS; system pkg-config elsewhere). We emit only the
-  // link-search paths - libmpv2-sys already emits the `-lmpv` itself - to avoid a duplicate. Set
-  // PKG_CONFIG_PATH (e.g. /opt/homebrew/lib/pkgconfig) at build time if mpv is not on the default path.
-  // At runtime the binary resolves libmpv at its linked install-name until the self-contained bundling
-  // step (desktop/scripts/bundle-libmpv.py) vendors it into the .app.
+  // Link libmpv without a manual PKG_CONFIG_PATH. libmpv2-sys emits only `cargo:rustc-link-lib=mpv`
+  // (no search path), and Homebrew keeps mpv.pc under <prefix>/lib/pkgconfig, which is off
+  // pkg-config's default search path. Detect the active Homebrew prefix (`brew --prefix`, else the
+  // standard arm64 / Intel locations) and add its pkgconfig dir, so a plain `cargo build` finds
+  // libmpv with no env setup - `desktop/scripts/ensure-libmpv.sh` installs mpv first if it's missing.
+  // We emit only the link-search paths (libmpv2-sys already emits `-lmpv`) to avoid a duplicate. At
+  // runtime the binary keeps libmpv's Homebrew install-name until desktop/scripts/bundle-libmpv.py
+  // vendors the dylib closure into the .app, so end users need no Homebrew.
   #[cfg(target_os = "macos")]
-  match pkg_config::Config::new().cargo_metadata(false).probe("mpv") {
-    Ok(lib) => {
-      for path in lib.link_paths {
-        println!("cargo:rustc-link-search=native={}", path.display());
-      }
+  {
+    use std::path::Path;
+    use std::process::Command;
+
+    let brew_prefix = Command::new("brew")
+      .arg("--prefix")
+      .output()
+      .ok()
+      .filter(|out| out.status.success())
+      .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+      .filter(|prefix| !prefix.is_empty())
+      .or_else(|| {
+        ["/opt/homebrew", "/usr/local"]
+          .into_iter()
+          .find(|dir| Path::new(dir).exists())
+          .map(String::from)
+      });
+    if let Some(prefix) = brew_prefix {
+      let pkgconfig = format!("{prefix}/lib/pkgconfig");
+      let path = match std::env::var("PKG_CONFIG_PATH") {
+        Ok(existing) if !existing.is_empty() => format!("{pkgconfig}:{existing}"),
+        _ => pkgconfig,
+      };
+      // Safe: build scripts are single-threaded (edition 2021).
+      std::env::set_var("PKG_CONFIG_PATH", path);
     }
-    Err(err) => {
-      println!("cargo:warning=libmpv not found via pkg-config ({err}); set PKG_CONFIG_PATH to your mpv.pc dir");
+    match pkg_config::Config::new().cargo_metadata(false).probe("mpv") {
+      Ok(lib) => {
+        for path in lib.link_paths {
+          println!("cargo:rustc-link-search=native={}", path.display());
+        }
+      }
+      Err(err) => {
+        println!(
+          "cargo:warning=libmpv not found via pkg-config ({err}); run desktop/scripts/ensure-libmpv.sh (or `brew install mpv`)"
+        );
+      }
     }
   }
 }

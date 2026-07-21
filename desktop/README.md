@@ -21,36 +21,26 @@ desktop/
   .keys/              updater signing private key (gitignored — add it as a secret)
 ```
 
-## Build locally (macOS example)
+## Build locally (macOS)
 
-From the repo root:
+One turnkey command builds a **self-contained** `PeerZero.app` with the native mpv player bundled
+in - no Homebrew, no `PKG_CONFIG_PATH`, nothing to run it needs from the host:
 
 ```bash
-# 1. backend bundle + static UI + native sidecar
-# NEXT_OUTPUT=export makes the web build a static SPA; without it the web app stays standalone.
-# NEXT_PUBLIC_API_URL here is only a fallback: at runtime the shell injects the real (ephemeral)
-# port via window.__PEERZERO_API_URL__, which the UI prefers.
-NODE_ENV=production bunx turbo run build --filter=@api/hono
-NEXT_OUTPUT=export NEXT_PUBLIC_API_URL=http://127.0.0.1:9336 NEXT_PUBLIC_APP_URL=http://127.0.0.1:9336 \
-  bunx turbo run build --filter=@web/next
-bun desktop/backend/build.ts desktop/src-tauri/binaries/peerzero-backend-$(rustc -Vv | sed -n 's/host: //p')
-
-# 2. the app (.app + .dmg). PKG_CONFIG_PATH lets the build find libmpv (see "Native video" below).
-#    The updater key is required because the config signs updater artifacts (createUpdaterArtifacts).
-cd desktop
-PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig \
-TAURI_SIGNING_PRIVATE_KEY="$(cat .keys/peerzero-updater.key)" \
-TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" \
-  bunx @tauri-apps/cli build
-
-# 3. make the .app self-contained (vendor libmpv + its dylib closure, repoint to @rpath) so no
-#    `brew install mpv` is needed at runtime. Run BEFORE packaging the .dmg/updater from the .app.
-python3 desktop/scripts/bundle-libmpv.py \
-  desktop/src-tauri/target/release/bundle/macos/PeerZero.app
+desktop/scripts/build-app.sh
 ```
 
-Output: `desktop/src-tauri/target/release/bundle/`. The Bun sidecar cross-compiles for any
-OS (no native addons), e.g. `bun desktop/backend/build.ts out bun-windows-x64`.
+It installs libmpv if missing (`ensure-libmpv.sh`), builds the backend bundle + static UI + Bun
+sidecar, compiles the Tauri app, vendors libmpv's dylib closure into the `.app`, and verifies no
+Homebrew paths remain. Output: `desktop/src-tauri/target/<triple>/release/bundle/macos/PeerZero.app`.
+The Bun sidecar cross-compiles for any OS (no native addons), e.g.
+`bun desktop/backend/build.ts out bun-windows-x64`.
+
+The signed **`.dmg` + updater** artifacts are produced by CI (`.github/workflows/desktop-release.yml`),
+which runs `ensure-libmpv.sh` on the runner so the Rust build links. Making those installers
+self-contained (running `bundle-libmpv.py` on the `.app` before the `.dmg`/updater are packaged, then
+re-signing) is the remaining release follow-up - the `.app` from `build-app.sh` is already
+self-contained for direct-run testing.
 
 ## Native video (mpv)
 
@@ -62,8 +52,9 @@ macOS); the HTML control overlay (`web/.../mpv-player.tsx`) composites on top. T
 (`src-tauri/src/mpv.rs`) exposes `mpv_*` commands + re-emits mpv properties as `mpv://property`
 events. In a plain browser the app falls back to the in-browser libmedia player.
 
-**Build prereq:** system `libmpv` (`brew install mpv` on macOS; `libmpv-dev` on Linux). `build.rs`
-resolves its link path via `pkg-config`, so set `PKG_CONFIG_PATH` if mpv is not on the default path.
+**Build prereq:** system `libmpv`. On macOS, `scripts/ensure-libmpv.sh` installs it (`brew install
+mpv`) and `build.rs` finds it via `brew --prefix`, so no `PKG_CONFIG_PATH` is needed; `build-app.sh`
+and CI call the script for you. (Linux would use `libmpv-dev`, once that render path exists.)
 **Runtime:** the shipped app is self-contained - `scripts/bundle-libmpv.py` vendors libmpv + its full
 dependency closure (~48 dylibs) into `Contents/Frameworks/` and repoints everything to `@rpath`, so end
 users install nothing.
