@@ -21,30 +21,51 @@ desktop/
   .keys/              updater signing private key (gitignored — add it as a secret)
 ```
 
-## Build locally (macOS example)
+## Build locally (macOS)
 
-From the repo root:
+One turnkey command builds a **self-contained** `PeerZero.app` with the native mpv player bundled
+in - no Homebrew, no `PKG_CONFIG_PATH`, nothing to run it needs from the host:
 
 ```bash
-# 1. backend bundle + static UI + native sidecar
-# NEXT_OUTPUT=export makes the web build a static SPA; without it the web app stays standalone.
-# NEXT_PUBLIC_API_URL here is only a fallback: at runtime the shell injects the real (ephemeral)
-# port via window.__PEERZERO_API_URL__, which the UI prefers.
-NODE_ENV=production bunx turbo run build --filter=@api/hono
-NEXT_OUTPUT=export NEXT_PUBLIC_API_URL=http://127.0.0.1:9336 NEXT_PUBLIC_APP_URL=http://127.0.0.1:9336 \
-  bunx turbo run build --filter=@web/next
-bun desktop/backend/build.ts desktop/src-tauri/binaries/peerzero-backend-$(rustc -Vv | sed -n 's/host: //p')
-
-# 2. the app (.app + .dmg). The updater key is required because the config signs
-#    updater artifacts (createUpdaterArtifacts).
-cd desktop
-TAURI_SIGNING_PRIVATE_KEY="$(cat .keys/peerzero-updater.key)" \
-TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" \
-  bunx @tauri-apps/cli build
+desktop/scripts/build-app.sh
 ```
 
-Output: `desktop/src-tauri/target/release/bundle/`. The Bun sidecar cross-compiles for any
-OS (no native addons), e.g. `bun desktop/backend/build.ts out bun-windows-x64`.
+It fetches the pinned libmpv closure (`fetch-libmpv.sh`), builds the backend bundle + static UI + Bun
+sidecar, and compiles the Tauri app - which bundles the closure via `macOS.frameworks` - then verifies
+no Homebrew paths remain. Output: `desktop/src-tauri/target/<triple>/release/bundle/macos/PeerZero.app`.
+The Bun sidecar cross-compiles for any OS (no native addons), e.g.
+`bun desktop/backend/build.ts out bun-windows-x64`.
+
+The signed **`.dmg` + updater** are produced by CI (`.github/workflows/desktop-release.yml`), which
+runs `fetch-libmpv.sh` on the runner and passes the frameworks config to the Tauri build - so the
+installers come out self-contained straight from `tauri build` (no post-processing, no updater
+re-signing): the closure is copied into the `.app` **during** bundling, before the updater tarball is
+generated and signed.
+
+## Native video (mpv)
+
+On desktop, video plays through **native [mpv](https://mpv.io)** (via `libmpv`) for real
+VLC/IINA-class playback: hardware decode of every codec and every embedded subtitle format.
+mpv runs headless (`vo=libmpv`) and is rendered through the libmpv **OpenGL render API** into a
+`CAOpenGLLayer` inserted **behind the transparent webview** (`src-tauri/src/mpv_render.rs`,
+macOS); the HTML control overlay (`web/.../mpv-player.tsx`) composites on top. The Rust side
+(`src-tauri/src/mpv.rs`) exposes `mpv_*` commands + re-emits mpv properties as `mpv://property`
+events. In a plain browser the app falls back to the in-browser libmedia player.
+
+**libmpv is prebuilt, pinned, and bundled - not linked from live Homebrew** (see
+[`.github/notes/libmpv.md`](../.github/notes/libmpv.md) for the why, backed by research):
+
+- `prebuild-libmpv.sh` (maintainer, run once per libmpv version) produces a self-contained,
+  `@rpath`-relocated dylib closure (~48 dylibs) from Homebrew and pins it in `desktop/libmpv.lock.json`
+  (mpv version + sha256). Publish the tarball to a GitHub Release and set `url` in the lock.
+- `fetch-libmpv.sh` (build + CI) downloads the pinned, sha256-verified closure into
+  `src-tauri/vendor/libmpv` (no Homebrew), or produces it locally from Homebrew when no `url` is set
+  yet. It also emits `libmpv.frameworks.json`.
+- `build.rs` links against the vendored closure (the app binary records `@rpath/libmpv.2.dylib` at
+  link time); Tauri's `macOS.frameworks` copies the closure into `Contents/Frameworks` during
+  bundling. **Runtime:** the shipped app is self-contained; end users install nothing.
+
+(Linux would use `libmpv-dev`, once that render path exists.)
 
 ## Release via CI
 

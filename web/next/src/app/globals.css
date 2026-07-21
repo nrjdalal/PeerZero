@@ -145,4 +145,17 @@
   .tauri-mac [data-brand-inset] {
     padding-left: 4rem;
   }
+  /* Native mpv player (desktop): mpv renders on a native GL surface BEHIND the transparent webview
+     (the libmpv render API, desktop/src-tauri/src/mpv_render.rs). While a video plays we add
+     .mpv-active to <html> to make the page
+     transparent so the video shows through, and hide the app shell so its opaque pixels do not paint
+     over mpv. The player overlay lives in a <body>-level portal (a sibling of #pz-app-shell), so it
+     stays visible; only its control gradients are opaque, over the video. */
+  html.mpv-active,
+  html.mpv-active body {
+    background: transparent !important;
+  }
+  html.mpv-active #pz-app-shell {
+    visibility: hidden;
+  }
 }
