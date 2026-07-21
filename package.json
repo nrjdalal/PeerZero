@@ -115,7 +115,7 @@
     "shadcn": "^4.13.0",
     "sharp": "^0.35.3",
     "sonner": "^2.0.7",
-    "svgo": "^4.0.1",
+    "svgo": "^4.0.2",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.2",
     "ts-morph": "^28.0.0",
