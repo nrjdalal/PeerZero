@@ -22,6 +22,8 @@ import { mpv } from "@/lib/mpv"
 // Pure track + time helpers live in @/lib/mpv-tracks so the subtitle default-pick order and time
 // formatting are unit-tested in isolation (tests/web-next/mpv-tracks.test.ts).
 import { fmtTime, label, type MpvTrack, pickDefaultSub, type Sub } from "@/lib/mpv-tracks"
+import { useResumePosition } from "@/lib/use-resume-position"
+import { useScrubbing } from "@/lib/use-scrubbing"
 import { cn } from "@/lib/utils"
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5]
@@ -40,12 +42,15 @@ export function MpvPlayer({
   onError,
   src,
   name,
+  resumeKey,
 }: {
   onClose: () => void
   // Fall back to the native-player handoff (VLC) if mpv fails to init/load.
   onError: () => void
   src: string
   name: string
+  // Stable per-video id (`${infoHash}:${fileIndex}`) for resume-playback. Omit to disable resume.
+  resumeKey?: string
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const onErrorRef = useRef(onError)
@@ -75,6 +80,15 @@ export function MpvPlayer({
   const playingRef = useRef(false)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const defaultSubApplied = useRef(false)
+  // Scrubber drag guard: while dragging, time updates skip setCur (below) so the thumb doesn't jump.
+  const { scrubbingRef, scrubberProps } = useScrubbing()
+  // Resume-playback: feed it time/duration below, and read resumeTarget()/clear() on load/end.
+  const {
+    reportTime,
+    reportDuration,
+    clear: clearResume,
+    resumeTarget,
+  } = useResumePosition(resumeKey)
 
   // Reveal controls; while playing, schedule them to auto-hide after 3s of no activity.
   const poke = useCallback(() => {
@@ -125,10 +139,18 @@ export function MpvPlayer({
                 setPlaying(!data)
                 break
               case "time-pos":
-                if (data != null) setCur(Number(data))
+                if (data != null) {
+                  const t = Number(data)
+                  if (!scrubbingRef.current) setCur(t)
+                  reportTime(t)
+                }
                 break
               case "duration":
-                if (data != null) setDur(Number(data))
+                if (data != null) {
+                  const d = Number(data)
+                  setDur(d)
+                  reportDuration(d)
+                }
                 break
               case "eof-reached":
                 if (data) setPlaying(false)
@@ -164,8 +186,16 @@ export function MpvPlayer({
               // mpv autoplays on load; seed `playing` so the pause toggle + control auto-hide work
               // (mpv only emits a "pause" change-event on an actual transition, not the initial state).
               setPlaying(true)
+              // Resume where this file was last left off (a few seconds before). file-loaded fires once
+              // per load, so this runs once per open; a manual seek later just overwrites it.
+              const target = resumeTarget()
+              if (target != null) {
+                void mpv.command(["seek", target, "absolute"]).catch(() => {})
+              }
             } else if (event === "end-file") {
               setPlaying(false)
+              // Reached the end -> finished, not paused; forget the position so it restarts next time.
+              clearResume()
             }
           }),
         )
@@ -189,14 +219,17 @@ export function MpvPlayer({
       // Stop playback so closing halts decode + audio (the render surface stays for the next file).
       void mpv.stop().catch(() => {})
     }
-  }, [src])
+  }, [src, reportTime, reportDuration, resumeTarget, clearResume])
 
   const togglePlay = useCallback(() => {
-    // If playing, pause (pause=true); if paused, resume (pause=false). Flip state optimistically so the
-    // toggle works even though mpv only emits a pause change-event on an actual transition.
-    const nowPlaying = playingRef.current
-    void mpv.setProperty("pause", nowPlaying).catch(() => {})
-    setPlaying(!nowPlaying)
+    // Decide + apply from the freshest state. playingRef is otherwise only refreshed a render later
+    // (in the [playing] effect), so two quick clicks would both read the pre-click value and the second
+    // would undo the first ("works after a click or two"). Update the ref synchronously here and flip
+    // the UI optimistically; mpv's echoed "pause" event just confirms it.
+    const next = !playingRef.current
+    playingRef.current = next
+    setPlaying(next)
+    void mpv.setProperty("pause", !next).catch(() => {})
     poke()
   }, [poke])
   const seekTo = useCallback(
@@ -365,6 +398,7 @@ export function MpvPlayer({
             max={dur || 0}
             step="any"
             value={cur}
+            {...scrubberProps}
             onChange={(e) => seekTo(Number(e.target.value))}
             aria-label="Seek"
             className="nf-scrubber flex-1"

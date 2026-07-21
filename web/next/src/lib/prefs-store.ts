@@ -71,6 +71,13 @@ type PrefsState = {
     updater: Updater<VisibilityState>,
     fallback: VisibilityState,
   ) => void
+  // Resume playback: last-known position (seconds) per video, keyed by `${infoHash}:${fileIndex}`.
+  // Persisted server-side like the rest so it survives the desktop restart / origin change. Reopening
+  // a video seeks a few seconds before this; watching to the end clears it (so a finished video
+  // restarts, it does not resume at the credits).
+  positions: Record<string, number>
+  setPosition: (key: string, seconds: number) => void
+  clearPosition: (key: string) => void
 }
 
 // Persisted UI preferences. skipHydration keeps SSR and the first client paint on
@@ -103,6 +110,15 @@ export const usePrefs = create<PrefsState>()(
               [key]: { ...prev, columnVisibility: applyUpdater(updater, prev.columnVisibility) },
             },
           }
+        }),
+      positions: {},
+      setPosition: (key, seconds) =>
+        set((s) => ({ positions: { ...s.positions, [key]: seconds } })),
+      clearPosition: (key) =>
+        set((s) => {
+          if (!(key in s.positions)) return {}
+          const { [key]: _removed, ...rest } = s.positions
+          return { positions: rest }
         }),
     }),
     {

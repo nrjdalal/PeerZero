@@ -325,7 +325,7 @@ export function TorrentFileTree({
   // Highlight the active row only while the tree holds focus, so a freshly expanded row's tree
   // never renders its first item as "selected" before the user navigates into it.
   const [hasFocus, setHasFocus] = useState(false)
-  const [playing, setPlaying] = useState<{ url: string; name: string } | null>(null)
+  const [playing, setPlaying] = useState<{ url: string; name: string; key: string } | null>(null)
   // Hand the stream to a native player (VLC) on desktop; in a plain browser, tell the user why not.
   const handoff = useCallback((url: string, name: string) => {
     void openInExternalPlayer(url).then((handled) => {
@@ -342,7 +342,8 @@ export function TorrentFileTree({
   // fallback only if libmedia can't load/decode the stream (see the LibmediaPlayer onError below).
   const playFile = useCallback(
     (fileIndex: number, name: string) => {
-      setPlaying({ url: streamUrl(infoHash, fileIndex), name })
+      // key: stable per video for resume-playback (the stream URL's ephemeral port is not).
+      setPlaying({ url: streamUrl(infoHash, fileIndex), name, key: `${infoHash}:${fileIndex}` })
     },
     [infoHash],
   )
@@ -459,6 +460,7 @@ export function TorrentFileTree({
           <MpvPlayer
             src={playing.url}
             name={playing.name}
+            resumeKey={playing.key}
             onClose={() => setPlaying(null)}
             onError={() => {
               handoff(playing.url, playing.name)
@@ -469,6 +471,7 @@ export function TorrentFileTree({
           <LibmediaPlayer
             src={playing.url}
             name={playing.name}
+            resumeKey={playing.key}
             onClose={() => setPlaying(null)}
             onError={() => {
               // libmedia couldn't load/decode: fall back to the native-player handoff, then close.
