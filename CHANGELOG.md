@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.0.17
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.16...v0.0.17)
+
+### 🚀 Enhancements
+
+- **desktop:** Native in-app mpv video player ([#67](https://github.com/nrjdalal/PeerZero/pull/67))
+
+### 🩹 Fixes
+
+- **desktop:** Persist UI settings server-side so they survive restart ([a83627b](https://github.com/nrjdalal/PeerZero/commit/a83627b))
+
+### 🏡 Chore
+
+- **registry:** Refresh committed data ([c00c1dc](https://github.com/nrjdalal/PeerZero/commit/c00c1dc))
+- **release:** Hand-set version to 0.0.17 ([8566227](https://github.com/nrjdalal/PeerZero/commit/8566227))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.16
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.15...v0.0.16)
