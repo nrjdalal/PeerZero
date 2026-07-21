@@ -75,7 +75,7 @@ export const STATUS_BADGE: Record<Status, string> = {
 // Icon color per status. State-action icons use the status they produce (resume =
 // Downloading, pause = Paused); the reveal icon follows the row's current status. Delete is
 // always destructive, so it isn't here.
-const STATUS_ICON: Record<Status, string> = {
+export const STATUS_ICON: Record<Status, string> = {
   Downloading: "text-blue-600 dark:text-blue-400",
   Completed: "text-green-600 dark:text-green-400",
   Paused: "text-muted-foreground",
@@ -374,7 +374,7 @@ const columns: ColumnDef<Torrent>[] = [
     enableResizing: false,
     header: ({ column, table }) => <SortHeader column={column} table={table} label="Name" />,
     cell: ({ row }) => (
-      <span className="truncate text-sm font-medium" title={row.original.name}>
+      <span className="truncate text-[13px] font-medium" title={row.original.name}>
         {row.original.name}
       </span>
     ),
