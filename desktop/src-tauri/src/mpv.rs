@@ -59,6 +59,13 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<Arc<Mpv>, String> {
         init.set_property("osc", false)?;
         init.set_property("input-default-bindings", false)?;
         init.set_property("input-cursor", false)?;
+        // Lift subtitles above the bottom control overlay: the HTML scrubber/buttons sit over the
+        // bottom of the video, so at the default margin the last caption line hides behind them when
+        // the controls are shown. sub-margin-y is the bottom margin in mpv's 720-scaled sub space
+        // (default 22); this clears the control bar. sub-use-margins applies it (also to plain/SRT
+        // subs). Tune the value down if captions sit too high.
+        init.set_property("sub-margin-y", "130")?;
+        init.set_property("sub-use-margins", true)?;
         // Do not let mpv_render_context_render() block until each frame's display time (render_gl.h):
         // on the CAOpenGLLayer draw thread that block starves the render loop and mpv warns "render
         // not being called or stuck". With 0, Core Animation drives cadence and playback stays smooth.
