@@ -22,7 +22,7 @@ agent-browser open "$WEB/<route>"
 agent-browser snapshot   # read the page, then click/type/verify
 ```
 
-Behind auth: sign in first with the **Login (agents)** button (shown once `AGENT_SIGNIN_ENABLED=true`) or the local sign-in (`dev` skill). For an end-to-end change, or whenever asked, drive the whole flow, not just the screen you touched. Done when you have observed the change render and behave, not merely that the route loaded.
+The app is local and single-user, with no auth or sign-in to get past. For an end-to-end change, or whenever asked, drive the whole flow, not just the screen you touched. Done when you have observed the change render and behave, not merely that the route loaded.
 
 ### 3. Check it holds up
 

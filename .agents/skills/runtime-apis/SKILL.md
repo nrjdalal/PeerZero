@@ -18,12 +18,12 @@ The prefix is mandatory even in Bun-only code: it marks the import as a built-in
 
 | Area | Runtime | Rule |
 | --- | --- | --- |
-| `packages/cli/**` | Node | `node:` only. Published to npm, launched via `npx` (bin shebang `#!/usr/bin/env node`); `Bun.*` breaks every npx user. |
-| `web/next/**` | Node | `node:` only. Next.js on Vercel. |
+| `api/hono/**` | Bun + Node | `node:` only. `Bun.serve` owns it locally, in Docker, and in the desktop sidecar; on Vercel it runs under Node (`@hono/node-server`), so the shared code (e.g. `codec.ts`, `webtorrent.mjs`) stays portable. |
+| `web/next/**` | Node | `node:` only. Next.js builds and runs under Node (hosted standalone, or the static export the desktop shell serves). |
 | `packages/env/**` | Node + Bun | `node:` only. Imported by both web (Node) and api (Bun); stays portable. |
 | `.github/workflows/*` (`actions/github-script`) | Node | `require("node:...")`. |
 
-Bun-first applies to Bun-only files: `.github/scripts/*.ts` and `packages/scripts/src/*.ts` (`bun x.ts`). The CLI test files run under `bun test` but mirror the CLI's `node:` style on purpose.
+Bun-first applies to Bun-only files: `.github/scripts/*.ts` (`bun x.ts`), the desktop sidecar `desktop/backend/*.ts`, and the `tests/**` runners under `bun run`/`bun test`. These may move a call to a `Bun.*` equivalent, but a built-in with no Bun equivalent (`node:path`, `node:net`) stays `node:`.
 
 ## Bun equivalents
 

@@ -120,7 +120,7 @@ top (see `desktop/README.md`), for hardware decode + native subtitle rendering. 
 the app, so there is nothing to install. In a plain browser it falls back to
 [libmedia](https://github.com/zhaohappy/libmedia) (FFmpeg compiled to WebAssembly, driving WebCodecs),
 self-hosted under `/libmedia`. Either way the API serves each file over an HTTP **Range** endpoint
-(`/api/torrents/:infoHash/stream/:idx`), so playback starts while the download is still in flight.
+(`/api/torrents/:infoHash/stream/:fileIdx`), so playback starts while the download is still in flight.
 
 Dev URLs are named `.localhost` hosts served by [portless](https://www.npmjs.com/package/portless)
 (`bunx portless list` shows them). `PORTLESS=0 bun run dev` uses plain ports instead

@@ -11,4 +11,4 @@ Guidance for AI coding agents working in this repository.
 
 ## Skills
 
-Custom skills live in `.agents/skills` (symlinked to `.claude/skills`). Start with the `codebase-map` skill to orient, then load the task skill that fits (`api-endpoint`, `db-migration`, `dev`, `design`, and more).
+Custom skills live in `.agents/skills` (symlinked to `.claude/skills`). Start with the `codebase-map` skill to orient, then load the task skill that fits (`api-endpoint`, `dev`, `design`, `desktop`, `release`, and more).
