@@ -15,6 +15,7 @@
 
 use std::cell::RefCell;
 use std::ffi::{c_void, CString};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use libmpv2::{
@@ -27,6 +28,17 @@ use objc2::{define_class, msg_send, AnyThread, DefinedClass};
 use objc2_core_video::CVTimeStamp;
 use objc2_open_gl::{CGLContextObj, CGLPixelFormatObj};
 use objc2_quartz_core::CAOpenGLLayer;
+
+// Whether the CAOpenGLLayer should draw at all. The layer's async loop runs at the display refresh
+// rate for the app's whole life (it is inserted once and never removed), so without this it renders
+// the mpv surface every frame even when no video is on screen - a constant GPU drain that also starves
+// the webview's own repaint (leaving the shell half-drawn) when the player closes. The overlay brackets
+// playback with mpv_load / mpv_stop, which flip this: draw only while a file is actually playing.
+static RENDER_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+pub fn set_render_active(active: bool) {
+    RENDER_ACTIVE.store(active, Ordering::Relaxed);
+}
 
 // GL enums we read in draw() to target the layer's real backing FBO (per IINA / render_gl.h).
 const GL_DRAW_FRAMEBUFFER_BINDING: u32 = 0x8CA6;
@@ -119,8 +131,10 @@ define_class!(
             _t: f64,
             _ts: *const CVTimeStamp,
         ) -> bool {
-            // Always allow: mpv redraws the last frame if none is new (keeps resize/first-frame correct).
-            true
+            // Draw only while a file is playing (set via mpv_load/mpv_stop). While playing this stays
+            // true every frame, so mpv redraws the last frame if none is new (resize/first-frame stay
+            // correct); once the player closes it goes false, stopping the idle render loop.
+            RENDER_ACTIVE.load(Ordering::Relaxed)
         }
 
         #[unsafe(method(drawInCGLContext:pixelFormat:forLayerTime:displayTime:))]
