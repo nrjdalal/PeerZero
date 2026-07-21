@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.19
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.18...v0.0.19)
+
+### 🩹 Fixes
+
+- **desktop:** Auto-restart after update via a Rust install command ([#73](https://github.com/nrjdalal/PeerZero/pull/73))
+- **desktop:** Lift subtitles above the bottom control overlay ([#72](https://github.com/nrjdalal/PeerZero/pull/72))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.18
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.17...v0.0.18)

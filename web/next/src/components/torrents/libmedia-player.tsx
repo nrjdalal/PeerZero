@@ -24,6 +24,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
+import { useResumePosition } from "@/lib/use-resume-position"
+import { useScrubbing } from "@/lib/use-scrubbing"
 import { cn } from "@/lib/utils"
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5]
@@ -59,12 +61,15 @@ export function LibmediaPlayer({
   onError,
   src,
   name,
+  resumeKey,
 }: {
   onClose: () => void
   // Fall back to the native-player handoff when libmedia can't load/decode the stream.
   onError: () => void
   src: string
   name: string
+  // Stable per-video id (`${infoHash}:${fileIndex}`) for resume-playback. Omit to disable resume.
+  resumeKey?: string
 }) {
   const boxRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -102,6 +107,15 @@ export function LibmediaPlayer({
   const playingRef = useRef(false)
   const loadedRef = useRef(false)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Scrubber drag guard: while dragging, time updates skip setCur (below) so the thumb doesn't jump.
+  const { scrubbingRef, scrubberProps } = useScrubbing()
+  // Resume-playback: libmedia times are ms; convert to seconds at the calls below (the hook is seconds).
+  const {
+    reportTime,
+    reportDuration,
+    clear: clearResume,
+    resumeTarget,
+  } = useResumePosition(resumeKey)
   // Reveal the controls and (while playing) schedule them to auto-hide after 3s of no activity.
   const poke = useCallback(() => {
     setUiVisible(true)
@@ -119,7 +133,6 @@ export function LibmediaPlayer({
       poke()
     }
   }, [playing, poke])
-
   // Mount libmedia, wire its events to UI state, and always tear it down on unmount (stop then
   // destroy, race-safe) so closing halts decode + audio. Effect depends only on src (stable).
   useEffect(() => {
@@ -170,7 +183,9 @@ export function LibmediaPlayer({
           if (disposed) return
           loadedRef.current = true
           clearTimeout(loadTimer)
-          setDur(Number(inst.getDuration()))
+          const duration = Number(inst.getDuration())
+          setDur(duration)
+          reportDuration(duration / 1000)
           setReady(true)
           try {
             const info = await inst.getSubtitleList()
@@ -191,16 +206,31 @@ export function LibmediaPlayer({
         })
         inst.on("played", () => !disposed && setPlaying(true))
         inst.on("paused", () => !disposed && setPlaying(false))
-        inst.on("ended", () => !disposed && setPlaying(false))
+        inst.on("ended", () => {
+          if (disposed) return
+          setPlaying(false)
+          // Reached the end -> finished; forget the position so it restarts next time, not at the credits.
+          clearResume()
+        })
         inst.on("seeking", () => !disposed && setBuffering(true))
         inst.on("seeked", () => !disposed && setBuffering(false))
-        inst.on("time", () => !disposed && setCur(Number(inst.currentTime)))
+        inst.on("time", () => {
+          if (disposed) return
+          const t = Number(inst.currentTime)
+          if (!scrubbingRef.current) setCur(t)
+          reportTime(t / 1000)
+        })
         inst.on("error", (e: unknown) => {
           console.error("[libmedia]", e)
           if (!disposed) onErrorRef.current()
         })
 
         await inst.load(src)
+        if (disposed) return teardown(inst)
+        // Resume where this file was last left off (a few seconds before), BEFORE the first play so it
+        // never flashes 0 -> target. Store is seconds; libmedia seeks in ms.
+        const target = resumeTarget()
+        if (target != null) await inst.seek(BigInt(Math.round(target * 1000))).catch(() => {})
         if (disposed) return teardown(inst)
         await inst.play() // The click that opened this counts as the gesture audio needs.
         if (disposed) teardown(inst)
@@ -216,7 +246,7 @@ export function LibmediaPlayer({
       teardown(player)
       playerRef.current = null
     }
-  }, [src])
+  }, [src, reportTime, reportDuration, resumeTarget, clearResume])
 
   useEffect(() => {
     const onFs = () => setFs(!!document.fullscreenElement)
@@ -231,8 +261,15 @@ export function LibmediaPlayer({
   const togglePlay = useCallback(() => {
     const p = playerRef.current
     if (!p) return
-    if (playingRef.current) p.pause()
-    else p.resume()
+    // Flip the UI optimistically and update the ref synchronously, so the icon reacts to the click at
+    // once and a quick second click is computed from the new state - not the pre-click state a render
+    // behind, which made clicks feel dropped until you clicked again. libmedia's played/paused events
+    // reconcile afterward.
+    const next = !playingRef.current
+    playingRef.current = next
+    setPlaying(next)
+    if (next) void p.resume().catch(() => {})
+    else void p.pause().catch(() => {})
     poke()
   }, [poke])
   const skip = useCallback(
@@ -240,7 +277,7 @@ export function LibmediaPlayer({
       const p = playerRef.current
       if (!p) return
       const t = Math.max(0, Math.min(dur, Number(p.currentTime) + delta * 1000))
-      p.seek(BigInt(Math.round(t)))
+      void p.seek(BigInt(Math.round(t))).catch(() => {})
       setCur(t)
       poke()
     },
@@ -251,7 +288,7 @@ export function LibmediaPlayer({
       const p = playerRef.current
       if (!p) return
       const t = Math.max(0, Math.min(dur, ms))
-      p.seek(BigInt(Math.round(t)))
+      void p.seek(BigInt(Math.round(t))).catch(() => {})
       setCur(t)
     },
     [dur],
@@ -284,7 +321,7 @@ export function LibmediaPlayer({
   )
   const chooseSub = useCallback(
     (id: number) => {
-      playerRef.current?.selectSubtitle(id)
+      void playerRef.current?.selectSubtitle(id)?.catch(() => {})
       setActiveSub(id)
       setSubOpen(false)
       poke()
@@ -396,6 +433,7 @@ export function LibmediaPlayer({
                 min={0}
                 max={dur || 0}
                 value={cur}
+                {...scrubberProps}
                 onChange={(e) => seekTo(Number(e.target.value))}
                 aria-label="Seek"
                 className="nf-scrubber flex-1"

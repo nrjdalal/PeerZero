@@ -5,6 +5,7 @@ import { InnerProvider, OuterProvider } from "@/app/providers"
 import { Navbar } from "@/components/common/navbar"
 import { SplashScreen } from "@/components/common/splash-screen"
 import { TauriExternalLinks } from "@/components/common/tauri-external-links"
+import { TauriFullscreen } from "@/components/common/tauri-fullscreen"
 import { UpdateNotice } from "@/components/common/update-notice"
 import { dmSans, jetbrainsMono } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
@@ -46,6 +47,7 @@ export default function RootLayout({
                 The player mounts a <body>-level portal, a sibling of this shell, so it stays visible. */}
             <div id="pz-app-shell">
               <TauriExternalLinks />
+              <TauriFullscreen />
               <UpdateNotice />
               <Navbar />
               {children}
