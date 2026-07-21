@@ -141,8 +141,10 @@
   }
   /* macOS desktop only: the overlay title bar's traffic-light buttons float over the
      top-left, so inset the brand clear of them. The .tauri-mac class is set on <html>
-     before first paint by the inline script in the root layout, so there is no flash. */
-  .tauri-mac [data-brand-inset] {
+     before first paint by the inline script in the root layout, so there is no flash.
+     In fullscreen the traffic lights hide, so .tauri-fullscreen (set by TauriFullscreen from
+     the window state) drops the inset and the brand returns to its normal position. */
+  .tauri-mac:not(.tauri-fullscreen) [data-brand-inset] {
     padding-left: 4rem;
   }
   /* Native mpv player (desktop): mpv renders on a native GL surface BEHIND the transparent webview
