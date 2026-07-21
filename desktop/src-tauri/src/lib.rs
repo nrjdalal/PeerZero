@@ -7,7 +7,9 @@ use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
 // Native mpv: a headless (vo=libmpv) instance + Tauri commands/events (mpv.rs), rendered into a GL
-// layer behind the transparent webview via the libmpv render API (mpv_render.rs, macOS only).
+// layer behind the transparent webview via the libmpv render API (mpv_render.rs). macOS only - other
+// platforms link no libmpv and fall back to the in-browser libmedia player.
+#[cfg(target_os = "macos")]
 mod mpv;
 #[cfg(target_os = "macos")]
 mod mpv_render;
@@ -43,14 +45,14 @@ fn create_main_window(app: &AppHandle, port: u16) {
     .inner_size(1080.0, 720.0)
     .min_inner_size(1080.0, 720.0)
     .resizable(true)
-    // Transparent so the native mpv surface behind the webview shows through wherever the page is
-    // transparent (the video area while a file plays). The app itself paints an opaque background
-    // (globals.css `body { bg-background }`), so this is invisible until the player opts in.
-    .transparent(true)
     .initialization_script(script.as_str());
-  // Overlay the macOS traffic-light title bar, matching the prior declarative window config.
+  // macOS only: transparent so the native mpv surface behind the webview shows through the video area
+  // (the app paints an opaque background otherwise, so it is invisible until the player opts in), plus
+  // the overlaid traffic-light title bar. Other platforms have no video surface behind the window, so
+  // a transparent window there would only risk shadow/compositor glitches for no benefit.
   #[cfg(target_os = "macos")]
   let builder = builder
+    .transparent(true)
     .title_bar_style(TitleBarStyle::Overlay)
     .hidden_title(true);
   match builder.build() {
@@ -77,17 +79,23 @@ fn create_main_window(app: &AppHandle, port: u16) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  tauri::Builder::default()
+  let builder = tauri::Builder::default()
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_updater::Builder::new().build())
     .plugin(tauri_plugin_opener::init())
-    .plugin(tauri_plugin_process::init())
-    .invoke_handler(tauri::generate_handler![
-      mpv::mpv_load,
-      mpv::mpv_stop,
-      mpv::mpv_command,
-      mpv::mpv_set_property,
-    ])
+    .plugin(tauri_plugin_process::init());
+
+  // The native mpv commands exist only on macOS (the render layer is macOS-only); other platforms
+  // register no mpv handler and link no libmpv.
+  #[cfg(target_os = "macos")]
+  let builder = builder.invoke_handler(tauri::generate_handler![
+    mpv::mpv_load,
+    mpv::mpv_stop,
+    mpv::mpv_command,
+    mpv::mpv_set_property,
+  ]);
+
+  builder
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -97,18 +105,21 @@ pub fn run() {
         )?;
       }
 
-      // Create the headless mpv instance (vo=libmpv) + its event thread. Non-fatal: if mpv can't be
-      // created (bad driver, broken libmpv), log and carry on with `None` so the app still launches
-      // and video falls back to the libmedia player / external handoff (the commands then error out).
-      // The GL render layer is attached once the window exists (see create_main_window).
-      let mpv = match mpv::init(app.handle()) {
-        Ok(mpv) => Some(mpv),
-        Err(err) => {
-          log::error!("[mpv] init failed; video falls back to the external player: {err}");
-          None
-        }
-      };
-      app.manage(mpv::MpvHandle { mpv });
+      // Create the headless mpv instance (vo=libmpv) + its event thread (macOS only). Non-fatal: if
+      // mpv can't be created (bad driver, broken libmpv), log and carry on with `None` so the app
+      // still launches and video falls back to the libmedia player / external handoff (the commands
+      // then error out). The GL render layer is attached once the window exists (create_main_window).
+      #[cfg(target_os = "macos")]
+      {
+        let mpv = match mpv::init(app.handle()) {
+          Ok(mpv) => Some(mpv),
+          Err(err) => {
+            log::error!("[mpv] init failed; video falls back to the external player: {err}");
+            None
+          }
+        };
+        app.manage(mpv::MpvHandle { mpv });
+      }
 
       // Start the bundled backend (one Bun binary = Hono API + in-process WebTorrent engine). It
       // binds a free loopback port and prints `PZ_API_PORT=<port>`; we parse that line, then load the

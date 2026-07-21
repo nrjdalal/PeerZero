@@ -24,6 +24,10 @@ export function GlobalShortcuts() {
       const el = e.target as HTMLElement | null
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable))
         return
+      // The native mpv player is an immersive surface (it sets .mpv-active on <html>). Don't let the
+      // g-then-t/s nav fire while it's open - a stray key would navigate away and tear the player down
+      // mid-playback. The ⌘K palette (a separate listener) intentionally still works.
+      if (document.documentElement.classList.contains("mpv-active")) return
       if (e.metaKey || e.ctrlKey || e.altKey) return
       const k = e.key.toLowerCase()
       if (armed.current) {

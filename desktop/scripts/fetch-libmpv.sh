@@ -55,6 +55,10 @@ else
   mkdir -p "$(dirname "$VENDOR")"
   bash desktop/scripts/ensure-libmpv.sh
   python3 desktop/scripts/vendor-libmpv-closure.py "$(brew --prefix mpv)/lib/libmpv.2.dylib" "$VENDOR"
+  got="$(cat "$VENDOR/VERSION" 2>/dev/null || echo unknown)"
+  if [ -n "$WANT_VER" ] && [ "$got" != "$WANT_VER" ]; then
+    echo "fetch-libmpv: WARNING Homebrew shipped mpv $got but the lock pins $WANT_VER - this build is not reproducible; publish an artifact and set 'url' to pin exactly" >&2
+  fi
 fi
 
 # Emit the Tauri frameworks config: every real dylib in the closure (skip the libmpv.dylib linker

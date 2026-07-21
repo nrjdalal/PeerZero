@@ -145,6 +145,12 @@ fn emit_track_list<R: Runtime>(app: &AppHandle<R>, mpv: &Mpv) {
 
 #[tauri::command]
 pub fn mpv_load(state: tauri::State<'_, MpvHandle>, url: String) -> Result<(), String> {
+    // Defense-in-depth: the overlay only ever loads the local stream server (loopback http), so reject
+    // anything else - a hypothetical XSS in the app origin then can't point mpv at an arbitrary URL or
+    // local file path via loadfile.
+    if !url.starts_with("http://127.0.0.1:") && !url.starts_with("http://localhost:") {
+        return Err("refused non-loopback url".to_string());
+    }
     require_mpv(&state)?
         .command("loadfile", &[&url])
         .map_err(|e| e.to_string())

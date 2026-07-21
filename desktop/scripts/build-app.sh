@@ -15,13 +15,13 @@ export PATH="$HOME/.cargo/bin:$PATH" # tauri needs cargo on PATH
 TARGET="${RUST_TARGET:-aarch64-apple-darwin}"
 API_URL="${NEXT_PUBLIC_API_URL:-http://127.0.0.1:9336}"
 
-echo "==> 1/5 fetch pinned libmpv closure (or produce from Homebrew)"
+echo "==> 1/4 fetch pinned libmpv closure (or produce from Homebrew)"
 bash desktop/scripts/fetch-libmpv.sh
 
-echo "==> 2/5 backend (Hono bundle + in-process engine)"
+echo "==> 2/4 backend (Hono bundle + in-process engine)"
 bunx turbo run build --filter=@api/hono
 
-echo "==> 3/5 static UI (API baked to $API_URL)"
+echo "==> 3/4 static UI (API baked to $API_URL)"
 (
   cd web/next && rm -rf out &&
     NODE_ENV=production NEXT_OUTPUT=export \
