@@ -13,18 +13,29 @@ fn main() {
   .expect("failed to run tauri-build");
 
   // Link libmpv without a manual PKG_CONFIG_PATH. libmpv2-sys emits only `cargo:rustc-link-lib=mpv`
-  // (no search path), and Homebrew keeps mpv.pc under <prefix>/lib/pkgconfig, which is off
-  // pkg-config's default search path. Detect the active Homebrew prefix (`brew --prefix`, else the
-  // standard arm64 / Intel locations) and add its pkgconfig dir, so a plain `cargo build` finds
-  // libmpv with no env setup - `desktop/scripts/ensure-libmpv.sh` installs mpv first if it's missing.
-  // We emit only the link-search paths (libmpv2-sys already emits `-lmpv`) to avoid a duplicate. At
-  // runtime the binary keeps libmpv's Homebrew install-name until desktop/scripts/bundle-libmpv.py
-  // vendors the dylib closure into the .app, so end users need no Homebrew.
+  // (no search path). Prefer a PREBUILT, pinned libmpv closure (desktop/scripts/fetch-libmpv.sh
+  // populates vendor/libmpv from a checksummed artifact - no live Homebrew). Its libmpv.dylib carries
+  // an @rpath id, so the app binary records `@rpath/libmpv.2.dylib` at link time and needs no
+  // post-build -change; build-app.sh just copies the closure into Contents/Frameworks. Fall back to a
+  // Homebrew libmpv for local dev when the prebuilt closure is absent.
   #[cfg(target_os = "macos")]
   {
     use std::path::Path;
     use std::process::Command;
 
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default();
+    let vendored = Path::new(&manifest).join("vendor/libmpv/lib");
+    if vendored.join("libmpv.dylib").exists() {
+      println!("cargo:rustc-link-search=native={}", vendored.display());
+      println!("cargo:rerun-if-changed={}", vendored.join("libmpv.dylib").display());
+      return;
+    }
+
+    // Fallback: a Homebrew libmpv. Detect the active Homebrew prefix (`brew --prefix`, else the
+    // standard arm64 / Intel locations) and add its pkgconfig dir, so a plain `cargo build` finds
+    // libmpv with no env setup - `desktop/scripts/ensure-libmpv.sh` installs mpv first if it's
+    // missing. The app binary then keeps libmpv's Homebrew install-name until it is relocated to
+    // @rpath during bundling.
     let brew_prefix = Command::new("brew")
       .arg("--prefix")
       .output()

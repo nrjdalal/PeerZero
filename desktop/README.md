@@ -30,17 +30,17 @@ in - no Homebrew, no `PKG_CONFIG_PATH`, nothing to run it needs from the host:
 desktop/scripts/build-app.sh
 ```
 
-It installs libmpv if missing (`ensure-libmpv.sh`), builds the backend bundle + static UI + Bun
-sidecar, compiles the Tauri app, vendors libmpv's dylib closure into the `.app`, and verifies no
-Homebrew paths remain. Output: `desktop/src-tauri/target/<triple>/release/bundle/macos/PeerZero.app`.
+It fetches the pinned libmpv closure (`fetch-libmpv.sh`), builds the backend bundle + static UI + Bun
+sidecar, and compiles the Tauri app - which bundles the closure via `macOS.frameworks` - then verifies
+no Homebrew paths remain. Output: `desktop/src-tauri/target/<triple>/release/bundle/macos/PeerZero.app`.
 The Bun sidecar cross-compiles for any OS (no native addons), e.g.
 `bun desktop/backend/build.ts out bun-windows-x64`.
 
-The signed **`.dmg` + updater** artifacts are produced by CI (`.github/workflows/desktop-release.yml`),
-which runs `ensure-libmpv.sh` on the runner so the Rust build links. Making those installers
-self-contained (running `bundle-libmpv.py` on the `.app` before the `.dmg`/updater are packaged, then
-re-signing) is the remaining release follow-up - the `.app` from `build-app.sh` is already
-self-contained for direct-run testing.
+The signed **`.dmg` + updater** are produced by CI (`.github/workflows/desktop-release.yml`), which
+runs `fetch-libmpv.sh` on the runner and passes the frameworks config to the Tauri build - so the
+installers come out self-contained straight from `tauri build` (no post-processing, no updater
+re-signing): the closure is copied into the `.app` **during** bundling, before the updater tarball is
+generated and signed.
 
 ## Native video (mpv)
 
@@ -52,12 +52,20 @@ macOS); the HTML control overlay (`web/.../mpv-player.tsx`) composites on top. T
 (`src-tauri/src/mpv.rs`) exposes `mpv_*` commands + re-emits mpv properties as `mpv://property`
 events. In a plain browser the app falls back to the in-browser libmedia player.
 
-**Build prereq:** system `libmpv`. On macOS, `scripts/ensure-libmpv.sh` installs it (`brew install
-mpv`) and `build.rs` finds it via `brew --prefix`, so no `PKG_CONFIG_PATH` is needed; `build-app.sh`
-and CI call the script for you. (Linux would use `libmpv-dev`, once that render path exists.)
-**Runtime:** the shipped app is self-contained - `scripts/bundle-libmpv.py` vendors libmpv + its full
-dependency closure (~48 dylibs) into `Contents/Frameworks/` and repoints everything to `@rpath`, so end
-users install nothing.
+**libmpv is prebuilt, pinned, and bundled - not linked from live Homebrew** (see
+[`.github/notes/libmpv.md`](../.github/notes/libmpv.md) for the why, backed by research):
+
+- `prebuild-libmpv.sh` (maintainer, run once per libmpv version) produces a self-contained,
+  `@rpath`-relocated dylib closure (~48 dylibs) from Homebrew and pins it in `desktop/libmpv.lock.json`
+  (mpv version + sha256). Publish the tarball to a GitHub Release and set `url` in the lock.
+- `fetch-libmpv.sh` (build + CI) downloads the pinned, sha256-verified closure into
+  `src-tauri/vendor/libmpv` (no Homebrew), or produces it locally from Homebrew when no `url` is set
+  yet. It also emits `libmpv.frameworks.json`.
+- `build.rs` links against the vendored closure (the app binary records `@rpath/libmpv.2.dylib` at
+  link time); Tauri's `macOS.frameworks` copies the closure into `Contents/Frameworks` during
+  bundling. **Runtime:** the shipped app is self-contained; end users install nothing.
+
+(Linux would use `libmpv-dev`, once that render path exists.)
 
 ## Release via CI
 

@@ -23,10 +23,13 @@ or another worktree, and never touches your real `~/.peerzero` state or download
 on PATH.
 
 For a **self-contained** `.app` (native mpv bundled in, no Homebrew needed to run it), skip the manual
-steps and run `desktop/scripts/build-app.sh` - it installs libmpv, builds everything, and vendors the
-dylib closure into the `.app`. The manual steps below are for a quick isolated run. Either way the
-native mpv player needs **libmpv at build time**: run `desktop/scripts/ensure-libmpv.sh` first (or
-`brew install mpv`); `build.rs` then finds it via `brew --prefix`, so no `PKG_CONFIG_PATH` is needed.
+steps and run `desktop/scripts/build-app.sh`. The native mpv player links a **prebuilt, pinned libmpv
+closure**, not live Homebrew (see `.github/notes/libmpv.md`): `desktop/scripts/fetch-libmpv.sh`
+downloads the pinned, sha256-verified closure into `src-tauri/vendor/libmpv` (or produces it from
+Homebrew when no artifact is published) and emits `libmpv.frameworks.json`; `build.rs` links against
+it and Tauri bundles it via `macOS.frameworks`. For a quick manual/isolated run (steps below), run
+`fetch-libmpv.sh` first so `build.rs` finds the closure, then pass
+`--config src-tauri/libmpv.frameworks.json` to `tauri build`.
 
 ```bash
 PORT=9400                                    # a fixed, known port for scripted testing (the app's default is ephemeral)

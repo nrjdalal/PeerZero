@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Ensure libmpv is available for BUILDING the desktop app (the native mpv player links it on macOS).
-# This makes the Homebrew dependency explicit and automatic instead of a manual `brew install mpv` +
-# PKG_CONFIG_PATH dance. End users never need this: desktop/scripts/bundle-libmpv.py vendors the
-# dylib closure into the .app, so the shipped app is self-contained.
+# Ensure libmpv is available from Homebrew, so prebuild-libmpv.sh can PRODUCE the pinned closure (and
+# so fetch-libmpv.sh's local-produce bootstrap works before an artifact is published). This is the
+# only place Homebrew is needed, and only to produce libmpv once - the shipped app bundles a prebuilt
+# closure (see .github/notes/libmpv.md), so end users need nothing.
 #
-# Idempotent - a no-op when libmpv is already discoverable. Run it before `cargo build` / `tauri
-# build`; build-app.sh and CI both call it.
+# Idempotent - a no-op when libmpv is already present. Called by prebuild-libmpv.sh and, as a
+# bootstrap, by fetch-libmpv.sh.
 set -euo pipefail
 
 if [ "$(uname -s)" != "Darwin" ]; then
