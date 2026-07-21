@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.16
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.15...v0.0.16)
+
+### 🩹 Fixes
+
+- **desktop:** Resolve static file paths with node:path join ([#65](https://github.com/nrjdalal/PeerZero/pull/65))
+
+### ❤️ Contributors
+
+- Biswajeet Das @BiswaViraj
+
 ## v0.0.15
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.14...v0.0.15)
