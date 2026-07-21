@@ -41,11 +41,16 @@ export default function RootLayout({
             }}
           />
           <InnerProvider>
-            <TauriExternalLinks />
-            <UpdateNotice />
-            <Navbar />
-            {children}
-            <SplashScreen />
+            {/* Everything that paints the app lives under one shell id so the native mpv player can
+                hide it (globals.css .mpv-active) while a video renders behind the transparent webview.
+                The player mounts a <body>-level portal, a sibling of this shell, so it stays visible. */}
+            <div id="pz-app-shell">
+              <TauriExternalLinks />
+              <UpdateNotice />
+              <Navbar />
+              {children}
+              <SplashScreen />
+            </div>
           </InnerProvider>
         </body>
       </html>

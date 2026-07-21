@@ -5,6 +5,26 @@ Canonical record of dependency-security decisions enforced by the audit gate
 `canary` pre-push hook in `lefthook.yml`). Prefer lifting a vulnerable dep by updating it
 or its parent (see the `audit` skill); only accept an advisory when neither is possible.
 
+## Active overrides
+
+Overrides in the root `package.json` that pin a patched version of a vulnerable transitive dep.
+Delete a block (and its `overrides` entry) once the parent ships a version that no longer needs it.
+
+### shell-quote → ^1.10.0
+
+- **Advisory:** [GHSA-395f-4hp3-45gv](https://github.com/advisories/GHSA-395f-4hp3-45gv) - shell-quote:
+  quadratic-complexity Denial of Service in `parse()` (high, CWE-407). Affects `shell-quote <= 1.8.4`;
+  patched in `1.9.0`.
+- **Path:** `@api/hono > concurrently@10.0.3 > shell-quote@1.8.4`.
+- **Why an override:** `concurrently@10.0.3` is the latest release and **exact-pins** `shell-quote: "1.8.4"`
+  (not a range), so no parent bump lifts it. `concurrently` is the only consumer, so overriding
+  `shell-quote` to the patched `^1.10.0` is the narrowest real fix.
+- **Risk:** Low. `concurrently` only parses our own dev-script command strings via `shell-quote.parse()`,
+  never attacker-controlled input, and it is a dev-only dependency. The override is a genuine patch, not a
+  suppression.
+- **Exit criteria:** Remove the `shell-quote` override once `concurrently` ships a release that pins
+  `shell-quote >= 1.9.0` (or drops it).
+
 ## Accepted advisories (`--ignore`)
 
 Advisories that cannot be lifted by any dependency update and are suppressed with a matching

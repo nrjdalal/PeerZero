@@ -1,0 +1,7 @@
+{
+  "mpvVersion": "0.41.0_6",
+  "arch": "arm64",
+  "artifact": "libmpv.tar.gz",
+  "sha256": "6a7afb3a19145140fc8db0829fa355756da4a508d1105586679912915b7eeb80",
+  "url": ""
+}

@@ -22,6 +22,15 @@ Use an isolated `PZ_PORT` + a temp `HOME` so it never collides with an installed
 or another worktree, and never touches your real `~/.peerzero` state or downloads. `cargo` must be
 on PATH.
 
+For a **self-contained** `.app` (native mpv bundled in, no Homebrew needed to run it), skip the manual
+steps and run `desktop/scripts/build-app.sh`. The native mpv player links a **prebuilt, pinned libmpv
+closure**, not live Homebrew (see `.github/notes/libmpv.md`): `desktop/scripts/fetch-libmpv.sh`
+downloads the pinned, sha256-verified closure into `src-tauri/vendor/libmpv` (or produces it from
+Homebrew when no artifact is published) and emits `libmpv.frameworks.json`; `build.rs` links against
+it and Tauri bundles it via `macOS.frameworks`. For a quick manual/isolated run (steps below), run
+`fetch-libmpv.sh` first so `build.rs` finds the closure, then pass
+`--config src-tauri/libmpv.frameworks.json` to `tauri build`.
+
 ```bash
 PORT=9400                                    # a fixed, known port for scripted testing (the app's default is ephemeral)
 export PATH="$HOME/.cargo/bin:$PATH"          # tauri needs cargo

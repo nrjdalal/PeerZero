@@ -35,6 +35,15 @@ const STATE_FILE = resolve(STATE_DIR, "state.json")
 const LEGACY_DOWNLOAD_DIR = resolve(`${REPO_ROOT}/.downloads`)
 const LEGACY_STATE_FILE = resolve(LEGACY_DOWNLOAD_DIR, ".zero-torrent-state.json")
 
+// User settings live in their own file, separate from state.json's engine/torrent state, so a
+// settings write never rewrites the (large) torrents list and vice versa. Holds the download folder
+// plus the frontend's UI preferences (Search enabled, table sort/column visibility, last query),
+// which the frontend owns as an opaque blob. Stored server-side because the desktop webview's origin
+// (and thus its localStorage) changes every launch; see the note in desktop/backend/main.ts.
+const SETTINGS_FILE = resolve(STATE_DIR, "settings.json")
+// The UI-preferences blob, null until the frontend first saves it.
+let uiPrefs = null
+
 // Bun on Windows throws EEXIST from mkdir(recursive) when the target already exists as a
 // reparse point / known folder (e.g. ~/Downloads or ~/Desktop); Node treats it as a no-op.
 // Tolerate an already-existing directory so choosing such a folder in Settings doesn't 500.
@@ -112,9 +121,32 @@ function saveState() {
     progress: t.progress || 0,
   }))
   try {
-    writeFileSync(STATE_FILE, JSON.stringify({ settings: { downloadDir }, torrents }, null, 2))
+    writeFileSync(STATE_FILE, JSON.stringify({ torrents }, null, 2))
   } catch (err) {
     console.error("[engine] failed to write state:", err?.message || err)
+  }
+}
+
+// ---------- persistence: user settings (download folder + UI preferences) ----------
+
+function loadSettings() {
+  // Prefer the dedicated settings file. On first boot after upgrade it won't exist yet, so migrate
+  // downloadDir from its old home - state.json's `settings` key (loadState also covers the legacy
+  // in-repo state file). The boot code re-persists the result, completing the migration.
+  try {
+    if (existsSync(SETTINGS_FILE)) return JSON.parse(readFileSync(SETTINGS_FILE, "utf8"))
+  } catch (err) {
+    console.error("[engine] failed to read settings:", err?.message || err)
+  }
+  const legacy = loadState()
+  return legacy.settings ? { downloadDir: legacy.settings.downloadDir } : {}
+}
+
+function saveSettings() {
+  try {
+    writeFileSync(SETTINGS_FILE, JSON.stringify({ downloadDir, ui: uiPrefs }, null, 2))
+  } catch (err) {
+    console.error("[engine] failed to write settings:", err?.message || err)
   }
 }
 
@@ -311,7 +343,7 @@ function setDownloadDir(dir) {
   const resolved = resolve(expandHome(String(dir).trim()))
   ensureDir(resolved)
   downloadDir = resolved
-  saveState()
+  saveSettings()
   return downloadDir
 }
 
@@ -392,6 +424,18 @@ export function getSettings() {
 
 export function setSettings(dir) {
   return { downloadDir: setDownloadDir(dir) }
+}
+
+// The frontend's persisted UI preferences, opaque to the engine. getUiPrefs returns null until the
+// first save; setUiPrefs replaces the whole blob and persists it (into settings.json, under `ui`).
+export function getUiPrefs() {
+  return uiPrefs
+}
+
+export function setUiPrefs(prefs) {
+  uiPrefs = prefs ?? null
+  saveSettings()
+  return uiPrefs
 }
 
 // Open the current download folder in the OS file manager.
@@ -477,15 +521,6 @@ export function streamFile(infoHash, idx, range, method = "GET") {
 
 function restoreOnBoot() {
   const state = loadState()
-  // Apply the saved download location for new torrents (existing ones keep their own path).
-  if (state.settings?.downloadDir) {
-    try {
-      downloadDir = resolve(state.settings.downloadDir)
-      ensureDir(downloadDir)
-    } catch (err) {
-      console.error("[engine] bad saved downloadDir:", err?.message || err)
-    }
-  }
   // Restore previously-added torrents (webtorrent re-verifies existing files on disk and resumes).
   for (const saved of state.torrents || []) {
     try {
@@ -513,5 +548,18 @@ function restoreOnBoot() {
   }
 }
 
+// Load persisted settings (download folder + UI prefs), migrating from state.json on first boot,
+// then re-persist so the migration completes and settings.json exists going forward.
+const savedSettings = loadSettings()
+if (savedSettings.downloadDir) {
+  try {
+    downloadDir = resolve(savedSettings.downloadDir)
+    ensureDir(downloadDir)
+  } catch (err) {
+    console.error("[engine] bad saved downloadDir:", err?.message || err)
+  }
+}
+uiPrefs = savedSettings.ui ?? null
+saveSettings()
 restoreOnBoot()
 console.log(`[engine] in-process webtorrent engine -> ${downloadDir}`)
