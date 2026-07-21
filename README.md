@@ -52,7 +52,8 @@ Prefer to run from source instead? See below.
   streams as the file downloads, so you can start before it finishes. On desktop it decodes through
   **native mpv** (hardware-accelerated) for the containers and codecs a browser refuses - **MKV,
   HEVC/H.265, AV1, AC3/E-AC3** - with embedded subtitles rendered natively. No external player like
-  VLC, and nothing to install: libmpv ships inside the app.
+  VLC, and nothing to install: libmpv ships inside the app. Reopen a video and it **resumes a few
+  seconds before where you left off** (remembered per file, across restarts).
 - **Browse every file.** Expand a torrent to see its file tree with per-file progress; play
   or reveal any single file.
 - **Stays a downloader.** Completed torrents auto-stop instead of seeding.
