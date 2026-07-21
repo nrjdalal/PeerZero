@@ -77,6 +77,55 @@ fn create_main_window(app: &AppHandle, port: u16) {
   }
 }
 
+// Relaunch after an update. Called from Rust (install_update), NOT the webview: replacing the .app
+// bundle kills WKWebView's WebContent process, so no JS runs after the swap - the relaunch has to be
+// driven from the surviving main process. On macOS relaunch()/app.exit() also stall once the running
+// binary has been swapped out, so we launch a fresh instance with `open -n` (which resolves the new
+// bundle cleanly) and hard-exit this one.
+fn restart_now(app: &AppHandle) -> ! {
+  // Kill the backend sidecar so it does not orphan (the hard exit skips the Destroyed handler).
+  if let Some(state) = app.try_state::<Backend>() {
+    if let Some(child) = state.0.lock().unwrap().take() {
+      let _ = child.kill();
+    }
+  }
+  #[cfg(target_os = "macos")]
+  {
+    // current_exe is <App>.app/Contents/MacOS/app; the bundle is 3 ancestors up.
+    if let Ok(exe) = std::env::current_exe() {
+      if let Some(bundle) = exe.ancestors().nth(3) {
+        let _ = std::process::Command::new("/usr/bin/open").arg("-n").arg(bundle).spawn();
+      }
+    }
+    std::thread::sleep(std::time::Duration::from_millis(400)); // let `open` hand off to LaunchServices
+    std::process::exit(0);
+  }
+  #[cfg(not(target_os = "macos"))]
+  app.restart();
+}
+
+// Download + install the pending update AND relaunch, all in the main process. The webview only kicks
+// this off (the check for the badge happens in JS); doing the install here means the relaunch survives
+// the WebContent process dying when the bundle is replaced.
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+  use tauri_plugin_updater::UpdaterExt;
+  let pending = app
+    .updater()
+    .map_err(|e| e.to_string())?
+    .check()
+    .await
+    .map_err(|e| e.to_string())?;
+  if let Some(update) = pending {
+    update
+      .download_and_install(|_, _| {}, || {})
+      .await
+      .map_err(|e| e.to_string())?;
+    restart_now(&app); // never returns
+  }
+  Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let builder = tauri::Builder::default()
@@ -85,15 +134,18 @@ pub fn run() {
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_process::init());
 
-  // The native mpv commands exist only on macOS (the render layer is macOS-only); other platforms
-  // register no mpv handler and link no libmpv.
+  // install_update is used on every platform; the native mpv commands exist only on macOS (the render
+  // layer is macOS-only), so other platforms register no mpv handler and link no libmpv.
   #[cfg(target_os = "macos")]
   let builder = builder.invoke_handler(tauri::generate_handler![
+    install_update,
     mpv::mpv_load,
     mpv::mpv_stop,
     mpv::mpv_command,
     mpv::mpv_set_property,
   ]);
+  #[cfg(not(target_os = "macos"))]
+  let builder = builder.invoke_handler(tauri::generate_handler![install_update]);
 
   builder
     .setup(|app| {

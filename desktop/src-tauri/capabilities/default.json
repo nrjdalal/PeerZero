@@ -15,6 +15,7 @@
     "opener:allow-open-url",
     "updater:default",
     "process:default",
+    "allow-install-update",
     "allow-mpv-load",
     "allow-mpv-stop",
     "allow-mpv-command",

@@ -4,6 +4,7 @@ fn main() {
   // Autogenerates `allow-mpv_load` etc. permissions referenced there.
   tauri_build::try_build(
     tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
+      "install_update",
       "mpv_load",
       "mpv_stop",
       "mpv_command",
