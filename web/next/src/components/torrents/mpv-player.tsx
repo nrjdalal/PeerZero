@@ -67,10 +67,6 @@ export function MpvPlayer({
   const [subOpen, setSubOpen] = useState(false)
   const [subs, setSubs] = useState<Sub[]>([])
   const [activeSub, setActiveSub] = useState<number>(-1)
-  // createPortal targets document.body, which does not exist during Next's static prerender. Render
-  // nothing until mounted on the client so the export does not crash (and the portal is client-only).
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
 
   const playingRef = useRef(false)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -104,10 +100,12 @@ export function MpvPlayer({
   // Take keyboard focus on mount (for the key controls), and restore it to whatever opened the player
   // when it closes (a11y: focus should return to the trigger, not be dropped on <body>). Captured
   // before we steal focus, so `prev` is the opener - this replaces an `autoFocus` that could not.
+  // preventScroll: focus() otherwise scrolls the target into view, and restoring focus to the play
+  // button on close would scroll the (revealed) file list, leaving the last row cropped at the edge.
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null
-    rootRef.current?.focus()
-    return () => prev?.focus?.()
+    rootRef.current?.focus({ preventScroll: true })
+    return () => prev?.focus?.({ preventScroll: true })
   }, [])
 
   // Subscribe to the backend's mpv property/lifecycle events, load the stream, and always stop playback
@@ -310,8 +308,11 @@ export function MpvPlayer({
 
   // Rendered into a <body>-level portal (a sibling of #pz-app-shell) so it stays visible while the
   // shell is hidden by .mpv-active. Transparent everywhere except the control gradients, so the mpv
-  // surface behind the webview shows the video.
-  if (!mounted) return null
+  // surface behind the webview shows the video. Guard on `document` (not a mounted-state flag) so the
+  // opaque portal paints on the SAME frame the player opens - a mounted flag renders null for one
+  // frame first, flashing the app UI behind before the overlay covers it. The player is only ever
+  // rendered from a client interaction, so this never runs during the static prerender anyway.
+  if (typeof document === "undefined") return null
   return createPortal(
     // biome-ignore lint/a11y: keyboard handled via onKeyDown; this is a media surface, not a button
     <div
