@@ -140,6 +140,36 @@ export const torrentsRouter = new Hono()
       }
     },
   )
+  .get(
+    "/ui-prefs",
+    describeRoute({
+      tags: ["Torrents"],
+      description:
+        "Get the frontend's persisted UI preferences (an opaque blob). Stored server-side so they survive the desktop webview's per-launch origin change; returns { prefs: null } before the first save.",
+    }),
+    async (c) => {
+      try {
+        return c.json({ data: { prefs: await engine.getUiPrefs() } })
+      } catch (err) {
+        return handleEngineError(c, err)
+      }
+    },
+  )
+  .put(
+    "/ui-prefs",
+    describeRoute({
+      tags: ["Torrents"],
+      description: "Replace the frontend's persisted UI preferences (an opaque blob).",
+    }),
+    sValidator("json", z.object({ prefs: z.unknown() }), onInvalid),
+    async (c) => {
+      try {
+        return c.json({ data: { prefs: await engine.setUiPrefs(c.req.valid("json").prefs) } })
+      } catch (err) {
+        return handleEngineError(c, err)
+      }
+    },
+  )
   .post(
     "/open",
     describeRoute({

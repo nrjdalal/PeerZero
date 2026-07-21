@@ -91,6 +91,15 @@ export const engine = {
       throw new EngineError((err as Error)?.message || "failed to set download dir", 400)
     }
   },
+  // The frontend's persisted UI preferences, stored server-side so they survive the desktop
+  // webview's per-launch origin change (localStorage would not). Opaque blob; the engine never
+  // reads into it, it only stores and returns it.
+  getUiPrefs(): unknown {
+    return wt.getUiPrefs()
+  },
+  setUiPrefs(prefs: unknown): unknown {
+    return wt.setUiPrefs(prefs)
+  },
   // Open the download folder in the OS file manager.
   openDir(): boolean {
     return wt.openDownloadDir()
