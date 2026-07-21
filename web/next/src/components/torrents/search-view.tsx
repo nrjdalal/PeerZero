@@ -154,11 +154,13 @@ const columns: ColumnDef<SearchResult>[] = [
   },
 ]
 
-// Debounce before firing a search; long-ish because each search fans out to ~10 providers.
-const SEARCH_DEBOUNCE_MS = 500
+// Debounce before auto-firing a search; long because each search fans out to ~10 providers and
+// Enter searches immediately (see submit), so the debounce is only the "stopped typing" fallback.
+const SEARCH_DEBOUNCE_MS = 2500
 
-// The Search tab: the same DataGrid as Transfers, fed by live search results. The
-// search box here filters inline (debounced) rather than navigating.
+// The Search tab: the same DataGrid as Transfers, fed by live search results. The search box
+// here searches inline - debounced, or immediately on Enter (with the return-key hint) - rather
+// than navigating.
 export function SearchView() {
   // Query is persisted in the store so it survives leaving/returning to the tab and reloads.
   const query = usePrefs((s) => s.search)
@@ -216,6 +218,18 @@ export function SearchView() {
     onError: (e) => toast.error(e.message),
   })
 
+  // Enter searches now instead of waiting out the long debounce: push the current query straight
+  // to `debounced` (a magnet has nothing to search, so Enter adds it, matching the empty state).
+  const submit = () => {
+    const trimmed = query.trim()
+    if (!trimmed) return
+    if (trimmed.toLowerCase().startsWith("magnet:")) {
+      addMagnet.mutate(trimmed)
+      return
+    }
+    if (trimmed.length >= 2) setDebounced(trimmed)
+  }
+
   const results = useMemo(() => data?.results ?? [], [data])
   const sources = useMemo(() => [...new Set(results.map((r) => r.source))], [results])
 
@@ -261,7 +275,7 @@ export function SearchView() {
       tableClassName="min-w-256"
       initialSorting={DEFAULT_SORTING}
       initialColumnVisibility={HIDDEN_COLUMNS}
-      search={{ value: query, onChange: setQuery, pending: isFetching }}
+      search={{ value: query, onChange: setQuery, onSubmit: submit, pending: isFetching }}
       facet={{ columnId: "source", label: "Source", options: sources }}
       empty={empty}
       onRowActivate={(r) => {
