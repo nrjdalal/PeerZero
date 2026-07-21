@@ -151,13 +151,21 @@ pub fn mpv_load(state: tauri::State<'_, MpvHandle>, url: String) -> Result<(), S
     if !url.starts_with("http://127.0.0.1:") && !url.starts_with("http://localhost:") {
         return Err("refused non-loopback url".to_string());
     }
-    require_mpv(&state)?
+    let res = require_mpv(&state)?
         .command("loadfile", &[&url])
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    // Player is opening: let the GL layer draw (idle rendering is gated off otherwise). See mpv_render.
+    if res.is_ok() {
+        crate::mpv_render::set_render_active(true);
+    }
+    res
 }
 
 #[tauri::command]
 pub fn mpv_stop(state: tauri::State<'_, MpvHandle>) -> Result<(), String> {
+    // Player is closing: stop the idle render loop so it does not drain the GPU or starve the
+    // webview's repaint. Flip first, so no frame draws after the page flips back to opaque.
+    crate::mpv_render::set_render_active(false);
     require_mpv(&state)?.command("stop", &[]).map_err(|e| e.to_string())
 }
 
