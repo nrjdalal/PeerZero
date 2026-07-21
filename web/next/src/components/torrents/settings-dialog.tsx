@@ -23,7 +23,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { apiClient, unwrap } from "@/lib/api/client"
@@ -38,9 +37,10 @@ export function SettingsDialog() {
   const enableSearch = usePrefs((s) => s.enableSearch)
   const setEnableSearch = usePrefs((s) => s.setEnableSearch)
 
-  const { data, isLoading } = useQuery({
+  // Fetch on mount (not gated on `open`) so the folder is cached before the dialog opens - the
+  // field renders with its value straight away, no spinner and no open-time layout shift.
+  const { data } = useQuery({
     queryKey: ["torrent-settings"],
-    enabled: open,
     queryFn: async () => {
       const { data, error } = await unwrap(apiClient.torrents.settings.$get())
       if (error) throw new Error(error.message)
@@ -95,37 +95,34 @@ export function SettingsDialog() {
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          {isLoading ? (
-            <div className="flex justify-center py-6">
-              <Spinner />
-            </div>
-          ) : (
-            <Field>
-              <FieldLabel htmlFor="download-dir">Download folder</FieldLabel>
-              <div className="flex gap-2">
-                <Input id="download-dir" value={data?.downloadDir ?? ""} readOnly />
-                <Button
-                  variant="outline"
-                  onClick={() => browse.mutate()}
-                  disabled={browse.isPending}
-                >
-                  {/* Stack label + spinner in one grid cell so the button keeps the label's
-                      width while loading (the spinner shows in place of the text, no reflow). */}
-                  <span className="grid place-items-center">
-                    <span
-                      className={`col-start-1 row-start-1 ${browse.isPending ? "invisible" : ""}`}
-                    >
-                      Browse…
-                    </span>
-                    {browse.isPending && <Spinner className="col-start-1 row-start-1" />}
+          <Field>
+            <FieldLabel>Download folder</FieldLabel>
+            <div className="flex items-center gap-2">
+              {/* Read-only value, not an input: the folder is only ever set via the native picker
+                  (Browse), so it renders as plain text. Truncated with the full path on hover. */}
+              <p
+                className="text-muted-foreground min-w-0 flex-1 truncate text-sm"
+                title={data?.downloadDir}
+              >
+                {data?.downloadDir}
+              </p>
+              <Button variant="outline" onClick={() => browse.mutate()} disabled={browse.isPending}>
+                {/* Stack label + spinner in one grid cell so the button keeps the label's
+                    width while loading (the spinner shows in place of the text, no reflow). */}
+                <span className="grid place-items-center">
+                  <span
+                    className={`col-start-1 row-start-1 ${browse.isPending ? "invisible" : ""}`}
+                  >
+                    Browse…
                   </span>
-                </Button>
-              </div>
-              <FieldDescription>
-                Choose a folder with Browse. Applies to new torrents only.
-              </FieldDescription>
-            </Field>
-          )}
+                  {browse.isPending && <Spinner className="col-start-1 row-start-1" />}
+                </span>
+              </Button>
+            </div>
+            <FieldDescription>
+              Choose a folder with Browse. Applies to new torrents only.
+            </FieldDescription>
+          </Field>
           <Accordion>
             <AccordionItem value="advanced">
               <AccordionTrigger>Advanced</AccordionTrigger>

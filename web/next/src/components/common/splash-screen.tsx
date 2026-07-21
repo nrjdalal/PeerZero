@@ -24,8 +24,14 @@ export function SplashScreen() {
   return (
     <div
       aria-hidden
+      // Inline the cover styles (fixed, full-bleed, dark) so the splash paints an OPAQUE dark screen
+      // on the very first frame, before the external Tailwind CSS is parsed. As class-only styles they
+      // apply only once globals.css loads, so on the slow desktop WebView the window shows its white
+      // default "for a while" during the heavy JS load - the exact flash this splash exists to hide.
+      // Only the fade/centering (which matter after CSS is in) stay in className.
+      style={{ position: "fixed", inset: 0, zIndex: 100, backgroundColor: "#0a0a0a" }}
       className={cn(
-        "fixed inset-0 z-100 flex items-center justify-center bg-neutral-950 transition-opacity duration-1000",
+        "flex items-center justify-center transition-opacity duration-1000",
         phase === "fading" && "pointer-events-none opacity-0",
       )}
     >

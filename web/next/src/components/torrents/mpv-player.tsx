@@ -320,7 +320,11 @@ export function MpvPlayer({
       onMouseMove={poke}
       onKeyDown={onKey}
       className={cn(
-        "fixed inset-0 z-[100] flex items-center justify-center bg-transparent outline-none",
+        "fixed inset-0 z-[100] flex items-center justify-center outline-none",
+        // Opaque black until the first frame is up (mpv takes ~1s to decode a heavy file). The page is
+        // already transparent (.mpv-active), so without this you'd see through the transparent window
+        // to the desktop for that second. Once ready, go transparent to reveal the mpv surface behind.
+        ready ? "bg-transparent" : "bg-black",
         !uiVisible && playing && "cursor-none",
       )}
     >
