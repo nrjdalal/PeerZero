@@ -27,9 +27,9 @@ export function fmtTime(sec: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`
 }
 
+// Covers en / eng / en-US and the like (ISO 639 has no non-English language starting "en").
 export function isEnglish(t: MpvTrack): boolean {
-  const l = (t.lang ?? "").toLowerCase()
-  return l === "en" || l === "eng" || l.startsWith("en")
+  return (t.lang ?? "").toLowerCase().startsWith("en")
 }
 
 // When several tracks share a language, the user's preference order is CC > SDH > Default > Forced.

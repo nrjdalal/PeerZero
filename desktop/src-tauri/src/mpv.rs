@@ -3,8 +3,7 @@
 // This module owns a single mpv instance (vo=libmpv, so mpv never opens its own window) and:
 //   - runs an event thread that mirrors a fixed set of properties to the webview as `mpv://property`
 //     events and playback lifecycle as `mpv://event` (consumed by web/.../lib/mpv.ts),
-//   - exposes Tauri commands (mpv_load / mpv_set_property / mpv_get_property / mpv_command / mpv_stop)
-//     the overlay drives,
+//   - exposes Tauri commands (mpv_load / mpv_stop / mpv_command / mpv_set_property) the overlay drives,
 //   - and (render.rs, macOS) renders mpv into a GL layer inserted behind the transparent webview.
 //
 // The web control overlay composites on top of that layer, giving the in-app Netflix-style player.
@@ -29,9 +28,24 @@ const OBSERVED_SCALAR: &[(&str, Format)] = &[
 ];
 
 // Managed Tauri state: the mpv handle the commands drive. The render context lives on the render side
-// (render.rs) since it is bound to the GL context; commands only need the core handle.
+// (render.rs) since it is bound to the GL context; commands only need the core handle. `mpv` is an
+// Option because init is non-fatal (see lib.rs): if the instance can't be created the app still
+// launches with `None` here, and the commands below return a clean error the UI falls back on.
 pub struct MpvHandle {
-    pub mpv: Arc<Mpv>,
+    pub mpv: Option<Arc<Mpv>>,
+}
+
+// The webview may only drive the playback controls the overlay actually uses. Every other mpv
+// command/property (e.g. `run`/`subprocess` to exec programs, `stream-record`/`sub-file` for local
+// file I/O, script loading) is rejected here, so a hypothetical XSS in the app origin can't reach
+// mpv's full surface. mpv_load/mpv_stop use fixed commands (loadfile/stop) and bypass this list.
+const ALLOWED_COMMANDS: &[&str] = &["seek"];
+const ALLOWED_PROPERTIES: &[&str] = &["pause", "mute", "volume", "speed", "sid"];
+
+// Resolve the mpv instance, turning an absent one (init failed / disabled) into an error the UI can
+// fall back on instead of the command silently doing nothing.
+fn require_mpv<'a>(state: &'a tauri::State<'_, MpvHandle>) -> Result<&'a Arc<Mpv>, String> {
+    state.mpv.as_ref().ok_or_else(|| "mpv unavailable".to_string())
 }
 
 // Create the mpv instance (headless: vo=libmpv), start observing properties, and spawn the event thread.
@@ -131,15 +145,14 @@ fn emit_track_list<R: Runtime>(app: &AppHandle<R>, mpv: &Mpv) {
 
 #[tauri::command]
 pub fn mpv_load(state: tauri::State<'_, MpvHandle>, url: String) -> Result<(), String> {
-    state
-        .mpv
+    require_mpv(&state)?
         .command("loadfile", &[&url])
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn mpv_stop(state: tauri::State<'_, MpvHandle>) -> Result<(), String> {
-    state.mpv.command("stop", &[]).map_err(|e| e.to_string())
+    require_mpv(&state)?.command("stop", &[]).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -147,9 +160,11 @@ pub fn mpv_command(state: tauri::State<'_, MpvHandle>, args: Vec<String>) -> Res
     if args.is_empty() {
         return Ok(());
     }
+    if !ALLOWED_COMMANDS.contains(&args[0].as_str()) {
+        return Err(format!("command not allowed: {}", args[0]));
+    }
     let rest: Vec<&str> = args[1..].iter().map(String::as_str).collect();
-    state
-        .mpv
+    require_mpv(&state)?
         .command(&args[0], &rest)
         .map_err(|e| e.to_string())
 }
@@ -160,7 +175,10 @@ pub fn mpv_set_property(
     name: String,
     value: Json,
 ) -> Result<(), String> {
-    let mpv = &state.mpv;
+    if !ALLOWED_PROPERTIES.contains(&name.as_str()) {
+        return Err(format!("property not allowed: {name}"));
+    }
+    let mpv = require_mpv(&state)?;
     let res = match value {
         Json::Bool(b) => mpv.set_property(&name, b),
         Json::Number(n) => {
@@ -174,16 +192,4 @@ pub fn mpv_set_property(
         other => return Err(format!("unsupported value for {name}: {other}")),
     };
     res.map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn mpv_get_property(
-    state: tauri::State<'_, MpvHandle>,
-    name: String,
-) -> Result<Json, String> {
-    state
-        .mpv
-        .get_property::<String>(&name)
-        .map(Json::String)
-        .map_err(|e| e.to_string())
 }

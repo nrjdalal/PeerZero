@@ -8,7 +8,6 @@ fn main() {
       "mpv_stop",
       "mpv_command",
       "mpv_set_property",
-      "mpv_get_property",
     ])),
   )
   .expect("failed to run tauri-build");

@@ -26,10 +26,14 @@ import { formatBytes, formatPercent } from "@/lib/format"
 import { openInExternalPlayer, streamUrl } from "@/lib/play-file"
 import { cn } from "@/lib/utils"
 
-// Only the desktop (Tauri) shell has the native mpv surface; a plain browser uses the libmedia player.
-// Read at click time (post-hydration), so it never causes a static-export hydration mismatch.
-const isDesktopApp = () =>
-  typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "isTauri" in window)
+// The native mpv surface is macOS-only (the render layer in mpv_render.rs is macOS-only). Other Tauri
+// platforms have no render layer, so they fall back to the libmedia player like a plain browser -
+// otherwise the transparent window would show an empty page over an audio-only mpv. Read at click time
+// (post-hydration), so it never causes a static-export hydration mismatch.
+const isMacDesktopApp = () =>
+  typeof window !== "undefined" &&
+  ("__TAURI_INTERNALS__" in window || "isTauri" in window) &&
+  /Mac/i.test(navigator.userAgent)
 
 type TorrentFile = TorrentSnapshot["files"][number]
 
@@ -449,9 +453,9 @@ export function TorrentFileTree({
         ))}
       </div>
       {playing &&
-        (isDesktopApp() ? (
-          // Desktop: native mpv (hardware decode of every codec + real subtitle rendering). Falls
-          // back to the VLC handoff if mpv can't init/load. See mpv-player.tsx.
+        (isMacDesktopApp() ? (
+          // macOS desktop: native mpv (hardware decode of every codec + real subtitle rendering).
+          // Falls back to the VLC handoff if mpv can't init/load. See mpv-player.tsx.
           <MpvPlayer
             src={playing.url}
             name={playing.name}

@@ -59,13 +59,15 @@ fn create_main_window(app: &AppHandle, port: u16) {
       // (create_main_window is dispatched there), as AppKit requires.
       #[cfg(target_os = "macos")]
       if let Some(handle) = app.try_state::<mpv::MpvHandle>() {
-        match _window.ns_window() {
-          Ok(ns_window) => {
-            if let Err(err) = mpv_render::attach(handle.mpv.clone(), ns_window) {
-              log::error!("[mpv] attach render layer failed: {err}");
+        if let Some(mpv) = handle.mpv.clone() {
+          match _window.ns_window() {
+            Ok(ns_window) => {
+              if let Err(err) = mpv_render::attach(mpv, ns_window) {
+                log::error!("[mpv] attach render layer failed: {err}");
+              }
             }
+            Err(err) => log::error!("[mpv] ns_window unavailable: {err}"),
           }
-          Err(err) => log::error!("[mpv] ns_window unavailable: {err}"),
         }
       }
     }
@@ -85,7 +87,6 @@ pub fn run() {
       mpv::mpv_stop,
       mpv::mpv_command,
       mpv::mpv_set_property,
-      mpv::mpv_get_property,
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {
@@ -96,9 +97,17 @@ pub fn run() {
         )?;
       }
 
-      // Create the headless mpv instance (vo=libmpv) + its event thread. The GL render layer is
-      // attached to the window's view once the window exists (see create_main_window).
-      let mpv = mpv::init(app.handle())?;
+      // Create the headless mpv instance (vo=libmpv) + its event thread. Non-fatal: if mpv can't be
+      // created (bad driver, broken libmpv), log and carry on with `None` so the app still launches
+      // and video falls back to the libmedia player / external handoff (the commands then error out).
+      // The GL render layer is attached once the window exists (see create_main_window).
+      let mpv = match mpv::init(app.handle()) {
+        Ok(mpv) => Some(mpv),
+        Err(err) => {
+          log::error!("[mpv] init failed; video falls back to the external player: {err}");
+          None
+        }
+      };
       app.manage(mpv::MpvHandle { mpv });
 
       // Start the bundled backend (one Bun binary = Hono API + in-process WebTorrent engine). It

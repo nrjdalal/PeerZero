@@ -16,7 +16,6 @@ export const mpv = {
   stop: () => invoke<void>("mpv_stop"),
   setProperty: (name: string, value: string | number | boolean) =>
     invoke<void>("mpv_set_property", { name, value }),
-  getProperty: <T = unknown>(name: string) => invoke<T>("mpv_get_property", { name }),
   // mpv input commands take string args (e.g. ["seek", "30", "absolute"]).
   command: (args: (string | number | boolean)[]) =>
     invoke<void>("mpv_command", { args: args.map(String) }),

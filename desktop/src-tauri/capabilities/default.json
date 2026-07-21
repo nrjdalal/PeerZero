@@ -17,7 +17,6 @@
     "allow-mpv-load",
     "allow-mpv-stop",
     "allow-mpv-command",
-    "allow-mpv-set-property",
-    "allow-mpv-get-property"
+    "allow-mpv-set-property"
   ]
 }

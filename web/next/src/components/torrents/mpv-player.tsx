@@ -101,6 +101,15 @@ export function MpvPlayer({
     return () => document.documentElement.classList.remove("mpv-active")
   }, [])
 
+  // Take keyboard focus on mount (for the key controls), and restore it to whatever opened the player
+  // when it closes (a11y: focus should return to the trigger, not be dropped on <body>). Captured
+  // before we steal focus, so `prev` is the opener - this replaces an `autoFocus` that could not.
+  useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null
+    rootRef.current?.focus()
+    return () => prev?.focus?.()
+  }, [])
+
   // Subscribe to the backend's mpv property/lifecycle events, load the stream, and always stop playback
   // on unmount so closing halts decode + audio. Effect depends only on src (stable for a given file).
   useEffect(() => {
@@ -128,8 +137,10 @@ export function MpvPlayer({
                 const list = (Array.isArray(data) ? data : []) as MpvTrack[]
                 const subTracks = list.filter((t) => t?.type === "sub")
                 setSubs(subTracks.map((t, i) => ({ id: t.id, label: label(t, i) })))
+                // Mirror mpv's selection both ways: clear to "Off" (-1) when nothing is selected, so
+                // the picker never shows a stale track after subs are turned off.
                 const selected = subTracks.find((t) => t.selected)
-                if (selected) setActiveSub(selected.id)
+                setActiveSub(selected ? selected.id : -1)
                 // Enable the default English subtitle once, on first track info.
                 if (!defaultSubApplied.current && subTracks.length) {
                   defaultSubApplied.current = true
@@ -306,7 +317,6 @@ export function MpvPlayer({
     <div
       ref={rootRef}
       tabIndex={0}
-      autoFocus
       onMouseMove={poke}
       onKeyDown={onKey}
       className={cn(
