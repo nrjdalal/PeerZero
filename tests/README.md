@@ -57,3 +57,23 @@ Two things forced this shape, both worth knowing:
 The `/stream` goldens guard the Bun streaming fix from #51 (`Readable.toWeb` throws under Bun, so
 the engine hands the Node stream to `new Response(...)` directly): that fix shipped with only a
 manual check, and this suite is its automated regression coverage.
+
+## web-next (unit suite)
+
+`tests/web-next/mpv-tracks.test.ts` unit-tests the native mpv player's pure logic
+(`web/next/src/lib/mpv-tracks.ts`): the subtitle default-pick preference order (CC > SDH > Default >
+Forced, English-only, never forcing a foreign sub) and the seconds-based time formatting. That
+module is dependency-free by design, so the suite imports it by relative path and needs no fixture,
+engine, or bunfig - it runs headless and fast.
+
+```bash
+bun test web-next            # from tests/ (or the whole tree via `bun run test` at the repo root)
+```
+
+### Coverage boundary
+
+The player's other half - the libmpv OpenGL render layer and live playback - needs a GPU, a real
+window, bundled libmpv, and a video file, so it cannot run in headless CI. It is verified manually:
+launch the packaged app, play a file, and confirm the video renders sharp (retina), play/pause
+toggles, controls auto-hide while playing and return on hover, and subtitles/speed/seek/fullscreen
+work. The HTTP streaming backbone that feeds it is covered by the api-hono `/stream` goldens above.

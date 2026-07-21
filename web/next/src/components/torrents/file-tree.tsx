@@ -19,11 +19,17 @@ import { toast } from "sonner"
 
 import type { SubRowColumn } from "@/components/torrents/data-grid"
 import { LibmediaPlayer } from "@/components/torrents/libmedia-player"
+import { MpvPlayer } from "@/components/torrents/mpv-player"
 import { STATUS_BADGE } from "@/components/torrents/torrents-grid"
 import { Badge } from "@/components/ui/badge"
 import { formatBytes, formatPercent } from "@/lib/format"
 import { openInExternalPlayer, streamUrl } from "@/lib/play-file"
 import { cn } from "@/lib/utils"
+
+// Only the desktop (Tauri) shell has the native mpv surface; a plain browser uses the libmedia player.
+// Read at click time (post-hydration), so it never causes a static-export hydration mismatch.
+const isDesktopApp = () =>
+  typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "isTauri" in window)
 
 type TorrentFile = TorrentSnapshot["files"][number]
 
@@ -442,18 +448,31 @@ export function TorrentFileTree({
           />
         ))}
       </div>
-      {playing && (
-        <LibmediaPlayer
-          src={playing.url}
-          name={playing.name}
-          onClose={() => setPlaying(null)}
-          onError={() => {
-            // libmedia couldn't load/decode: fall back to the native-player handoff, then close.
-            handoff(playing.url, playing.name)
-            setPlaying(null)
-          }}
-        />
-      )}
+      {playing &&
+        (isDesktopApp() ? (
+          // Desktop: native mpv (hardware decode of every codec + real subtitle rendering). Falls
+          // back to the VLC handoff if mpv can't init/load. See mpv-player.tsx.
+          <MpvPlayer
+            src={playing.url}
+            name={playing.name}
+            onClose={() => setPlaying(null)}
+            onError={() => {
+              handoff(playing.url, playing.name)
+              setPlaying(null)
+            }}
+          />
+        ) : (
+          <LibmediaPlayer
+            src={playing.url}
+            name={playing.name}
+            onClose={() => setPlaying(null)}
+            onError={() => {
+              // libmedia couldn't load/decode: fall back to the native-player handoff, then close.
+              handoff(playing.url, playing.name)
+              setPlaying(null)
+            }}
+          />
+        ))}
     </>
   )
 }

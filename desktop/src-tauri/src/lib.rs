@@ -6,6 +6,12 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
+// Native mpv: a headless (vo=libmpv) instance + Tauri commands/events (mpv.rs), rendered into a GL
+// layer behind the transparent webview via the libmpv render API (mpv_render.rs, macOS only).
+mod mpv;
+#[cfg(target_os = "macos")]
+mod mpv_render;
+
 // Holds the backend sidecar process so we can kill it when the window closes; without this
 // the Hono API + in-process WebTorrent engine would keep running after the app quits.
 struct Backend(Mutex<Option<CommandChild>>);
@@ -37,14 +43,33 @@ fn create_main_window(app: &AppHandle, port: u16) {
     .inner_size(1080.0, 720.0)
     .min_inner_size(1080.0, 720.0)
     .resizable(true)
+    // Transparent so the native mpv surface behind the webview shows through wherever the page is
+    // transparent (the video area while a file plays). The app itself paints an opaque background
+    // (globals.css `body { bg-background }`), so this is invisible until the player opts in.
+    .transparent(true)
     .initialization_script(script.as_str());
   // Overlay the macOS traffic-light title bar, matching the prior declarative window config.
   #[cfg(target_os = "macos")]
   let builder = builder
     .title_bar_style(TitleBarStyle::Overlay)
     .hidden_title(true);
-  if let Err(err) = builder.build() {
-    log::error!("failed to create the main window: {err}");
+  match builder.build() {
+    Ok(_window) => {
+      // Insert the native mpv GL layer behind this window's webview (macOS). Runs on the main thread
+      // (create_main_window is dispatched there), as AppKit requires.
+      #[cfg(target_os = "macos")]
+      if let Some(handle) = app.try_state::<mpv::MpvHandle>() {
+        match _window.ns_window() {
+          Ok(ns_window) => {
+            if let Err(err) = mpv_render::attach(handle.mpv.clone(), ns_window) {
+              log::error!("[mpv] attach render layer failed: {err}");
+            }
+          }
+          Err(err) => log::error!("[mpv] ns_window unavailable: {err}"),
+        }
+      }
+    }
+    Err(err) => log::error!("failed to create the main window: {err}"),
   }
 }
 
@@ -55,6 +80,13 @@ pub fn run() {
     .plugin(tauri_plugin_updater::Builder::new().build())
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_process::init())
+    .invoke_handler(tauri::generate_handler![
+      mpv::mpv_load,
+      mpv::mpv_stop,
+      mpv::mpv_command,
+      mpv::mpv_set_property,
+      mpv::mpv_get_property,
+    ])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -63,6 +95,11 @@ pub fn run() {
             .build(),
         )?;
       }
+
+      // Create the headless mpv instance (vo=libmpv) + its event thread. The GL render layer is
+      // attached to the window's view once the window exists (see create_main_window).
+      let mpv = mpv::init(app.handle())?;
+      app.manage(mpv::MpvHandle { mpv });
 
       // Start the bundled backend (one Bun binary = Hono API + in-process WebTorrent engine). It
       // binds a free loopback port and prints `PZ_API_PORT=<port>`; we parse that line, then load the

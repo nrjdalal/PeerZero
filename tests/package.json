@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "test": "bun run api-hono/run.ts",
-    "check-types": "tsc --noEmit -p api-hono/tsconfig.json"
+    "test": "bun run api-hono/run.ts && bun test web-next",
+    "check-types": "tsc --noEmit -p api-hono/tsconfig.json && tsc --noEmit -p web-next/tsconfig.json"
   },
   "dependencies": {
     "@api/hono": "workspace:*",

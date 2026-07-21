@@ -35,16 +35,38 @@ NEXT_OUTPUT=export NEXT_PUBLIC_API_URL=http://127.0.0.1:9336 NEXT_PUBLIC_APP_URL
   bunx turbo run build --filter=@web/next
 bun desktop/backend/build.ts desktop/src-tauri/binaries/peerzero-backend-$(rustc -Vv | sed -n 's/host: //p')
 
-# 2. the app (.app + .dmg). The updater key is required because the config signs
-#    updater artifacts (createUpdaterArtifacts).
+# 2. the app (.app + .dmg). PKG_CONFIG_PATH lets the build find libmpv (see "Native video" below).
+#    The updater key is required because the config signs updater artifacts (createUpdaterArtifacts).
 cd desktop
+PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig \
 TAURI_SIGNING_PRIVATE_KEY="$(cat .keys/peerzero-updater.key)" \
 TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" \
   bunx @tauri-apps/cli build
+
+# 3. make the .app self-contained (vendor libmpv + its dylib closure, repoint to @rpath) so no
+#    `brew install mpv` is needed at runtime. Run BEFORE packaging the .dmg/updater from the .app.
+python3 desktop/scripts/bundle-libmpv.py \
+  desktop/src-tauri/target/release/bundle/macos/PeerZero.app
 ```
 
 Output: `desktop/src-tauri/target/release/bundle/`. The Bun sidecar cross-compiles for any
 OS (no native addons), e.g. `bun desktop/backend/build.ts out bun-windows-x64`.
+
+## Native video (mpv)
+
+On desktop, video plays through **native [mpv](https://mpv.io)** (via `libmpv`) for real
+VLC/IINA-class playback: hardware decode of every codec and every embedded subtitle format.
+mpv runs headless (`vo=libmpv`) and is rendered through the libmpv **OpenGL render API** into a
+`CAOpenGLLayer` inserted **behind the transparent webview** (`src-tauri/src/mpv_render.rs`,
+macOS); the HTML control overlay (`web/.../mpv-player.tsx`) composites on top. The Rust side
+(`src-tauri/src/mpv.rs`) exposes `mpv_*` commands + re-emits mpv properties as `mpv://property`
+events. In a plain browser the app falls back to the in-browser libmedia player.
+
+**Build prereq:** system `libmpv` (`brew install mpv` on macOS; `libmpv-dev` on Linux). `build.rs`
+resolves its link path via `pkg-config`, so set `PKG_CONFIG_PATH` if mpv is not on the default path.
+**Runtime:** the shipped app is self-contained - `scripts/bundle-libmpv.py` vendors libmpv + its full
+dependency closure (~48 dylibs) into `Contents/Frameworks/` and repoints everything to `@rpath`, so end
+users install nothing.
 
 ## Release via CI
 

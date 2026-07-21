@@ -1,0 +1,12 @@
+{
+  "extends": "@packages/config/tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    // This suite's program is pure (the module under test has no deps), so nothing transitively
+    // forces @types/bun to load the way the api-hono graph does; name it so `bun:test` resolves.
+    "types": ["bun"]
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
+}

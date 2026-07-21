@@ -7,10 +7,17 @@
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
     "opener:default",
     "opener:allow-default-urls",
     "opener:allow-open-url",
     "updater:default",
-    "process:default"
+    "process:default",
+    "allow-mpv-load",
+    "allow-mpv-stop",
+    "allow-mpv-command",
+    "allow-mpv-set-property",
+    "allow-mpv-get-property"
   ]
 }
