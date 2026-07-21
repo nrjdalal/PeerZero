@@ -44,9 +44,12 @@ export function UpdateNotice() {
     if (busy) return // guard re-clicks without disabling (which would fade the badge out)
     setBusy(true)
     try {
-      await update?.downloadAndInstall()
-      const { relaunch } = await import("@tauri-apps/plugin-process")
-      await relaunch()
+      const { invoke } = await import("@tauri-apps/api/core")
+      // The whole download + install + relaunch runs in Rust (install_update). It has to: replacing
+      // the .app bundle kills WKWebView's WebContent process, so no JS runs after the swap - the
+      // relaunch can't be driven from here. This invoke typically never resolves (the app relaunches
+      // out from under it), which is expected.
+      await invoke("install_update")
     } catch {
       setBusy(false)
     }
