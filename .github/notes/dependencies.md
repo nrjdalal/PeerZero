@@ -25,6 +25,37 @@ Delete a block (and its `overrides` entry) once the parent ships a version that 
 - **Exit criteria:** Remove the `shell-quote` override once `concurrently` ships a release that pins
   `shell-quote >= 1.9.0` (or drops it).
 
+### fast-uri → ^3.1.4
+
+- **Advisory:** [GHSA-v2hh-gcrm-f6hx](https://github.com/advisories/GHSA-v2hh-gcrm-f6hx) - fast-uri host
+  confusion via a literal backslash authority delimiter (high). Affects `fast-uri >=3.0.0 <=3.1.3`;
+  patched in `3.1.4`.
+- **Path:** `@commitlint/cli > @commitlint/load > @commitlint/config-validator > ajv@8.20.0 > fast-uri`
+  and `@web/next > shadcn@4.13.0 > @modelcontextprotocol/sdk > ajv > fast-uri` (both dev-only).
+- **Why an override:** `ajv@8.20.0` is the latest 8.x and requires `fast-uri ^3.0.1`; the vulnerable
+  range sits inside that caret and no newer `ajv` / `@commitlint/*` / `shadcn` release moves off it.
+  `fast-uri@4.x` is a major bump `ajv` does not accept, so pinning the 3.x line to the patched `^3.1.4`
+  is the narrowest fix.
+- **Risk:** Low. Both consumers (commitlint config loading, the shadcn CLI) are dev-only and parse our
+  own trusted schema/registry URLs, never attacker input. The override is a genuine patch, not a suppression.
+- **Exit criteria:** Remove the `fast-uri` override once `ajv` (via `@commitlint/*` and `shadcn`) ships a
+  release that requires `fast-uri >= 3.1.4`.
+
+### sharp → ^0.35.3
+
+- **Advisory:** [GHSA-f88m-g3jw-g9cj](https://github.com/advisories/GHSA-f88m-g3jw-g9cj) - sharp inherited
+  libvips vulnerabilities (CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591) (high). Affects
+  `sharp <0.35.0`; patched in `0.35.0`.
+- **Path:** `@web/next > next@16.2.10 > sharp@0.34.5` (optional). Our own direct `sharp` already uses the
+  patched line (catalog `^0.35.3`); only next's bundled optional copy pulled the vulnerable `0.34.5`.
+- **Why an override:** `next@16.2.10` is the latest release and declares its optional `sharp` as `^0.34.5`
+  (`>=0.34.5 <0.35.0`), so no next bump lifts it to the patched libvips. Overriding `sharp` to `^0.35.3`
+  forces next's optional copy to the same patched version our direct dependency already resolves to.
+- **Risk:** Low. sharp 0.35.x is API-compatible with next's image-optimization usage (verified by
+  `bun run build`); the 0.34 -> 0.35 change is the libvips bump that carries the fix. Local-only app.
+- **Exit criteria:** Remove the `sharp` override once `next` ships a release whose optional `sharp`
+  requirement includes `>= 0.35.0`.
+
 ## Accepted advisories (`--ignore`)
 
 Advisories that cannot be lifted by any dependency update and are suppressed with a matching
