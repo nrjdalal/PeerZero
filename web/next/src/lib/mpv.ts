@@ -4,8 +4,8 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 // Thin IPC wrapper over the desktop shell's native mpv commands (src-tauri/src/mpv.rs). mpv renders on a
 // native GL surface behind the transparent webview (the libmpv render API, IINA-style), and the backend
 // observes a fixed set of properties (pause, time-pos, duration, eof-reached, track-list) and re-emits
-// them as `mpv://property` events, plus lifecycle as `mpv://event`. This is the desktop-only engine; the
-// browser still uses the libmedia player.
+// them as `mpv://property` events, plus lifecycle as `mpv://event`. This is the macOS-only playback
+// engine; Windows/Linux desktop and the browser have no in-app player (playable files reveal on disk).
 
 export type MpvPropertyEvent = { name: string; data: unknown }
 export type MpvLifecycleEvent = { event: string }

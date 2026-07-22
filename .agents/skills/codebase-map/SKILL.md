@@ -29,7 +29,7 @@ Read `AGENTS.md` first for the rules.
 | Regenerate the source registry | `.github/scripts/refresh-registry.ts` (+ `seal-registry.ts`), run by `.github/workflows/auto-refresh-registry.yml` (6-hourly cron). Output: committed `api/hono/src/lib/torrent/registry.json`, read at runtime, never fetched live | - |
 | Change the download engine | `api/hono/src/lib/torrent/webtorrent.mjs` (the in-process WebTorrent engine; WebRTC/uTP disabled via `webrtc-stub.mjs` + `bunfig.toml`) + `engine.ts` (the typed seam the routers call) | - |
 | Change the Transfers / Search UI | `web/next/src/components/torrents/torrents-grid.tsx` (Transfers) + `search-view.tsx` (Search), both `data-grid.tsx` grids over `torrents-context.tsx` + `use-torrents-live.ts` (live socket) | `design` |
-| Change the in-app video player | `web/next/src/components/torrents/mpv-player.tsx` (native mpv, desktop) + `libmedia-player.tsx` (browser); shared `lib/use-resume-position.ts` / `use-scrubbing.ts` | `design` |
+| Change the in-app video player | `web/next/src/components/torrents/mpv-player.tsx` (native mpv, macOS only; no in-app player off macOS) + `lib/use-resume-position.ts` / `use-scrubbing.ts` + `player-controls.css` | `design` |
 | Add/change a page | `web/next/src/app/` - one route group, `(app)` (no marketing/console/docs) | - |
 | Add/customize a UI component | `web/next/src/components/` (`ui/`, `torrents/`, `common/`, `command/`); `ui/` is generated shadcn, don't hand-edit | `design`, `shadcn-sync` |
 | Call the API from the web app | `web/next/src/lib/api/client.ts` (`apiClient`, `unwrap`) | - |

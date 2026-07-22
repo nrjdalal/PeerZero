@@ -18,11 +18,18 @@ import {
   type RemixiconComponentType,
 } from "@remixicon/react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { type KeyboardEvent, type ReactNode, useCallback, useMemo, useRef, useState } from "react"
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { toast } from "sonner"
 
 import type { SubRowColumn } from "@/components/torrents/data-grid"
-import { LibmediaPlayer } from "@/components/torrents/libmedia-player"
 import { MpvPlayer } from "@/components/torrents/mpv-player"
 import { STATUS_BADGE, STATUS_ICON } from "@/components/torrents/torrents-grid"
 import { TORRENTS_QUERY_KEY } from "@/components/torrents/use-torrents-live"
@@ -75,10 +82,10 @@ function FileActionButton({
   )
 }
 
-// The native mpv surface is macOS-only (the render layer in mpv_render.rs is macOS-only). Other Tauri
-// platforms have no render layer, so they fall back to the libmedia player like a plain browser -
-// otherwise the transparent window would show an empty page over an audio-only mpv. Read at click time
-// (post-hydration), so it never causes a static-export hydration mismatch.
+// In-app playback is macOS-native-only: the mpv render layer (src-tauri/src/mpv_render.rs) is macOS-only,
+// and there is no browser-codec fallback. Windows/Linux desktop and any plain browser have no in-app
+// player, so playable files reveal on disk instead. Read after mount (window/navigator) so the static
+// export never hydrate-mismatches.
 const isMacDesktopApp = () =>
   typeof window !== "undefined" &&
   ("__TAURI_INTERNALS__" in window || "isTauri" in window) &&
@@ -174,11 +181,20 @@ function iconForFile(name: string): RemixiconComponentType {
   return RiFileLine
 }
 
-// Video/audio files are "playable": the desktop app streams them to a native player (any codec),
-// the browser to the inline <video> (browser-native codecs only).
+// Video/audio files are "playable": on macOS the app streams them to the native mpv player (any codec);
+// elsewhere there is no in-app player, so a playable file reveals on disk instead of playing.
 export function isPlayable(name: string): boolean {
   const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase()
   return VIDEO.has(ext) || AUDIO.has(ext)
+}
+
+// A file row's primary action, decided in one place so the double-click, Enter/Space, and the slot-2
+// button never drift: re-download a deleted file, play it (macOS-native only, gated by `canPlay`), else
+// reveal it on disk.
+function filePrimaryAction(file: FileLeaf, canPlay: boolean): "download" | "play" | "reveal" {
+  if (file.deselected) return "download"
+  if (canPlay && isPlayable(file.name)) return "play"
+  return "reveal"
 }
 
 // A flattened, currently-visible tree row. `path` is the node's unique slash-joined path from the
@@ -228,6 +244,7 @@ function TreeRow({
   registerEl,
   onFocusRow,
   onToggle,
+  canPlay,
   onPlay,
   onReveal,
   onDelete,
@@ -246,6 +263,9 @@ function TreeRow({
   registerEl: (el: HTMLDivElement | null) => void
   onFocusRow: () => void
   onToggle: () => void
+  // Whether in-app playback is available (macOS native). When false, a playable file reveals on disk
+  // instead of playing, and its action slot shows Open-in-folder rather than Play.
+  canPlay: boolean
   // Play a video/audio file (by its `torrent.files` index). A no-op for non-playable files.
   onPlay: (fileIndex: number, name: string) => void
   // Reveal a file in the OS file manager (the action for non-playable files).
@@ -278,8 +298,9 @@ function TreeRow({
       onDoubleClick={
         node.type === "file"
           ? () => {
-              if (deselected) onDownload(node.index)
-              else if (isPlayable(node.name)) onPlay(node.index, node.name)
+              const action = filePrimaryAction(node, canPlay)
+              if (action === "download") onDownload(node.index)
+              else if (action === "play") onPlay(node.index, node.name)
               else onReveal(node.index)
             }
           : undefined
@@ -355,8 +376,9 @@ function TreeRow({
               >
                 <RiDownloadFill className={cn("size-4", STATUS_ICON.Downloading)} />
               </FileActionButton>
-              {/* Slot 2: play a playable file, else reveal it on disk (empty for a deleted file). */}
-              {isPlayable(node.name) ? (
+              {/* Slot 2: play a playable file (macOS native only), else reveal it on disk - also the
+                  off-macOS path, where there is no in-app player (empty for a deleted file). */}
+              {filePrimaryAction(node, canPlay) === "play" ? (
                 <FileActionButton
                   title="Play"
                   onClick={deselected ? null : () => onPlay(node.index, node.name)}
@@ -425,6 +447,10 @@ export function TorrentFileTree({
   // never renders its first item as "selected" before the user navigates into it.
   const [hasFocus, setHasFocus] = useState(false)
   const [playing, setPlaying] = useState<{ url: string; name: string; key: string } | null>(null)
+  // In-app playback is macOS-native-only (see isMacDesktopApp). Resolved after mount so the static
+  // export doesn't hydrate-mismatch; false everywhere else, where playable files reveal on disk.
+  const [canPlay, setCanPlay] = useState(false)
+  useEffect(() => setCanPlay(isMacDesktopApp()), [])
   // Hand the stream to a native player (VLC) on desktop; in a plain browser, tell the user why not.
   const handoff = useCallback((url: string, name: string) => {
     void openInExternalPlayer(url).then((handled) => {
@@ -436,9 +462,8 @@ export function TorrentFileTree({
       }
     })
   }, [])
-  // Every playable file plays in the in-browser libmedia player (mp4 included) for one consistent UI;
-  // it decodes via hardware WebCodecs when available, else its own WASM. The VLC handoff is the
-  // fallback only if libmedia can't load/decode the stream (see the LibmediaPlayer onError below).
+  // Play a file in the native mpv player (macOS only; gated by canPlay at every call site). The VLC
+  // handoff is the fallback only if mpv can't init/load the stream (see the MpvPlayer onError below).
   const playFile = useCallback(
     (fileIndex: number, name: string) => {
       // key: stable per video for resume-playback (the stream URL's ephemeral port is not).
@@ -557,12 +582,13 @@ export function TorrentFileTree({
           e.stopPropagation()
           toggle(row.path)
         } else if (row.node.type === "file") {
-          // Same primary action as a double-click: download a deleted file, else play it
-          // (playable) or reveal it on disk.
+          // Same primary action as a double-click (see filePrimaryAction): download a deleted file,
+          // else play it (playable, macOS native) or reveal it on disk.
           e.preventDefault()
           e.stopPropagation()
-          if (row.node.deselected) downloadFile(row.node.index)
-          else if (isPlayable(row.node.name)) playFile(row.node.index, row.node.name)
+          const action = filePrimaryAction(row.node, canPlay)
+          if (action === "download") downloadFile(row.node.index)
+          else if (action === "play") playFile(row.node.index, row.node.name)
           else revealFile(row.node.index)
         }
         break
@@ -598,6 +624,7 @@ export function TorrentFileTree({
               setActivePath(row.path)
               toggle(row.path)
             }}
+            canPlay={canPlay}
             onPlay={playFile}
             onReveal={revealFile}
             onDelete={(index, name) => setPendingDelete({ index, name })}
@@ -628,33 +655,21 @@ export function TorrentFileTree({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {playing &&
-        (isMacDesktopApp() ? (
-          // macOS desktop: native mpv (hardware decode of every codec + real subtitle rendering).
-          // Falls back to the VLC handoff if mpv can't init/load. See mpv-player.tsx.
-          <MpvPlayer
-            src={playing.url}
-            name={playing.name}
-            resumeKey={playing.key}
-            onClose={() => setPlaying(null)}
-            onError={() => {
-              handoff(playing.url, playing.name)
-              setPlaying(null)
-            }}
-          />
-        ) : (
-          <LibmediaPlayer
-            src={playing.url}
-            name={playing.name}
-            resumeKey={playing.key}
-            onClose={() => setPlaying(null)}
-            onError={() => {
-              // libmedia couldn't load/decode: fall back to the native-player handoff, then close.
-              handoff(playing.url, playing.name)
-              setPlaying(null)
-            }}
-          />
-        ))}
+      {/* macOS desktop only: native mpv (hardware decode of every codec + real subtitle rendering).
+          Playback is gated to macOS (canPlay), so `playing` is only ever set there. Falls back to the
+          VLC handoff if mpv can't init/load. See mpv-player.tsx. */}
+      {playing && (
+        <MpvPlayer
+          src={playing.url}
+          name={playing.name}
+          resumeKey={playing.key}
+          onClose={() => setPlaying(null)}
+          onError={() => {
+            handoff(playing.url, playing.name)
+            setPlaying(null)
+          }}
+        />
+      )}
     </>
   )
 }

@@ -33,9 +33,10 @@ grid with live WebSocket stats, bulk actions and full keyboard nav; per-file tre
 play; native mpv streaming (MKV/HEVC/AV1/AC3, embedded subs, resume position) with a browser +
 VLC fallback; a Command-K palette and shortcuts; local-only, no seeding, per-torrent folders.
 
-One caveat that shapes the roadmap: native any-codec mpv playback is macOS-only today (the
-render layer is macOS-only); Windows and Linux desktop fall back to the browser-codec libmedia
-player plus a VLC handoff.
+One caveat that shapes the roadmap: native any-codec mpv playback is macOS-only (the render layer
+is macOS-only); Windows and Linux desktop are download-only, with no in-app player. (A browser-codec
+libmedia fallback covered them at audit time but has since been removed; see
+`.github/notes/libmedia-player.md`.)
 
 ## The reframing: webtorrent 3.0.16 capabilities PeerZero owns but does not use
 
@@ -204,8 +205,10 @@ Skipping these is a feature, not a shortfall.
 - Streamed video runs at default priority: `webtorrent.mjs:485` calls `file.select()` with no
   priority (0), so the playing file does not outrank concurrent torrents. One-character fix
   (P0 item 3).
-- Native mpv is macOS-only: Windows/Linux desktop silently fall back to browser-codec libmedia +
-  VLC handoff, so the "any codec, native subs" pitch only holds on Mac today (P2 item 13).
+- Native mpv is macOS-only: Windows/Linux desktop are download-only (no in-app player), so the "any
+  codec, native subs" pitch only holds on Mac. (P2 item 13 proposed porting mpv to Win/Linux; the
+  project instead dropped playback there - the browser-codec libmedia fallback was removed; see
+  `.github/notes/libmedia-player.md`.)
 
 ## Primary sources read
 

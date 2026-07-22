@@ -17,7 +17,7 @@ export type MpvTrack = {
 // A subtitle track flattened for the picker menu.
 export type Sub = { id: number; label: string }
 
-// mm:ss (or h:mm:ss) from SECONDS (mpv reports time in seconds, unlike libmedia's milliseconds).
+// mm:ss (or h:mm:ss) from SECONDS (mpv reports time in seconds).
 // Negative / non-finite inputs clamp to 0 so the overlay never shows "-1:59" mid-seek.
 export function fmtTime(sec: number): string {
   const s = Math.max(0, Math.floor(Number.isFinite(sec) ? sec : 0))
