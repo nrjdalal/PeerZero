@@ -22,7 +22,7 @@ import { mpv } from "@/lib/mpv"
 // Pure track + time helpers live in @/lib/mpv-tracks so the subtitle default-pick order and time
 // formatting are unit-tested in isolation (tests/web-next/mpv-tracks.test.ts).
 import { fmtTime, label, type MpvTrack, pickDefaultSub, type Sub } from "@/lib/mpv-tracks"
-import { useResumePosition } from "@/lib/use-resume-position"
+import { FINISHED_TAIL_S, useResumePosition } from "@/lib/use-resume-position"
 import { useScrubbing } from "@/lib/use-scrubbing"
 import { cn } from "@/lib/utils"
 
@@ -43,6 +43,7 @@ export function MpvPlayer({
   src,
   name,
   resumeKey,
+  seekable = true,
 }: {
   onClose: () => void
   // Fall back to the native-player handoff (VLC) if mpv fails to init/load.
@@ -51,6 +52,9 @@ export function MpvPlayer({
   name: string
   // Stable per-video id (`${infoHash}:${fileIndex}`) for resume-playback. Omit to disable resume.
   resumeKey?: string
+  // False while the file is still downloading: block scrubber seeking (a jump past the downloaded
+  // data would stall the read), while the hover time bubble stays. Flips true once the file completes.
+  seekable?: boolean
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const onErrorRef = useRef(onError)
@@ -72,6 +76,8 @@ export function MpvPlayer({
   const [subOpen, setSubOpen] = useState(false)
   const [subs, setSubs] = useState<Sub[]>([])
   const [activeSub, setActiveSub] = useState<number>(-1)
+  // Scrubber hover preview: fraction (0..1) of the bar the cursor is over, or null when not hovering.
+  const [hoverFrac, setHoverFrac] = useState<number | null>(null)
   // createPortal targets document.body, which does not exist during Next's static prerender. Render
   // nothing until mounted on the client so the export does not crash (and the portal is client-only).
   const [mounted, setMounted] = useState(false)
@@ -80,15 +86,15 @@ export function MpvPlayer({
   const playingRef = useRef(false)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const defaultSubApplied = useRef(false)
+  // Freshest position/duration for the mpv event callback (which closes over one render's state).
+  const curRef = useRef(0)
+  const durRef = useRef(0)
+  // Debounce for the mid-file-EOF auto-recovery below, so a gap that never fills can't spin.
+  const lastRecoverRef = useRef(0)
   // Scrubber drag guard: while dragging, time updates skip setCur (below) so the thumb doesn't jump.
   const { scrubbingRef, scrubberProps } = useScrubbing()
   // Resume-playback: feed it time/duration below, and read resumeTarget()/clear() on load/end.
-  const {
-    reportTime,
-    reportDuration,
-    clear: clearResume,
-    resumeTarget,
-  } = useResumePosition(resumeKey)
+  const { reportTime, reportDuration, endOfFile, resumeTarget } = useResumePosition(resumeKey)
 
   // Reveal controls; while playing, schedule them to auto-hide after 3s of no activity.
   const poke = useCallback(() => {
@@ -141,6 +147,11 @@ export function MpvPlayer({
               case "time-pos":
                 if (data != null) {
                   const t = Number(data)
+                  // A position that moved means mpv is decoding again, so clear any buffering spinner even
+                  // if it resumed without a paused-for-cache=false transition (setBuffering(false) no-ops
+                  // when already false, so this is free during normal playback).
+                  if (t !== curRef.current) setBuffering(false)
+                  curRef.current = t
                   if (!scrubbingRef.current) setCur(t)
                   reportTime(t)
                 }
@@ -148,13 +159,40 @@ export function MpvPlayer({
               case "duration":
                 if (data != null) {
                   const d = Number(data)
+                  durRef.current = d
                   setDur(d)
                   reportDuration(d)
                 }
                 break
-              case "eof-reached":
-                if (data) setPlaying(false)
+              case "paused-for-cache":
+                // mpv is waiting on the network cache (the engine is fetching seeked/ahead pieces).
+                // Show the buffering spinner; mpv auto-resumes when the data arrives.
+                setBuffering(Boolean(data))
                 break
+              case "eof-reached": {
+                if (!data) break
+                const c = curRef.current
+                const d = durRef.current
+                const nearEnd = !(d > 0) || c >= d - FINISHED_TAIL_S
+                // Genuine end of file (or unknown duration): stop. The end-file handler decides whether to
+                // forget the resume position (a real finish) or keep it (a mid-file stall).
+                if (nearEnd || !playingRef.current) {
+                  setPlaying(false)
+                  break
+                }
+                // Mid-file EOF while meant to be playing: a forward seek outran the download and mpv gave
+                // up (keep-open pauses it at the last frame and it will NOT resume on its own). Re-seek to
+                // where we are and unpause to reopen the read from here - the engine now prioritizes these
+                // pieces and mpv buffers (network-timeout=0) until they arrive. Debounce so a gap that
+                // never fills only nudges every couple of seconds instead of spinning.
+                const now = Date.now()
+                if (now - lastRecoverRef.current < 2000) break
+                lastRecoverRef.current = now
+                setBuffering(true)
+                void mpv.command(["seek", c, "absolute"]).catch(() => {})
+                void mpv.setProperty("pause", false).catch(() => {})
+                break
+              }
               case "track-list": {
                 const list = (Array.isArray(data) ? data : []) as MpvTrack[]
                 const subTracks = list.filter((t) => t?.type === "sub")
@@ -194,8 +232,9 @@ export function MpvPlayer({
               }
             } else if (event === "end-file") {
               setPlaying(false)
-              // Reached the end -> finished, not paused; forget the position so it restarts next time.
-              clearResume()
+              // End of file OR end of downloaded data mid-file: the hook keeps the spot when it is the
+              // latter (a forward seek outran the download) so reopening resumes instead of losing it.
+              endOfFile()
             }
           }),
         )
@@ -219,7 +258,7 @@ export function MpvPlayer({
       // Stop playback so closing halts decode + audio (the render surface stays for the next file).
       void mpv.stop().catch(() => {})
     }
-  }, [src, reportTime, reportDuration, resumeTarget, clearResume])
+  }, [src, reportTime, reportDuration, resumeTarget, endOfFile])
 
   const togglePlay = useCallback(() => {
     // Decide + apply from the freshest state. playingRef is otherwise only refreshed a render later
@@ -242,11 +281,20 @@ export function MpvPlayer({
   )
   const skip = useCallback(
     (delta: number) => {
+      // No seeking of any kind while the file is still downloading (buttons + arrow keys both route
+      // here); a jump past the downloaded data would stall. Re-enabled once the file completes.
+      if (!seekable) return
       seekTo((cur || 0) + delta)
       poke()
     },
-    [cur, seekTo, poke],
+    [cur, seekTo, poke, seekable],
   )
+  // Track where the cursor is over the scrubber, as a 0..1 fraction, to place the hover-preview bubble.
+  const onScrubHover = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    if (rect.width <= 0) return
+    setHoverFrac(Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)))
+  }, [])
   const applyVol = useCallback((v: number, m: boolean) => {
     void mpv.setProperty("mute", m).catch(() => {})
     void mpv.setProperty("volume", Math.round(v * 100)).catch(() => {})
@@ -392,18 +440,43 @@ export function MpvPlayer({
         )}
       >
         <div className="flex items-center gap-4 pt-8">
-          <input
-            type="range"
-            min={0}
-            max={dur || 0}
-            step="any"
-            value={cur}
-            {...scrubberProps}
-            onChange={(e) => seekTo(Number(e.target.value))}
-            aria-label="Seek"
-            className="nf-scrubber flex-1"
-            style={{ "--played": played } as React.CSSProperties}
-          />
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: decorative hover preview; the range
+              input below owns keyboard + pointer seeking, this only positions the timestamp bubble */}
+          <div
+            className="relative flex-1"
+            onMouseMove={onScrubHover}
+            onMouseLeave={() => setHoverFrac(null)}
+          >
+            <input
+              type="range"
+              min={0}
+              max={dur || 0}
+              step="any"
+              value={cur}
+              {...scrubberProps}
+              // While downloading, the bar is display-only: no click/drag seek (pointer-events-none lets
+              // the mousemove fall through to the hover wrapper so the time bubble still tracks), out of
+              // the tab order, and the change is ignored as a belt-and-suspenders guard.
+              onChange={(e) => seekable && seekTo(Number(e.target.value))}
+              tabIndex={seekable ? undefined : -1}
+              aria-label="Seek"
+              aria-disabled={!seekable}
+              className={cn("nf-scrubber w-full", !seekable && "pointer-events-none")}
+              style={{ "--played": played } as React.CSSProperties}
+            />
+            {/* Hover-preview bubble: the timestamp under the cursor, above the bar (Netflix-style). An
+                image thumbnail of that moment will mount above this line in a follow-up. */}
+            {hoverFrac != null && dur > 0 && (
+              <div
+                className="pointer-events-none absolute bottom-full mb-3 flex -translate-x-1/2 flex-col items-center"
+                style={{ left: `${hoverFrac * 100}%` }}
+              >
+                <span className="rounded bg-black/85 px-2 py-1 text-sm text-white tabular-nums shadow-lg ring-1 ring-white/10">
+                  {fmtTime(hoverFrac * dur)}
+                </span>
+              </div>
+            )}
+          </div>
           <span className="w-20 shrink-0 text-right text-lg text-white/90 tabular-nums">
             {fmtTime(dur - cur)}
           </span>
@@ -422,16 +495,18 @@ export function MpvPlayer({
             <button
               type="button"
               onClick={() => skip(-10)}
+              disabled={!seekable}
               aria-label="Back 10 seconds"
-              className={CTRL}
+              className={cn(CTRL, "disabled:pointer-events-none disabled:opacity-40")}
             >
               <RiReplay10Line className="size-10" />
             </button>
             <button
               type="button"
               onClick={() => skip(10)}
+              disabled={!seekable}
               aria-label="Forward 10 seconds"
-              className={CTRL}
+              className={cn(CTRL, "disabled:pointer-events-none disabled:opacity-40")}
             >
               <RiForward10Line className="size-10" />
             </button>

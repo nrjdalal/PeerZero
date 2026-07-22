@@ -685,9 +685,14 @@ const jsonResponse = (status, body) =>
     headers: { "content-type": "application/json" },
   })
 
+// The live read stream per `${infoHash}:${fileIdx}`, so a new Range request (a seek) can destroy the
+// previous read before starting the next one - see the note in streamFile below.
+const activeStreams = new Map()
+
 // Range-capable byte stream of a torrent file, returned as a Web Response (for the video player
-// and external-player handoff). 404 when the torrent/file isn't ready, 416 on a bad range.
-export function streamFile(infoHash, idx, range, method = "GET") {
+// and external-player handoff). 404 when the torrent/file isn't ready, 416 on a bad range. `signal`
+// (the request's AbortSignal) tears the read down when the client disconnects (a seek or a close).
+export function streamFile(infoHash, idx, range, method = "GET", signal) {
   const t = findTorrent(infoHash)
   if (!t || !t.ready) return jsonResponse(404, { error: "not ready" })
   const file = Number.isInteger(idx) ? t.files[idx] : undefined
@@ -727,8 +732,33 @@ export function streamFile(infoHash, idx, range, method = "GET") {
   }
   headers["content-length"] = String(end - start + 1)
   if (method === "HEAD") return new Response(null, { status, headers })
+
+  // Seeking forward opens a new Range request while the previous read for this file may still be live.
+  // WebTorrent selects each read's byte range at priority 1; with two live reads at equal priority the
+  // OLD (pre-seek) range is drained first and STARVES the seek target, so the new read parks on missing
+  // pieces until the player times out and false-EOFs - playback "ends" on a forward seek. WebTorrent's
+  // own HTTP server avoids this by letting the client's socket-close destroy the previous read (which
+  // deselects its range); Bun's `new Response(nodeStream)` does NOT reliably tear a Node stream down on
+  // cancel, so track the live read per file and destroy it ourselves before starting the next one.
+  // Destroying it deselects the stale range, so the seek pieces are fetched first.
+  const key = `${t.infoHash}:${idx}`
+  activeStreams.get(key)?.destroy()
   const nodeStream = file.createReadStream({ start, end })
-  nodeStream.on("error", (err) => console.error("[engine] stream error:", err?.message || err))
+  activeStreams.set(key, nodeStream)
+  const untrack = () => {
+    if (activeStreams.get(key) === nodeStream) activeStreams.delete(key)
+  }
+  nodeStream.on("close", untrack)
+  nodeStream.on("error", (err) => {
+    untrack()
+    console.error("[engine] stream error:", err?.message || err)
+  })
+  // Client disconnected (a seek closes the old request; closing the player closes the last one): destroy
+  // the read so its byte range is deselected and stops competing with the next seek for pieces.
+  if (signal) {
+    if (signal.aborted) nodeStream.destroy()
+    else signal.addEventListener("abort", () => nodeStream.destroy(), { once: true })
+  }
   // Hand the Node Readable straight to Response. Do NOT use Readable.toWeb(): under Bun it throws
   // ("QueuingStrategyInit.highWaterMark member is required", oven-sh/bun#2935). Bun's Response
   // accepts a Node stream (it is an async iterable) as a body, which is all this backend runs on.

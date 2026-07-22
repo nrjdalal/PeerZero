@@ -110,12 +110,7 @@ export function LibmediaPlayer({
   // Scrubber drag guard: while dragging, time updates skip setCur (below) so the thumb doesn't jump.
   const { scrubbingRef, scrubberProps } = useScrubbing()
   // Resume-playback: libmedia times are ms; convert to seconds at the calls below (the hook is seconds).
-  const {
-    reportTime,
-    reportDuration,
-    clear: clearResume,
-    resumeTarget,
-  } = useResumePosition(resumeKey)
+  const { reportTime, reportDuration, endOfFile, resumeTarget } = useResumePosition(resumeKey)
   // Reveal the controls and (while playing) schedule them to auto-hide after 3s of no activity.
   const poke = useCallback(() => {
     setUiVisible(true)
@@ -209,8 +204,9 @@ export function LibmediaPlayer({
         inst.on("ended", () => {
           if (disposed) return
           setPlaying(false)
-          // Reached the end -> finished; forget the position so it restarts next time, not at the credits.
-          clearResume()
+          // End of file OR end of downloaded data mid-file: the hook keeps the spot when it is the latter
+          // (a forward seek outran the download) so reopening resumes instead of losing your place.
+          endOfFile()
         })
         inst.on("seeking", () => !disposed && setBuffering(true))
         inst.on("seeked", () => !disposed && setBuffering(false))
@@ -246,7 +242,7 @@ export function LibmediaPlayer({
       teardown(player)
       playerRef.current = null
     }
-  }, [src, reportTime, reportDuration, resumeTarget, clearResume])
+  }, [src, reportTime, reportDuration, resumeTarget, endOfFile])
 
   useEffect(() => {
     const onFs = () => setFs(!!document.fullscreenElement)

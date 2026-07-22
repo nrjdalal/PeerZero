@@ -12,8 +12,9 @@ import { usePrefs } from "@/lib/prefs-store"
 // Save the position this often while the player is open (plus once more on close).
 const SAVE_EVERY_MS = 5000
 // Watched to within this many seconds of the end -> forget the position, so a finished video restarts
-// from the beginning instead of resuming at the credits.
-const FINISHED_TAIL_S = 15
+// from the beginning instead of resuming at the credits. Exported so the player uses the SAME tail to
+// tell a genuine end (stop) from a mid-file stall it should recover from (see mpv-player.tsx).
+export const FINISHED_TAIL_S = 15
 // Resume this many seconds before where you left off, for a moment of context.
 const REWIND_S = 5
 
@@ -41,14 +42,27 @@ export function useResumePosition(resumeKey: string | undefined) {
     else usePrefs.getState().setPosition(key, c)
   }, [])
 
-  // Forget the position outright (the file reached its end -> it is finished, not paused). Also zero the
-  // local time, so the periodic + on-close save() can't re-create a resume point for a just-finished
-  // video (its last reported time can be more than FINISHED_TAIL_S before the end if time events
-  // stopped early). A later replay reports time again and saves normally.
-  const clear = useCallback(() => {
+  // The player reported end-of-file. Two very different things trigger it, told apart by WHERE we are:
+  //
+  //   - Within FINISHED_TAIL_S of the real end -> the video finished. Forget the position so it restarts
+  //     next time, not at the credits, and zero the local time so the periodic + on-close save() can't
+  //     re-create a resume point (its last reported time can be more than FINISHED_TAIL_S before the end
+  //     if time events stopped early). A later replay reports time again and saves normally.
+  //   - Anywhere earlier (mid-file) -> mpv/libmedia hit the end of the DOWNLOADED data, not the end of the
+  //     file: a forward seek outran a still-downloading torrent. That is NOT a finish, so PERSIST the
+  //     current spot instead of wiping it - reopening then resumes where you were rather than losing your
+  //     place (the "I have to reopen or go back" bug). A stream that catches up just plays on.
+  const endOfFile = useCallback(() => {
     const key = keyRef.current
-    if (key) usePrefs.getState().clearPosition(key)
-    curRef.current = 0
+    if (!key) return
+    const c = curRef.current
+    const d = durRef.current
+    if (d > 0 && c > 0 && c < d - FINISHED_TAIL_S) {
+      usePrefs.getState().setPosition(key, c)
+    } else {
+      usePrefs.getState().clearPosition(key)
+      curRef.current = 0
+    }
   }, [])
 
   // Seconds to seek to on load, or null when there is nothing worth resuming (no saved position, or so
@@ -79,5 +93,5 @@ export function useResumePosition(resumeKey: string | undefined) {
     }
   }, [save])
 
-  return { reportTime, reportDuration, clear, resumeTarget }
+  return { reportTime, reportDuration, endOfFile, resumeTarget }
 }
