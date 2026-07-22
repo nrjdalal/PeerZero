@@ -8,7 +8,7 @@ use tauri_plugin_shell::ShellExt;
 
 // Native mpv: a headless (vo=libmpv) instance + Tauri commands/events (mpv.rs), rendered into a GL
 // layer behind the transparent webview via the libmpv render API (mpv_render.rs). macOS only - other
-// platforms link no libmpv and fall back to the in-browser libmedia player.
+// platforms link no libmpv and have no in-app player (download-only); see file-tree.tsx.
 #[cfg(target_os = "macos")]
 mod mpv;
 #[cfg(target_os = "macos")]
@@ -29,9 +29,10 @@ fn parse_api_port(text: &str) -> Option<u16> {
 // Create the single "main" window once the backend has reported its (ephemeral) port. The window
 // loads the UI over http://127.0.0.1:<port> - the SAME loopback origin the sidecar serves the API on
 // (PZ_FRONTEND_DIR makes it serve the static export too). We do this instead of the tauri:// custom
-// scheme specifically so the WebView can spawn Web Workers: libmedia decodes off the main thread there
-// (WKWebView blocks Workers on custom schemes), which is what keeps playback smooth. Same origin means
-// no CORS; we still inject window.__PEERZERO_API_URL__ so the frontend's config resolves without a race.
+// scheme so the UI shares that loopback origin: same origin means no CORS, and the sidecar serves the
+// static export from it. (It also once let the WebView spawn Web Workers for the libmedia decode
+// player - WKWebView blocks Workers on custom schemes - but that player has been removed.) We still
+// inject window.__PEERZERO_API_URL__ so the frontend's config resolves without a race.
 fn create_main_window(app: &AppHandle, port: u16) {
   if app.get_webview_window("main").is_some() {
     return;
@@ -159,8 +160,8 @@ pub fn run() {
 
       // Create the headless mpv instance (vo=libmpv) + its event thread (macOS only). Non-fatal: if
       // mpv can't be created (bad driver, broken libmpv), log and carry on with `None` so the app
-      // still launches and video falls back to the libmedia player / external handoff (the commands
-      // then error out). The GL render layer is attached once the window exists (create_main_window).
+      // still launches and video falls back to the external VLC handoff (the commands then error
+      // out). The GL render layer is attached once the window exists (create_main_window).
       #[cfg(target_os = "macos")]
       {
         let mpv = match mpv::init(app.handle()) {

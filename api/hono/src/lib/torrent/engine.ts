@@ -8,6 +8,10 @@ import * as wt from "./webtorrent.mjs"
 export type TorrentFile = {
   name: string
   path: string
+  // Position in the torrent's files array; the id for stream/reveal/download/delete.
+  index: number
+  // The user deleted this file's data; it's kept in the list (disabled) with a download to re-fetch.
+  deselected: boolean
   length: number
   downloaded: number
   progress: number
@@ -107,6 +111,19 @@ export const engine = {
   // Reveal (select) a torrent's downloaded folder/file in the OS file manager.
   reveal(infoHash: string): boolean {
     return wt.revealTorrent(infoHash)
+  },
+  // Reveal (select) a single file within a torrent in the OS file manager.
+  revealFile(infoHash: string, fileIdx: number): boolean {
+    return wt.revealFile(infoHash, fileIdx)
+  },
+  // Delete a single file's data: stop wanting it + free its exclusive pieces (keeping shared boundary
+  // pieces so neighbors aren't corrupted); it stays in the list, disabled.
+  removeFile(infoHash: string, fileIdx: number): boolean {
+    return wt.removeFile(infoHash, fileIdx)
+  },
+  // Re-download a previously-deleted file (re-select + resume).
+  downloadFile(infoHash: string, fileIdx: number): boolean {
+    return wt.downloadFile(infoHash, fileIdx)
   },
   // Open a native folder picker on the host; returns the chosen (and now-active) folder.
   async chooseDir(): Promise<{ downloadDir: string; chosen: boolean }> {

@@ -44,7 +44,15 @@ type Snapshot = {
   paused: boolean
   addedAt: number
   downloadDir: string
-  files: { name: string; path: string; length: number; downloaded: number; progress: number }[]
+  files: {
+    name: string
+    path: string
+    index: number
+    length: number
+    deselected: boolean
+    downloaded: number
+    progress: number
+  }[]
 }
 
 let call: (path: string, init?: RequestInit) => Promise<Response>

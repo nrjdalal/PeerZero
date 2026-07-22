@@ -5,7 +5,7 @@ description: Run the dependency security audit and maintain .github/notes/depend
 
 # Dependency Audit
 
-`bun audit --audit-level high` runs in the pre-push hook on `canary` only (`lefthook.yml`). `.github/notes/dependencies.md` is the canonical record of every active override; it stays even when there are none.
+`bun audit --audit-level high --ignore <accepted-ids>` runs in CI (`.github/workflows/auto-check-build.yml`) and the `canary` pre-push hook (`lefthook.yml`); `--ignore` suppresses advisories we have formally accepted. `.github/notes/dependencies.md` is the canonical record of both the active `overrides` and the accepted `--ignore` advisories; it stays even when there are none.
 
 ## 1. Run
 
@@ -21,17 +21,24 @@ Drop to the next rung only when the one above can't lift the tree:
 
 1. **Update the vulnerable dep** (best): bump its `catalog:` entry in the root `package.json`.
 2. **Update the parent** that pins the vulnerable transitive dep.
-3. **Override** (last resort): add to `overrides` in the root `package.json`:
+3. **Override** the vulnerable transitive dep: add to `overrides` in the root `package.json`:
 
    ```json
    "overrides": { "<vulnerable-package>": "<patched-version>" }
    ```
 
-Then `bun i` and confirm nothing broke: `bun run check-types && bun run build`. Done when `bun run check-types && bun run build` pass and `bun audit --audit-level high` reports no high advisories.
+4. **Accept** (last resort, only when no version fixes it): add the advisory id to the `--ignore` list on **both** audit invocations (`auto-check-build.yml` and `lefthook.yml`) and record it (below).
+
+Then `bun i` and confirm nothing broke: `bun run check-types && bun run build`. Done when `bun run check-types && bun run build` pass and `bun audit --audit-level high --ignore <accepted-ids>` reports no high advisories.
 
 ## 3. Record in .github/notes/dependencies.md
 
-Match the file's existing shape: one `### <package> → <version>` block per active override under `## Active overrides`, each carrying **Advisory** (link, severity, affected range), **Why an override** (why an update or parent bump can't lift the tree), **Risk**, and **Exit criteria** (when to remove it). Delete a block when its override is dropped. Done when every entry in root `overrides` has a matching block and no block outlives its override.
+Match the file's existing shape. It has two sections:
+
+- `## Active overrides` - one `### <package> → <version>` block per `overrides` entry, each carrying **Advisory** (link, severity, affected range), **Why an override** (why an update or parent bump can't lift the tree), **Risk**, and **Exit criteria** (when to remove it).
+- `## Accepted advisories (--ignore)` - one `### <pkg> - <GHSA>` block per suppressed advisory, with the same fields plus why no update/parent/override can lift it.
+
+Delete a block when its override is dropped or its advisory id is removed from both `--ignore` lists. Done when every `overrides` entry and every `--ignore` id has a matching block, and no block outlives its entry.
 
 ## 4. Ship
 

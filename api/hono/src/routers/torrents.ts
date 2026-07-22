@@ -280,6 +280,55 @@ export const torrentsRouter = new Hono()
       }
     },
   )
+  .post(
+    "/:infoHash/files/:fileIdx/reveal",
+    describeRoute({
+      tags: ["Torrents"],
+      description: "Reveal a single file within a torrent in the OS file manager.",
+    }),
+    async (c) => {
+      try {
+        const ok = await engine.revealFile(c.req.param("infoHash"), Number(c.req.param("fileIdx")))
+        return c.json({ data: { ok } })
+      } catch (err) {
+        return handleEngineError(c, err)
+      }
+    },
+  )
+  .post(
+    "/:infoHash/files/:fileIdx/download",
+    describeRoute({
+      tags: ["Torrents"],
+      description: "Re-download a previously-deleted file (re-select it and resume the torrent).",
+    }),
+    async (c) => {
+      try {
+        const ok = await engine.downloadFile(
+          c.req.param("infoHash"),
+          Number(c.req.param("fileIdx")),
+        )
+        return c.json({ data: { ok } })
+      } catch (err) {
+        return handleEngineError(c, err)
+      }
+    },
+  )
+  .delete(
+    "/:infoHash/files/:fileIdx",
+    describeRoute({
+      tags: ["Torrents"],
+      description:
+        "Delete a single file's data: stop wanting it + free its exclusive pieces (shared boundary pieces kept); stays disabled.",
+    }),
+    async (c) => {
+      try {
+        const ok = await engine.removeFile(c.req.param("infoHash"), Number(c.req.param("fileIdx")))
+        return c.json({ data: { ok } })
+      } catch (err) {
+        return handleEngineError(c, err)
+      }
+    },
+  )
   .delete(
     "/:infoHash",
     describeRoute({

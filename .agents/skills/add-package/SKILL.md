@@ -5,12 +5,12 @@ description: Add a new shared workspace package under packages/*. Use when creat
 
 # Add a Package
 
-Workspaces are globbed as `api/*`, `packages/*`, `web/*` (root `package.json`). A new shared package lives at `packages/<name>/` and is named `@packages/<name>`. Every package shares one shape; copy an existing sibling, do not invent a new layout.
+Workspaces are globbed as `api/*`, `packages/*`, `tests`, `web/*` (root `package.json`). A new shared package lives at `packages/<name>/` and is named `@packages/<name>`. Every package shares one shape; copy an existing sibling, do not invent a new layout. Only two packages exist today, `config` and `env`, and both are libraries.
 
 ## Pick the shape
 
-- **Library** (`env`, `db`, `auth`, `config`): built with tsdown to `dist/`, imported by other workspaces via an `exports` map. Use when code is consumed at runtime.
-- **Build-only script** (`scripts`): never bundled, never imported at runtime. Its `.ts` files run via `bun src/<x>.ts` during another package's build (e.g. `@packages/auth`'s `build` runs `bun ../scripts/src/generate-env.ts auth` first). Use for build-time codegen. Keep CI/repo tooling in `.github/scripts` instead; `packages/scripts` is for app-build tooling that needs workspace deps.
+- **Library** (`config`, `env`): built with tsdown to `dist/`, imported by other workspaces via an `exports` map. Use when code is consumed at runtime.
+- **Build-only script**: never bundled, never imported at runtime. Its `.ts` files run via `bun src/<x>.ts` during another package's build. Use for build-time codegen that needs workspace deps. No such package exists today: repo and build tooling lives in `.github/scripts` as standalone Bun `.ts` files (run as `bun .github/scripts/<x>.ts`, not a workspace package). Only create a build-only workspace package when a build step must import workspace code and be pruned into the Docker image via `turbo prune`; otherwise reach for `.github/scripts`.
 
 ## Common skeleton (both shapes)
 
@@ -19,7 +19,7 @@ packages/<name>/
 ├── package.json
 ├── tsconfig.json
 └── src/
-    └── index.ts        # source under src/, imported via @/ (a build-only script names its entry by function, e.g. generate-env.ts, not index.ts)
+    └── index.ts        # source under src/, imported via @/ (a build-only script names its entry by function, e.g. codegen.ts, not index.ts)
 ```
 
 `package.json` fields shared by every package:
@@ -44,7 +44,7 @@ packages/<name>/
 
 `@packages/config` MUST be a devDependency: `tsconfig.json` extends it, and without the dep the `extends` cannot resolve. Keep deps and `exports` alphabetical (A→Z); catalog-versioned deps use `"catalog:"`, workspace deps use `"workspace:*"`.
 
-`tsconfig.json` (identical to `env`/`db`/`auth`):
+`tsconfig.json` (identical to `env`'s; `config` itself holds the base config the others extend):
 
 ```json
 {
@@ -83,7 +83,7 @@ packages/<name>/
 }
 ```
 
-Add one export entry per `entry` file. `tsdown.config.ts` uses the shared helper (validates env in `build:prepare`, emits tsgo dts, minifies):
+Add one `exports` entry per built file. `tsdown.config.ts` uses the shared `definePackageConfig` helper (validates env in `build:prepare`, emits tsgo dts, minifies); `api/hono/tsdown.config.ts` is the live reference:
 
 ```ts
 import { definePackageConfig } from "@packages/config/tsdown"
@@ -97,11 +97,11 @@ export default definePackageConfig({
 })
 ```
 
-A package with no env of its own can pass another package's `env`/`getSafeEnv`, or (like `env` itself) call `defineConfig` from tsdown directly. `turbo.json`'s `build.outputs` already lists `dist/**`, so no turbo edit is needed.
+The helper builds a single `src/index.ts` entry. A package that needs multiple entries (like `env`, which emits `index`/`api-hono`/`web-next`) calls `defineConfig` from tsdown directly with an `entry` array, one `exports` entry per built file; a package with no env of its own can also pass another package's `env`/`getSafeEnv`. `turbo.json`'s `build.outputs` already lists `dist/**`, so no turbo edit is needed.
 
 ## Build-only script shape (adds to the skeleton)
 
-No `build`, no `exports`, no `files`, no `tsdown`. Add only the script's own tool deps (e.g. `tldts`) as devDependencies. Because the entry is a Bun script using `Bun.*` / `import.meta.dir` / `node:*`, the native tsc preview (tsgo) does not auto-include `@types/*` for it, so pin `types: ["bun"]` exactly as `packages/cli` (the repo's other Bun package) and `.github/scripts/tsconfig.json` do:
+No `build`, no `exports`, no `files`, no `tsdown`. Add only the script's own tool deps as devDependencies. Because the entry is a Bun script using `Bun.*` / `import.meta.dir` / `node:*`, the native tsc preview (tsgo) does not auto-include `@types/*` for it, so pin `types: ["bun"]`, exactly as `.github/scripts/tsconfig.json` (the repo's Bun-script tsconfig) does:
 
 ```json
 {
@@ -117,7 +117,7 @@ No `build`, no `exports`, no `files`, no `tsdown`. Add only the script's own too
 }
 ```
 
-`types: ["bun"]` is the only line that differs from a library's tsconfig; `bun-types` pulls in the node references, so `@types/node` stays a devDep but needs no separate `types` entry. The consumer runs it in its own `build`, e.g. `"build": "bun ../<name>/src/<script>.ts && tsdown"` (a `bun <path>` sibling-script call, the same pattern `web/next` and `api/hono` use for `.github/scripts/*.ts`), and declares `"@packages/<name>": "workspace:*"` as a devDependency so `turbo prune` keeps it in the Docker build. Invoke it from the consumer's directory (the `bun ../<name>/...` form), not the repo root: a script that reads env via `@packages/env` inherits its cwd-relative `.env` load (`cwd/../../.env`), so running it from root silently misses `.env`.
+`types: ["bun"]` is the only line that differs from a library's tsconfig; `bun-types` pulls in the node references, so `@types/node` stays a devDep but needs no separate `types` entry. The consumer runs it in its own `build`, e.g. `"build": "bun ../<name>/src/<script>.ts && tsdown"` (a `bun <path>` sibling-script call, the same pattern `web/next`'s build uses to run `.github/scripts/compress-images.ts` before `next build`), and declares `"@packages/<name>": "workspace:*"` as a devDependency so `turbo prune` keeps it in the Docker build. Invoke it from the consumer's directory (the `bun ../<name>/...` form), not the repo root: a script that reads env via `@packages/env` inherits its cwd-relative `.env` load (`cwd/../../.env`), so running it from root silently misses `.env`.
 
 Write any generated artifact to the repo-root `.generated/` dir (gitignored, dockerignored, and removed by `bun run clean`), not inside a package. `.generated/` is the one centralized home for generated-but-disposable files the build consumes; keep individual packages free of committed-or-not `*.generated.*` files. When you add a new generated artifact type, add it to `.gitignore`/`.dockerignore` and `.github/scripts/clean.sh` together.
 
@@ -130,7 +130,7 @@ Write any generated artifact to the repo-root `.generated/` dir (gitignored, doc
 
 ## Keep docs in sync
 
-Adding a package touches the map. In the same change, update: the `packages/*` list in `AGENTS.md`/`CLAUDE.md`; both structure trees, `README.md` (`## Monorepo Structure`) and `web/next/content/docs/getting-started/project-structure.mdx` (its frontmatter/intro package count, the tree, and the "The packages" list); the `codebase-map` skill; and any skill whose globs name package paths (e.g. `runtime-apis`). A fork keeps build-only packages like `scripts` (unlike `cli`, which `init` strips), so they belong in the user-facing trees too. See the `doc-sync` skill.
+Adding a package touches the map. In the same change, update the `codebase-map` skill (its package tree and the "where to edit" table) and any skill whose globs name package paths (e.g. `runtime-apis`). `AGENTS.md` (symlinked as `CLAUDE.md`) points at `codebase-map` rather than listing packages itself, so keep that skill authoritative. See the `doc-sync` skill.
 
 ## Gotchas
 

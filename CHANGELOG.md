@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.0.20
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.19...v0.0.20)
+
+### 🚀 Enhancements
+
+- **torrents:** Resume video playback + fix flaky player controls ([#76](https://github.com/nrjdalal/PeerZero/pull/76))
+
+### 🩹 Fixes
+
+- **desktop:** Drop navbar brand inset in macOS fullscreen ([fc9ba99](https://github.com/nrjdalal/PeerZero/commit/fc9ba99))
+
+### 🏡 Chore
+
+- **registry:** Refresh committed data ([7a654b6](https://github.com/nrjdalal/PeerZero/commit/7a654b6))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.19
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.18...v0.0.19)

@@ -18,7 +18,7 @@ desktop/
     build.ts          bun build --compile  (optional cross-compile target arg)
   src-tauri/          the Tauri app (Rust shell, config, icons, capabilities)
     binaries/         compiled sidecar, named peerzero-backend-<target-triple> (gitignored)
-  .keys/              updater signing private key (gitignored — add it as a secret)
+  .keys/              updater signing private key (gitignored, add it as a secret)
 ```
 
 ## Build locally (macOS)
@@ -50,7 +50,9 @@ mpv runs headless (`vo=libmpv`) and is rendered through the libmpv **OpenGL rend
 `CAOpenGLLayer` inserted **behind the transparent webview** (`src-tauri/src/mpv_render.rs`,
 macOS); the HTML control overlay (`web/.../mpv-player.tsx`) composites on top. The Rust side
 (`src-tauri/src/mpv.rs`) exposes `mpv_*` commands + re-emits mpv properties as `mpv://property`
-events. In a plain browser the app falls back to the in-browser libmedia player.
+events. There is no in-app player off macOS: Windows/Linux desktop and a plain browser are
+download-only (a playable file reveals on disk). A cross-platform WebAssembly player once covered
+those; see `.github/notes/libmedia-player.md` for how it worked and how to bring it back.
 
 **libmpv is prebuilt, pinned, and bundled - not linked from live Homebrew** (see
 [`.github/notes/libmpv.md`](../.github/notes/libmpv.md) for the why, backed by research):

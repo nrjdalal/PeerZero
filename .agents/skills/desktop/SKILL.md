@@ -27,7 +27,12 @@ steps and run `desktop/scripts/build-app.sh`. The native mpv player links a **pr
 closure**, not live Homebrew (see `.github/notes/libmpv.md`): `desktop/scripts/fetch-libmpv.sh`
 downloads the pinned, sha256-verified closure into `src-tauri/vendor/libmpv` (or produces it from
 Homebrew when no artifact is published) and emits `libmpv.frameworks.json`; `build.rs` links against
-it and Tauri bundles it via `macOS.frameworks`. For a quick manual/isolated run (steps below), run
+it and Tauri bundles it via `macOS.frameworks`. **From a worktree, `build-app.sh` names the output
+`<worktree>.app` with bundle id `com.peerzero.desktop.<worktree>`** (e.g. `resume-playback.app`), not
+`PeerZero`, so a test build never collides with the installed app in the Dock/Finder or in macOS app
+identity; from the main checkout it stays `PeerZero.app`. Override with `APP_NAME=...`. The binary
+inside stays `MacOS/app` (the Cargo crate name), so the run/kill paths below are unaffected. For a
+quick manual/isolated run (steps below), run
 `fetch-libmpv.sh` first so `build.rs` finds the closure, then pass
 `--config src-tauri/libmpv.frameworks.json` to `tauri build`.
 

@@ -1,6 +1,6 @@
 "use client"
 
-import "./libmedia-player.css"
+import "./player-controls.css"
 import {
   RiArrowLeftLine,
   RiClosedCaptioningLine,
@@ -35,7 +35,7 @@ const CTRL = "cursor-pointer text-white/90 transition hover:text-white"
 
 // Full-screen native player. mpv decodes + renders on a native GL surface behind the transparent webview
 // (the libmpv render API); this component is the Netflix-style control overlay that drives it over IPC
-// (@/lib/mpv). Drop-in replacement for LibmediaPlayer on desktop - same props. Adds .mpv-active to <html>
+// (@/lib/mpv). The only in-app player (macOS-native). Adds .mpv-active to <html>
 // so the page goes transparent and the app shell hides while a video plays (see globals.css).
 export function MpvPlayer({
   onClose,
@@ -203,7 +203,7 @@ export function MpvPlayer({
 
         await mpv.load(src)
       } catch (e) {
-        // mpv couldn't init/load: fall back to the native-player handoff (VLC), like libmedia does.
+        // mpv couldn't init/load: fall back to the native-player handoff (VLC).
         console.error("[mpv] load failed", e)
         if (!disposed) onErrorRef.current()
       }

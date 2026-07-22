@@ -469,12 +469,13 @@ export function DataGrid<T>({
           <Spinner />
         </span>
       ) : (
-        // Enter-to-search hint: only when this box submits (Transfers) and has a query, so
-        // it's clear that pressing Enter runs the search over on the Search page.
+        // Enter-to-search hint: only when this box submits (Transfers navigates to Search;
+        // Search itself runs the query now) and has a query, so it's clear Enter runs it.
         search.onSubmit &&
         search.value.trim() !== "" && (
           <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2">
-            <RiCornerDownLeftFill className="size-4" />
+            <RiCornerDownLeftFill className="size-4" aria-hidden />
+            <span className="sr-only">Press Enter to search</span>
           </span>
         )
       )}

@@ -154,17 +154,24 @@ const columns: ColumnDef<SearchResult>[] = [
   },
 ]
 
-// Debounce before firing a search; long-ish because each search fans out to ~10 providers.
-const SEARCH_DEBOUNCE_MS = 500
+// Debounce before auto-firing a search; long because each search fans out to ~10 providers and
+// Enter searches immediately (see submit), so the debounce is only the "stopped typing" fallback.
+const SEARCH_DEBOUNCE_MS = 2500
+// Minimum query length before a search fires (shorter is noise across the ~10 providers).
+const MIN_QUERY_LEN = 2
 
-// The Search tab: the same DataGrid as Transfers, fed by live search results. The
-// search box here filters inline (debounced) rather than navigating.
+// A pasted magnet is added, not searched.
+const isMagnetUri = (s: string) => s.toLowerCase().startsWith("magnet:")
+
+// The Search tab: the same DataGrid as Transfers, fed by live search results. The search box
+// here searches inline - debounced, or immediately on Enter (with the return-key hint) - rather
+// than navigating.
 export function SearchView() {
   // Query is persisted in the store so it survives leaving/returning to the tab and reloads.
   const query = usePrefs((s) => s.search)
   const setQuery = usePrefs((s) => s.setSearch)
   const [debounced, setDebounced] = useState(query.trim())
-  const isMagnet = query.trim().toLowerCase().startsWith("magnet:")
+  const isMagnet = isMagnetUri(query.trim())
 
   // Seed the persisted query from a ?q= deep link (the Transfers box navigates here).
   const searchParams = useSearchParams()
@@ -177,7 +184,7 @@ export function SearchView() {
   // results and the spinner don't linger.
   useEffect(() => {
     const trimmed = query.trim()
-    if (trimmed.length < 2) {
+    if (trimmed.length < MIN_QUERY_LEN) {
       setDebounced(trimmed)
       return
     }
@@ -187,7 +194,7 @@ export function SearchView() {
 
   const { data, isFetching } = useQuery({
     queryKey: ["search", debounced],
-    enabled: debounced.length >= 2 && !debounced.toLowerCase().startsWith("magnet:"),
+    enabled: debounced.length >= MIN_QUERY_LEN && !isMagnetUri(debounced),
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const { data, error } = await unwrap(
@@ -216,6 +223,18 @@ export function SearchView() {
     onError: (e) => toast.error(e.message),
   })
 
+  // Enter searches now instead of waiting out the long debounce: push the current query straight
+  // to `debounced` (a magnet has nothing to search, so Enter adds it, matching the empty state).
+  const submit = () => {
+    const trimmed = query.trim()
+    if (!trimmed) return
+    if (isMagnetUri(trimmed)) {
+      addMagnet.mutate(trimmed)
+      return
+    }
+    if (trimmed.length >= MIN_QUERY_LEN) setDebounced(trimmed)
+  }
+
   const results = useMemo(() => data?.results ?? [], [data])
   const sources = useMemo(() => [...new Set(results.map((r) => r.source))], [results])
 
@@ -236,9 +255,11 @@ export function SearchView() {
         <EmptyMedia variant="icon">
           <RiSearchFill />
         </EmptyMedia>
-        <EmptyTitle>{debounced.length < 2 ? "No search yet" : "No torrents found"}</EmptyTitle>
+        <EmptyTitle>
+          {debounced.length < MIN_QUERY_LEN ? "No search yet" : "No torrents found"}
+        </EmptyTitle>
         <EmptyDescription>
-          {debounced.length < 2 ? (
+          {debounced.length < MIN_QUERY_LEN ? (
             <>
               Head to the <Link href="/">Transfers</Link> tab to manage torrents.
             </>
@@ -261,7 +282,7 @@ export function SearchView() {
       tableClassName="min-w-256"
       initialSorting={DEFAULT_SORTING}
       initialColumnVisibility={HIDDEN_COLUMNS}
-      search={{ value: query, onChange: setQuery, pending: isFetching }}
+      search={{ value: query, onChange: setQuery, onSubmit: submit, pending: isFetching }}
       facet={{ columnId: "source", label: "Source", options: sources }}
       empty={empty}
       onRowActivate={(r) => {

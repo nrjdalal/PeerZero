@@ -31,7 +31,7 @@ Fonts are self-hosted through `next/font/local`, which generates the metric-adju
 
 ## Notes
 
-- Scoped preload: any font declared in `web/next/src/lib/fonts.ts` preloads on every page, because the root layout imports it. To scope a font's preload to specific routes, declare it in a module only those routes import: author-only fonts live in `web/next/src/lib/marketing/fonts.ts` with woff2 under `web/next/src/fonts/marketing/`.
+- Scoped preload: any font declared in `web/next/src/lib/fonts.ts` preloads on every page, because the root layout imports it (that is where the app's fonts live today). To scope a font's preload to specific routes, declare it in a module that only those routes import, not in the root layout.
 - DM Sans vendors italics: `src` is an array of `{ path, style }` entries and one top-level `weight` covers both. Mono renders synthetic oblique for italics, chosen.
 - Non-variable font: fetch the per-weight files and pass `src` as an array with a `weight` per entry.
 - Remove a font: delete the woff2, its `localFont` definition, the `<html>` variable, and the `globals.css` role, then grep the variable name to catch stragglers.

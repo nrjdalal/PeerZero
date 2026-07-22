@@ -9,7 +9,19 @@
 // udp/http trackers over TCP, which is all a local client needs.
 
 import { spawn } from "node:child_process"
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
+import {
+  closeSync,
+  existsSync,
+  ftruncateSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+  writeSync,
+} from "node:fs"
 import { homedir, platform } from "node:os"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -119,6 +131,8 @@ function saveState() {
     length: t.length || 0,
     downloaded: t.downloaded || 0,
     progress: t.progress || 0,
+    // Indices of files the user deleted, so they stay hidden and deselected across restarts.
+    removed: [...(meta.get(t.infoHash)?.removed ?? [])],
   }))
   try {
     writeFileSync(STATE_FILE, JSON.stringify({ torrents }, null, 2))
@@ -175,13 +189,22 @@ function seederCount(t) {
   return seeds
 }
 
-function fileSnapshot(file) {
+function fileSnapshot(file, index, deselected) {
+  // Clamp: webtorrent's `File.get downloaded()` subtracts the "irrelevant" first/last piece bytes and
+  // can go slightly negative for a small file that lives inside one partially-downloaded shared piece,
+  // which would show as a negative bar. A deleted file reports empty (webtorrent still holds the old
+  // in-memory progress since it never re-scans disk) and is flagged so the UI shows a "download"
+  // action to fetch it back instead of "play".
+  const downloaded = deselected ? 0 : Math.max(0, Math.min(file.length, file.downloaded))
   return {
     name: file.name,
     path: file.path,
+    // Position in the torrent's `files` array - the id used to stream/reveal/download/delete it.
+    index,
     length: file.length,
-    downloaded: file.downloaded,
-    progress: file.progress,
+    deselected: !!deselected,
+    downloaded,
+    progress: deselected || !file.length ? 0 : Math.max(0, Math.min(1, downloaded / file.length)),
   }
 }
 
@@ -214,7 +237,9 @@ function snapshot(t) {
     paused: m.paused ?? false,
     addedAt: m.addedAt ?? 0,
     downloadDir: t.path || downloadDir,
-    files: t.ready ? t.files.map(fileSnapshot) : [],
+    // Files the user deleted stay in the list, flagged `deselected` (data gone, won't re-download
+    // until the user hits download) - webtorrent can't drop a file from a torrent's metadata.
+    files: t.ready ? t.files.map((f, i) => fileSnapshot(f, i, m.removed?.has(i))) : [],
   }
 }
 
@@ -452,6 +477,195 @@ export function revealTorrent(infoHash) {
   return true
 }
 
+// The absolute on-disk path of one file. `file.path` is relative to the torrent's folder and
+// already includes the torrent-name segment, so resolving against the torrent's base dir is enough.
+function fileDiskPath(t, file) {
+  return resolve(t.path || downloadDir, file.path)
+}
+
+// Look up a ready torrent and one of its files by index; null if either is missing or not ready.
+function findFile(infoHash, fileIdx) {
+  const t = findTorrent(infoHash)
+  if (!t || !t.ready) return null
+  const file = Number.isInteger(fileIdx) ? t.files[fileIdx] : undefined
+  if (!file) return null
+  return { t, file }
+}
+
+// Reveal (select) a single file in the OS file manager.
+export function revealFile(infoHash, fileIdx) {
+  const found = findFile(infoHash, fileIdx)
+  if (!found) return false
+  revealPath(fileDiskPath(found.t, found.file))
+  return true
+}
+
+// Drop this file's pieces from webtorrent's in-memory chunk cache (the CacheChunkStore LRU wrapping
+// the fs store). Freeing the bytes on disk doesn't touch that cache, so without this a later re-verify
+// could read a stale pre-delete buffer from memory, mark the piece "have", skip re-fetching it, and
+// leave a zeroed hole on disk. (`store.store.cache` is a webtorrent / cache-chunk-store internal,
+// pinned to webtorrent 3.0.16; guarded so a store without the cache layer is a no-op.)
+function dropFileCache(t, file) {
+  const cache = t.store?.store?.cache
+  if (!cache || typeof cache.remove !== "function") return
+  for (let i = file._startPiece; i <= file._endPiece; i++) cache.remove(i)
+}
+
+// Re-derive the torrent's wanted-piece selection from scratch: deselect every piece, then re-select
+// every file the user has NOT deleted. webtorrent's `file.deselect()` subtracts from a MERGED interval
+// set with no per-piece refcount, so deselecting one file also un-wants the boundary piece it shares
+// with a kept neighbor, stranding that neighbor (it can never fetch that piece). Rebuilding instead -
+// each kept file re-adds its full `[_startPiece.._endPiece]` range including boundaries - keeps every
+// shared boundary piece wanted by whichever kept file needs it, while a deleted file's EXCLUSIVE
+// pieces are wanted by nobody. Call after any change to a torrent's `removed` set. Must run
+// synchronously so the deferred `_gcSelections` sees the final selection state.
+function recomputeSelections(t, removedSet) {
+  if (!t?.ready || !t.pieces?.length) return
+  t.deselect(0, t.pieces.length - 1)
+  for (let i = 0; i < t.files.length; i++) {
+    const f = t.files[i]
+    if (removedSet?.has(i)) {
+      // A deleted file is not wanted, so treat it as complete for done-tracking. Otherwise webtorrent's
+      // `_checkDone` (torrent.done = every file.done) would keep an incomplete-then-deleted file's
+      // `done` false forever, stranding the torrent as perpetually "Downloading" (still announcing +
+      // holding peer slots) with nothing left to fetch. `downloadFile`'s `_markUnverified` flips this
+      // back to false when the file is re-selected.
+      if (f) f.done = true
+      continue
+    }
+    try {
+      f.select()
+    } catch {
+      /* zero-length or destroyed file */
+    }
+  }
+}
+
+// The range of pieces that lie ENTIRELY inside one file (not shared with an adjacent file). Files
+// rarely start/end on a piece boundary, so the first and/or last piece usually also holds a
+// neighbor's bytes; those "boundary" pieces are excluded. `none` is true when the file is smaller than
+// a piece or wholly inside shared pieces (no exclusive piece at all). (`_startPiece`/`_endPiece`,
+// `pieceLength`/`lastPieceLength` are webtorrent internals, stable in the pinned 3.0.16.) Exported for
+// unit-testability.
+export function exclusivePieceRange(t, file) {
+  const P = t.pieceLength
+  const last = t.pieces.length - 1
+  const pieceLen = (i) => (i === last ? t.lastPieceLength : P)
+  const fileEnd = file.offset + file.length - 1 // inclusive
+  const headShared = file.offset % P !== 0
+  const firstExclusive = headShared ? file._startPiece + 1 : file._startPiece
+  const tailShared = file._endPiece * P + pieceLen(file._endPiece) - 1 > fileEnd
+  const lastExclusive = tailShared ? file._endPiece - 1 : file._endPiece
+  const none = firstExclusive > lastExclusive
+  // File-relative byte offsets of the boundary slivers freeFileBytes preserves: [0, headKeepBytes)
+  // and [tailKeepStart, length); the exclusive region it frees lies between them.
+  const headKeepBytes = none ? 0 : firstExclusive * P - file.offset
+  const tailKeepStart = none
+    ? file.length
+    : lastExclusive * P + pieceLen(lastExclusive) - file.offset
+  return { firstExclusive, lastExclusive, none, headKeepBytes, tailKeepStart }
+}
+
+// Free a deleted file's disk blocks WITHOUT corrupting the data-pieces it shares with neighbor files.
+// A file's first/last piece usually also holds a neighbor's bytes (libtorrent keeps those slivers in a
+// "part file" so the neighbor's piece still verifies); we do the same by freeing only the file's
+// EXCLUSIVE pieces and preserving the boundary slivers in place. Mechanism (std fs, no FFI): read the
+// tail sliver, `ftruncate` DOWN to the kept head bytes (frees the middle + tail blocks while never
+// touching the head, so the head boundary is crash-safe), write the tail sliver back at its original
+// offset (past the new EOF, leaving the middle unwritten), then `ftruncate` back to the logical size.
+// The middle is left reading as zeros and is neighbor-safe EVERYWHERE; whether its BLOCKS are actually
+// reclaimed is filesystem-dependent: a write-past-EOF gap is a real hole on ext4/xfs (Linux, Docker),
+// and a file with no tail to keep (piece-aligned / pad-file / single-file torrents) is reclaimed
+// everywhere via the pure ftruncate. On APFS, rewriting the tail re-allocates the middle, so a
+// tail-sliver file stays correct + neighbor-safe but is NOT reclaimed there - an in-place hole punch
+// would fix it, but macOS arm64's variadic `fcntl(F_PUNCHHOLE)` isn't callable from Bun's FFI (a
+// native shim is the follow-up). The only data-gap window is the tail sliver between the truncate and
+// its rewrite (a few syscalls, no I/O); a crash there loses at most that one end-boundary piece, which
+// the kept neighbor re-fetches. Throws (e.g. ENOENT) to the caller.
+// Exported for unit-testability.
+export function freeFileBytes(t, file, diskPath) {
+  const { none, headKeepBytes, tailKeepStart } = exclusivePieceRange(t, file)
+  if (none) return // all-boundary file (smaller than a piece): freeing it would nick a neighbor
+  let fd
+  try {
+    fd = openSync(diskPath, "r+")
+    const tailLen = file.length - tailKeepStart
+    let tail = null
+    // Only preserve the tail sliver if its shared piece is fully downloaded (bitfield "have"). A have
+    // piece is quiescent - webtorrent never rewrites it - so read+rewrite can't race an in-flight store
+    // write for a still-downloading torrent. A not-have tail is (or will be) fetched normally by
+    // whichever kept file wants that piece, so we skip it and leave a hole for that fetch to fill (no
+    // rewrite -> no race, no lost bytes). The head sliver is never rewritten (kept by truncating above
+    // it), so it needs no such guard.
+    if (tailLen > 0 && t.bitfield?.get?.(file._endPiece)) {
+      tail = Buffer.alloc(tailLen)
+      const n = readSync(fd, tail, 0, tailLen, tailKeepStart) // partial file: read only what exists
+      if (n < tailLen) tail = tail.subarray(0, n)
+    }
+    ftruncateSync(fd, headKeepBytes) // free middle + tail blocks; head [0, headKeepBytes) untouched
+    if (tail && tail.length) writeSync(fd, tail, 0, tail.length, tailKeepStart) // write past EOF -> hole
+    ftruncateSync(fd, file.length) // restore logical size (sparse where nothing was written)
+  } finally {
+    if (fd !== undefined) closeSync(fd)
+  }
+}
+
+// Delete one file's data: stop wanting it, free its disk blocks, and remember the index so it stays
+// deleted across restarts. The file stays in the torrent's metadata - the UI shows it disabled with a
+// "download" to fetch it back. `recomputeSelections` un-wants only this file's EXCLUSIVE pieces (kept
+// neighbors keep the shared boundary pieces wanted); `freeFileBytes` reclaims those exclusive blocks
+// on disk while preserving the boundary slivers, so no neighbor is nicked. We deliberately leave the
+// freed pieces' bitfield bits "have": they're deselected so never re-requested, and clearing them
+// (only possible via `_markUnverified`, which re-selects) would either re-download the file or flip
+// `torrent.done` to false. `dropFileCache` evicts any stale in-memory chunks for the file's pieces.
+export function removeFile(infoHash, fileIdx) {
+  const found = findFile(infoHash, fileIdx)
+  if (!found) return false
+  const { t, file } = found
+  const removed = new Set(meta.get(t.infoHash)?.removed ?? [])
+  removed.add(fileIdx)
+  setMeta(t.infoHash, { removed })
+  recomputeSelections(t, removed)
+  // Recompute torrent.done: the deleted file is now done=true, so if it was the last incomplete file
+  // the torrent settles to done (fires 'done' -> stopSeeding) instead of announcing forever.
+  t._checkDone?.()
+  try {
+    freeFileBytes(t, file, fileDiskPath(t, file))
+  } catch (err) {
+    // ENOENT (nothing on disk yet) is fine; anything else is worth surfacing.
+    if (err?.code !== "ENOENT")
+      console.error("[engine] failed to free file data:", err?.message || err)
+  }
+  dropFileCache(t, file)
+  saveState()
+  return true
+}
+
+// Re-download a previously-deleted file: mark it wanted again, mark its freed (exclusive) pieces
+// not-have so the picker re-requests them, recompute `done`, and resume. Only the file's EXCLUSIVE
+// pieces are marked not-have; its boundary pieces were preserved on disk (still valid) so they stay
+// "have" and are NOT re-fetched, meaning a re-download never disturbs a neighbor. `_markUnverified`
+// clears the bit + re-selects the single piece (no disk re-hash); it runs synchronously with
+// `recomputeSelections` so the deferred `_gcSelections` keeps the middle pieces selected.
+export function downloadFile(infoHash, fileIdx) {
+  const found = findFile(infoHash, fileIdx)
+  if (!found) return false
+  const { t, file } = found
+  const removed = new Set(meta.get(t.infoHash)?.removed ?? [])
+  removed.delete(fileIdx)
+  setMeta(t.infoHash, { removed })
+  recomputeSelections(t, removed) // re-selects this file (and every other kept file)
+  const { firstExclusive, lastExclusive, none } = exclusivePieceRange(t, file)
+  if (!none && typeof t._markUnverified === "function") {
+    for (let i = firstExclusive; i <= lastExclusive; i++) t._markUnverified(i)
+  }
+  t._checkDone?.() // recompute done (select/deselect/_markUnverified don't); re-announces to trackers
+  t.resume()
+  setMeta(t.infoHash, { paused: false })
+  saveState()
+  return true
+}
+
 // Native folder picker; sets and returns the chosen folder (chosen:false if cancelled/absent).
 export async function chooseDir() {
   const chosen = await chooseFolder()
@@ -478,6 +692,10 @@ export function streamFile(infoHash, idx, range, method = "GET") {
   if (!t || !t.ready) return jsonResponse(404, { error: "not ready" })
   const file = Number.isInteger(idx) ? t.files[idx] : undefined
   if (!file) return jsonResponse(404, { error: "file not found" })
+  // A deleted file's exclusive pieces were freed (its middle is a hole), but webtorrent's bitfield
+  // still reads "have", so `file.progress` stays 1 and the code below would serve a 200/206 whose body
+  // then errors on the missing middle (a broken player). Refuse it - the row shows a "download" first.
+  if (meta.get(t.infoHash)?.removed?.has(idx)) return jsonResponse(404, { error: "file deleted" })
   // Streaming an unfinished file needs the torrent running with this file's pieces prioritized;
   // a completed file reads straight from disk and works even while the torrent is paused/seeding.
   if (file.progress < 1) {
@@ -526,13 +744,20 @@ function restoreOnBoot() {
     try {
       // Prefer the saved .torrent metadata (instant + peerless ready); fall back to magnet.
       const source = saved.torrentFile ? Buffer.from(saved.torrentFile, "base64") : saved.magnetURI
+      const removed = new Set(saved.removed ?? [])
       // Each torrent restores to its own saved folder; path-less legacy entries lived in .downloads.
-      const t = client.add(source, { path: saved.path || LEGACY_DOWNLOAD_DIR }, () => saveState())
+      const t = client.add(source, { path: saved.path || LEGACY_DOWNLOAD_DIR }, (torrent) => {
+        // Re-apply the user's deletions so they don't re-download. Rebuild the whole selection (not a
+        // per-file deselect) so kept neighbors keep the boundary pieces they share with a deleted file.
+        recomputeSelections(torrent, removed)
+        saveState()
+      })
       // Use saved.infoHash (always present) - t.infoHash can be unset synchronously. `restored` is
       // the last-known size/progress, replayed by snapshot() while this torrent shows as "syncing".
       setMeta(saved.infoHash, {
         paused: !!saved.paused,
         addedAt: saved.addedAt ?? nowUnix(),
+        removed,
         restored: {
           name: saved.name,
           length: saved.length ?? 0,
