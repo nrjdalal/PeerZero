@@ -8,10 +8,10 @@
 > you download and for complying with copyright law where you live. The maintainers do not
 > endorse or facilitate copyright infringement and will honor valid legal notices.
 
-A local-only **BitTorrent client with a built-in video player**. Search, paste a magnet
-link, or drop a `.torrent`, then watch it download live and play the video right in the
-app, even before it finishes. No account, no cloud, nothing hosted - it all runs on your
-own machine.
+A local-only **BitTorrent client with a built-in video player on macOS**. Search, paste a
+magnet link, or drop a `.torrent`, then watch it download live - and on the Mac app, play the
+video right in the app, even before it finishes. Windows and Linux are download-only (no in-app
+player). No account, no cloud, nothing hosted - it all runs on your own machine.
 
 ---
 
@@ -48,12 +48,14 @@ Prefer to run from source instead? See below.
 - **Download** with a real [WebTorrent](https://webtorrent.io) client over the normal
   TCP/uTP/DHT swarm. Pause, resume, remove, and watch live progress (speed, peers, ETA)
   stream over a WebSocket into the **Transfers** tab.
-- **Watch it in the app.** Click any video and it plays in a built-in Netflix-style player that
-  streams as the file downloads, so you can start before it finishes. On desktop it decodes through
-  **native mpv** (hardware-accelerated) for the containers and codecs a browser refuses - **MKV,
-  HEVC/H.265, AV1, AC3/E-AC3** - with embedded subtitles rendered natively. No external player like
-  VLC, and nothing to install: libmpv ships inside the app. Reopen a video and it **resumes a few
-  seconds before where you left off** (remembered per file, across restarts).
+- **Watch it in the app (macOS).** On the Mac app, click any video and it plays in a built-in
+  Netflix-style player that streams as the file downloads, so you can start before it finishes. It
+  decodes through **native mpv** (hardware-accelerated) for the containers and codecs a browser
+  refuses - **MKV, HEVC/H.265, AV1, AC3/E-AC3** - with embedded subtitles rendered natively. No
+  external player like VLC, and nothing to install: libmpv ships inside the app. Reopen a video and
+  it **resumes a few seconds before where you left off** (remembered per file, across restarts).
+  Windows and Linux are download-only for now (no in-app player); open finished files in your own
+  player.
 - **Browse every file.** Expand a torrent to see its file tree with per-file progress; play
   or reveal any single file.
 - **Stays a downloader.** Completed torrents auto-stop instead of seeding.
@@ -114,13 +116,15 @@ otherwise crash Bun on an unsupported libuv function. Peers are found via the DH
 trackers over TCP. The engine sits behind a small typed seam
 (`api/hono/src/lib/torrent/engine.ts`), so it could later be swapped for another client.
 
-**The video player** on desktop is **native [mpv](https://mpv.io)** (libmpv): mpv renders through its
+**The video player** is **native [mpv](https://mpv.io)** (libmpv), macOS-only: mpv renders through its
 OpenGL render API into a native layer behind the transparent webview, with the HTML control overlay on
 top (see `desktop/README.md`), for hardware decode + native subtitle rendering. libmpv is bundled into
-the app, so there is nothing to install. In a plain browser it falls back to
-[libmedia](https://github.com/zhaohappy/libmedia) (FFmpeg compiled to WebAssembly, driving WebCodecs),
-self-hosted under `/libmedia`. Either way the API serves each file over an HTTP **Range** endpoint
-(`/api/torrents/:infoHash/stream/:fileIdx`), so playback starts while the download is still in flight.
+the app, so there is nothing to install. Windows/Linux desktop and any plain browser have no in-app
+player - PeerZero is a personal, Mac-first tool, so those are download-only (a playable file reveals on
+disk instead). A cross-platform WebAssembly player once filled that gap; see
+`.github/notes/libmedia-player.md` for how it worked and how to bring it back. The API serves each file
+over an HTTP **Range** endpoint (`/api/torrents/:infoHash/stream/:fileIdx`), so playback starts while the
+download is still in flight.
 
 Dev URLs are named `.localhost` hosts served by [portless](https://www.npmjs.com/package/portless)
 (`bunx portless list` shows them). `PORTLESS=0 bun run dev` uses plain ports instead

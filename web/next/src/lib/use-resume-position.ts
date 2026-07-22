@@ -4,10 +4,8 @@ import { useCallback, useEffect, useRef } from "react"
 
 import { usePrefs } from "@/lib/prefs-store"
 
-// Resume-playback: persist a video's last position and restore it on reopen. Shared by both players
-// (mpv on desktop, libmedia in the browser) so the thresholds below live in exactly one place - the
-// players only differ in their native time unit, which they convert to SECONDS at the boundary before
-// handing values here.
+// Resume-playback: persist a video's last position and restore it on reopen. Used by the native mpv
+// player (macOS); it converts mpv's time to SECONDS at the boundary before handing values here.
 
 // Save the position this often while the player is open (plus once more on close).
 const SAVE_EVERY_MS = 5000

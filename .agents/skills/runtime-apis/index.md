@@ -13,7 +13,6 @@ The `Runtime` column drives the rule: **Node** and **Both** files stay on `node:
 | `.github/scripts/refresh-registry.ts` | Bun | `node:path` (resolve) |
 | `.github/scripts/seal-registry.ts` | Bun | `node:path` (resolve) |
 | `.github/scripts/shadcn-customize.ts` | Bun | `node:child_process` (execFileSync); `node:fs` (readFileSync, writeFileSync) |
-| `.github/scripts/vendor-libmedia.ts` | Bun | `node:fs` (existsSync); `node:fs/promises` (cp, mkdir, readdir, rm); `node:path` (path) |
 | `.github/workflows/auto-labeler.yml` | Node | `node:fs`, `node:path` (via `require`, `actions/github-script`) |
 | `api/hono/src/lib/torrent/codec.ts` | Both | `node:crypto` (createCipheriv, createDecipheriv, createHash) |
 | `api/hono/src/lib/torrent/webtorrent.mjs` | Both | `node:child_process` (spawn); `node:fs` (existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync); `node:os` (homedir, platform); `node:path` (dirname, resolve); `node:url` (fileURLToPath) |
@@ -39,7 +38,6 @@ Only where the file runs **only** under Bun and the call has a `Bun.*` equivalen
 | `.github/scripts/ensure-remote-branches.ts` | `execFileSync` | `Bun.spawnSync` |
 | `.github/scripts/shadcn-customize.ts` | `execFileSync` | `Bun.spawnSync` |
 | `.github/scripts/shadcn-customize.ts` | `readFileSync` / `writeFileSync` | `Bun.file().text()` / `Bun.write` |
-| `.github/scripts/vendor-libmedia.ts` | `existsSync` | `Bun.file().exists()` |
 | `tests/api-hono/lib/golden.ts` | `readFileSync` / `writeFileSync` | `Bun.file().text()` / `Bun.write` |
 | `tests/api-hono/lib/golden.ts` | `existsSync` | `Bun.file().exists()` |
 | `tests/api-hono/fixtures/seed.ts` | `writeFileSync` | `Bun.write` |
