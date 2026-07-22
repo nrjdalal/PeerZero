@@ -128,14 +128,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # After a release is published, build the macOS/Windows/Linux installers and attach them
+  # After a release is published, build the macOS installer + updater artifacts and attach them
   # to that release. A reusable workflow (workflow_call) so it runs in THIS run - a release
-  # created with GITHUB_TOKEN can't trigger a separate `on: release` workflow.
+  # created with GITHUB_TOKEN can't trigger a separate `on: release` workflow. macOS-only:
+  # PeerZero ships as a personal Mac tool (native libmpv playback), so no Windows/Linux build.
   desktop:
-    name: Desktop installers
+    name: Desktop installer
     needs: update-changelog
     if: needs.update-changelog.outputs.tag != ''
-    uses: ./.github/workflows/desktop-release.yml
+    uses: ./.github/workflows/desktop-release-macos.yml
     with:
       tag: ${{ needs.update-changelog.outputs.tag }}
     secrets: inherit

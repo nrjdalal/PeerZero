@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.0.23
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.22...v0.0.23)
+
+### 🚀 Enhancements
+
+- **settings:** Check for updates from Advanced ([#92](https://github.com/nrjdalal/PeerZero/pull/92))
+
+### 🩹 Fixes
+
+- **player:** Focus the overlay once the portal mounts, not a render early ([#88](https://github.com/nrjdalal/PeerZero/pull/88))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.22
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.21...v0.0.22)

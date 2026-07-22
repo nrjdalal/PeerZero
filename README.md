@@ -8,36 +8,32 @@
 > you download and for complying with copyright law where you live. The maintainers do not
 > endorse or facilitate copyright infringement and will honor valid legal notices.
 
-A local-only **BitTorrent client with a built-in video player on macOS**. Search, paste a
-magnet link, or drop a `.torrent`, then watch it download live - and on the Mac app, play the
-video right in the app, even before it finishes. Windows and Linux are download-only (no in-app
-player). No account, no cloud, nothing hosted - it all runs on your own machine.
+A local-only **BitTorrent client with a built-in video player for macOS**. Search, paste a
+magnet link, or drop a `.torrent`, then watch it download live - and play the video right in the
+app, even before it finishes. PeerZero is a personal Mac tool, so official builds are macOS-only;
+Windows and Linux can still run it from source (download-only, no in-app player). No account, no
+cloud, nothing hosted - it all runs on your own machine.
 
 ---
 
 ## Download
 
-Grab the desktop app for your OS from the **[latest release](https://github.com/nrjdalal/PeerZero/releases/latest)**:
+Grab the desktop app from the **[latest release](https://github.com/nrjdalal/PeerZero/releases/latest)**:
 
-| OS                    | File                         |
-| --------------------- | ---------------------------- |
-| macOS (Apple Silicon) | `.dmg`                       |
-| Windows               | `.exe` installer (or `.msi`) |
-| Linux (Debian/Ubuntu) | `.deb`                       |
+| OS                    | File   |
+| --------------------- | ------ |
+| macOS (Apple Silicon) | `.dmg` |
 
-The app self-updates on new releases. Builds are unsigned for now, so first launch needs a
-one-time bypass:
+The app self-updates on new releases (also from **Settings -> Advanced -> Check for updates**).
+Builds are unsigned for now, so first launch needs a one-time bypass: drag `PeerZero.app` to
+`Applications`, then run this once (macOS quarantines unsigned downloads and reports them as
+"damaged"; this clears the flag):
 
-- **macOS:** drag `PeerZero.app` to `Applications`, then run this once (macOS quarantines
-  unsigned downloads and reports them as "damaged"; this clears the flag):
+```bash
+xattr -dr com.apple.quarantine /Applications/PeerZero.app
+```
 
-  ```bash
-  xattr -dr com.apple.quarantine /Applications/PeerZero.app
-  ```
-
-- **Windows:** on the SmartScreen prompt, click **More info -> Run anyway**.
-
-Prefer to run from source instead? See below.
+On Windows and Linux, run it from source (see below) - there is no official installer.
 
 ---
 
@@ -54,8 +50,8 @@ Prefer to run from source instead? See below.
   refuses - **MKV, HEVC/H.265, AV1, AC3/E-AC3** - with embedded subtitles rendered natively. No
   external player like VLC, and nothing to install: libmpv ships inside the app. Reopen a video and
   it **resumes a few seconds before where you left off** (remembered per file, across restarts).
-  Windows and Linux are download-only for now (no in-app player); open finished files in your own
-  player.
+  Run from source on Windows/Linux and it is download-only (no in-app player); open finished files
+  in your own player.
 - **Browse every file.** Expand a torrent to see its file tree with per-file progress; play
   or reveal any single file.
 - **Stays a downloader.** Completed torrents auto-stop instead of seeding.
