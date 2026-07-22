@@ -46,7 +46,7 @@ export function useResumePosition(resumeKey: string | undefined) {
   //     next time, not at the credits, and zero the local time so the periodic + on-close save() can't
   //     re-create a resume point (its last reported time can be more than FINISHED_TAIL_S before the end
   //     if time events stopped early). A later replay reports time again and saves normally.
-  //   - Anywhere earlier (mid-file) -> mpv/libmedia hit the end of the DOWNLOADED data, not the end of the
+  //   - Anywhere earlier (mid-file) -> mpv hit the end of the DOWNLOADED data, not the end of the
   //     file: a forward seek outran a still-downloading torrent. That is NOT a finish, so PERSIST the
   //     current spot instead of wiping it - reopening then resumes where you were rather than losing your
   //     place (the "I have to reopen or go back" bug). A stream that catches up just plays on.
