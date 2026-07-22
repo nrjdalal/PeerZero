@@ -216,16 +216,38 @@ function snapshot(t) {
   // the pieces are actually verified (and self-corrects if the files turned out to be gone).
   const restored = t.ready ? null : m.restored
   const syncing = !!restored
+  // Files the user deleted stay in the list, flagged `deselected` (data gone, won't re-download
+  // until the user hits download) - webtorrent can't drop a file from a torrent's metadata.
+  const files = t.ready ? t.files.map((f, i) => fileSnapshot(f, i, m.removed?.has(i))) : []
+  const length = t.length || restored?.length || 0
+  // Deleting a file frees its bytes on disk, but webtorrent never re-scans, so its in-memory
+  // t.downloaded/t.progress stay stale-high (they still count the freed file as present). When the
+  // user has deleted files, derive the torrent's downloaded/progress by summing the per-file
+  // snapshots (a deleted file reports 0) so the main bar tracks delete/download the same way the file
+  // rows do. Untouched torrents keep webtorrent's own numbers (no drift for the common case).
+  const hasDeleted = t.ready && (m.removed?.size ?? 0) > 0
+  const downloaded = restored
+    ? restored.downloaded
+    : hasDeleted
+      ? files.reduce((sum, f) => sum + f.downloaded, 0)
+      : t.downloaded || 0
+  const progress = restored
+    ? restored.progress
+    : hasDeleted
+      ? length
+        ? Math.min(1, downloaded / length)
+        : 0
+      : t.progress || 0
   return {
     infoHash: t.infoHash,
     name: t.name || restored?.name || t.infoHash,
     magnetURI: t.magnetURI,
-    length: t.length || restored?.length || 0,
-    downloaded: restored ? restored.downloaded : t.downloaded || 0,
+    length,
+    downloaded,
     uploaded: t.uploaded || 0,
     downloadSpeed: t.downloadSpeed || 0,
     uploadSpeed: t.uploadSpeed || 0,
-    progress: restored ? restored.progress : t.progress || 0,
+    progress,
     numPeers: t.numPeers || 0,
     seeders: seederCount(t),
     // webtorrent reports ms; NaN/Infinity before metadata -> null so JSON stays clean.
@@ -237,9 +259,7 @@ function snapshot(t) {
     paused: m.paused ?? false,
     addedAt: m.addedAt ?? 0,
     downloadDir: t.path || downloadDir,
-    // Files the user deleted stay in the list, flagged `deselected` (data gone, won't re-download
-    // until the user hits download) - webtorrent can't drop a file from a torrent's metadata.
-    files: t.ready ? t.files.map((f, i) => fileSnapshot(f, i, m.removed?.has(i))) : [],
+    files,
   }
 }
 
@@ -685,9 +705,14 @@ const jsonResponse = (status, body) =>
     headers: { "content-type": "application/json" },
   })
 
+// The live read stream per `${infoHash}:${fileIdx}`, so a new Range request (a seek) can destroy the
+// previous read before starting the next one - see the note in streamFile below.
+const activeStreams = new Map()
+
 // Range-capable byte stream of a torrent file, returned as a Web Response (for the video player
-// and external-player handoff). 404 when the torrent/file isn't ready, 416 on a bad range.
-export function streamFile(infoHash, idx, range, method = "GET") {
+// and external-player handoff). 404 when the torrent/file isn't ready, 416 on a bad range. `signal`
+// (the request's AbortSignal) tears the read down when the client disconnects (a seek or a close).
+export function streamFile(infoHash, idx, range, method = "GET", signal) {
   const t = findTorrent(infoHash)
   if (!t || !t.ready) return jsonResponse(404, { error: "not ready" })
   const file = Number.isInteger(idx) ? t.files[idx] : undefined
@@ -727,8 +752,33 @@ export function streamFile(infoHash, idx, range, method = "GET") {
   }
   headers["content-length"] = String(end - start + 1)
   if (method === "HEAD") return new Response(null, { status, headers })
+
+  // Seeking forward opens a new Range request while the previous read for this file may still be live.
+  // WebTorrent selects each read's byte range at priority 1; with two live reads at equal priority the
+  // OLD (pre-seek) range is drained first and STARVES the seek target, so the new read parks on missing
+  // pieces until the player times out and false-EOFs - playback "ends" on a forward seek. WebTorrent's
+  // own HTTP server avoids this by letting the client's socket-close destroy the previous read (which
+  // deselects its range); Bun's `new Response(nodeStream)` does NOT reliably tear a Node stream down on
+  // cancel, so track the live read per file and destroy it ourselves before starting the next one.
+  // Destroying it deselects the stale range, so the seek pieces are fetched first.
+  const key = `${t.infoHash}:${idx}`
+  activeStreams.get(key)?.destroy()
   const nodeStream = file.createReadStream({ start, end })
-  nodeStream.on("error", (err) => console.error("[engine] stream error:", err?.message || err))
+  activeStreams.set(key, nodeStream)
+  const untrack = () => {
+    if (activeStreams.get(key) === nodeStream) activeStreams.delete(key)
+  }
+  nodeStream.on("close", untrack)
+  nodeStream.on("error", (err) => {
+    untrack()
+    console.error("[engine] stream error:", err?.message || err)
+  })
+  // Client disconnected (a seek closes the old request; closing the player closes the last one): destroy
+  // the read so its byte range is deselected and stops competing with the next seek for pieces.
+  if (signal) {
+    if (signal.aborted) nodeStream.destroy()
+    else signal.addEventListener("abort", () => nodeStream.destroy(), { once: true })
+  }
   // Hand the Node Readable straight to Response. Do NOT use Readable.toWeb(): under Bun it throws
   // ("QueuingStrategyInit.highWaterMark member is required", oven-sh/bun#2935). Bun's Response
   // accepts a Node stream (it is an async iterable) as a body, which is all this backend runs on.

@@ -24,6 +24,9 @@ const OBSERVED_SCALAR: &[(&str, Format)] = &[
     ("time-pos", Format::Double),
     ("duration", Format::Double),
     ("eof-reached", Format::Flag),
+    // True while mpv is stalled waiting on the network cache (the engine is fetching seeked/ahead
+    // pieces). The overlay shows a buffering spinner for it; mpv auto-resumes when data returns.
+    ("paused-for-cache", Format::Flag),
     ("track-list/count", Format::Int64),
 ];
 
@@ -70,6 +73,31 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<Arc<Mpv>, String> {
         // on the CAOpenGLLayer draw thread that block starves the render loop and mpv warns "render
         // not being called or stuck". With 0, Core Animation drives cadence and playback stays smooth.
         init.set_property("video-timing-offset", "0")?;
+        // Streaming a still-downloading torrent: the source is a loopback HTTP Range endpoint that BLOCKS
+        // a read until WebTorrent fetches the requested pieces. Make mpv treat that as buffering, not as
+        // end-of-file, so a forward seek into not-yet-downloaded content waits and resumes instead of
+        // stopping. Without this, mpv's default network-timeout (60s) can false-EOF while the engine is
+        // still fetching, and the player treats the EOF as "finished" (the seek-forward-ends bug).
+        //   - cache + cache-pause: buffer ("paused-for-cache") on underrun and auto-resume when data
+        //     returns; cache-pause-initial re-buffers after each seek rather than stuttering.
+        //   - demuxer-*-bytes / seekable-cache: a larger seekable packet cache, so short forward/backward
+        //     seeks are served from memory with no network round-trip at all.
+        //   - force-seekable: keep the seek bar live even if the stream is classified non-seekable.
+        //   - network-timeout=0: never impose mpv's own read timeout, so a blocking read waits for pieces
+        //     (buffering) instead of raising a false EOF; the FFmpeg reconnect opts recover a dropped read.
+        init.set_property("cache", "yes")?;
+        init.set_property("cache-pause", "yes")?;
+        init.set_property("cache-pause-initial", "yes")?;
+        init.set_property("cache-pause-wait", "1")?;
+        init.set_property("demuxer-max-bytes", "256MiB")?;
+        init.set_property("demuxer-max-back-bytes", "64MiB")?;
+        init.set_property("demuxer-seekable-cache", "yes")?;
+        init.set_property("force-seekable", "yes")?;
+        init.set_property("network-timeout", "0")?;
+        init.set_property(
+            "stream-lavf-o",
+            "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=30",
+        )?;
         Ok(())
     })
     .map_err(|e| format!("mpv create: {e}"))?;

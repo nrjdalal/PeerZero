@@ -52,9 +52,16 @@ export class EngineError extends Error {
 }
 
 // Range-capable byte stream of a torrent file, as a Web Response (video player + external-player
-// handoff). Returns a 404/416 Response for a missing file or bad range - it does not throw.
-export function engineStream(infoHash: string, fileIdx: string | number, range?: string): Response {
-  return wt.streamFile(infoHash, Number(fileIdx), range)
+// handoff). Returns a 404/416 Response for a missing file or bad range - it does not throw. `signal`
+// (the request's AbortSignal) tears the read down when the client disconnects, so a seek's abandoned
+// read stops competing for pieces with the seek target.
+export function engineStream(
+  infoHash: string,
+  fileIdx: string | number,
+  range?: string,
+  signal?: AbortSignal,
+): Response {
+  return wt.streamFile(infoHash, Number(fileIdx), range, "GET", signal)
 }
 
 export const engine = {
