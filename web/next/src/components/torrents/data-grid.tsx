@@ -692,6 +692,9 @@ export function DataGrid<T>({
                   <TableRow
                     role="row"
                     id={rowDomId(row.id)}
+                    // Hover moves the focus cursor to this row (activeId), so the highlight follows
+                    // the pointer and keyboard nav resumes from it - matching the file tree's hover.
+                    onMouseEnter={() => setActiveId(row.id)}
                     data-state={row.getIsSelected() ? "selected" : undefined}
                     aria-selected={selectable ? row.getIsSelected() : undefined}
                     className={cn(
@@ -750,6 +753,9 @@ export function DataGrid<T>({
                       // has-aria-expanded / hover tints so an open folder never shades the whole tree.
                       <TableRow
                         role="row"
+                        // Entering the sub-row drops the parent's focus cursor so the file tree's own
+                        // hover-focus is the only highlight inside it (no lingering parent-row tint).
+                        onMouseEnter={() => setActiveId(null)}
                         className="hover:bg-transparent has-aria-expanded:bg-transparent"
                         data-subrow-of={row.id}
                       >
