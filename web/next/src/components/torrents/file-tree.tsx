@@ -3,6 +3,8 @@
 import type { TorrentSnapshot } from "@api/hono"
 import {
   RiArrowRightSLine,
+  RiDeleteBinFill,
+  RiDownloadFill,
   RiFileImageLine,
   RiFileLine,
   RiFileMusicLine,
@@ -11,20 +13,67 @@ import {
   RiFileZipLine,
   RiFilmLine,
   RiFolderLine,
+  RiFolderOpenFill,
   RiPlayFill,
   type RemixiconComponentType,
 } from "@remixicon/react"
-import { type KeyboardEvent, useCallback, useMemo, useRef, useState } from "react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { type KeyboardEvent, type ReactNode, useCallback, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import type { SubRowColumn } from "@/components/torrents/data-grid"
 import { LibmediaPlayer } from "@/components/torrents/libmedia-player"
 import { MpvPlayer } from "@/components/torrents/mpv-player"
-import { STATUS_BADGE } from "@/components/torrents/torrents-grid"
+import { STATUS_BADGE, STATUS_ICON } from "@/components/torrents/torrents-grid"
+import { TORRENTS_QUERY_KEY } from "@/components/torrents/use-torrents-live"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { apiClient, unwrap } from "@/lib/api/client"
 import { formatBytes, formatPercent } from "@/lib/format"
 import { openInExternalPlayer, streamUrl } from "@/lib/play-file"
 import { cn } from "@/lib/utils"
+
+// Per-file action icons reuse the torrent-row status palette (STATUS_ICON): green once the file is
+// fully downloaded (ready to play offline), blue while it is still downloading (streamable).
+
+// One file-row action button: a ghost icon button, non-tabbable so it never steals the tree's roving
+// focus, and it stops propagation so a click never toggles/focuses the row. A `null` slot renders a
+// same-size spacer so the remaining actions stay column-aligned with the torrent row's actions.
+function FileActionButton({
+  title,
+  onClick,
+  children,
+}: {
+  title: string
+  onClick: (() => void) | null
+  children: ReactNode
+}) {
+  if (!onClick) return <span className="size-7 shrink-0" aria-hidden />
+  return (
+    <Button
+      size="icon-sm"
+      variant="ghost"
+      tabIndex={-1}
+      title={title}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+    >
+      {children}
+    </Button>
+  )
+}
 
 // The native mpv surface is macOS-only (the render layer in mpv_render.rs is macOS-only). Other Tauri
 // platforms have no render layer, so they fall back to the libmedia player like a plain browser -
@@ -42,6 +91,8 @@ type FileLeaf = {
   name: string
   // Position in the torrent's `files` array (== webtorrent `torrent.files[i]`), the stream URL's id.
   index: number
+  // The user deleted this file's data: shown disabled with a download to fetch it back.
+  deselected: boolean
   length: number
   downloaded: number
   progress: number
@@ -67,9 +118,9 @@ export function buildFileTree(files: TorrentFile[], rootName: string): TreeNode[
     length: 0,
     downloaded: 0,
   }
-  // `index` is the file's position in the flat `files` array; it survives the folder sort below and
-  // is what the stream URL references (`torrent.files[index]`).
-  files.forEach((file, index) => {
+  // `file.index` is the file's position in `torrent.files` (carried by the snapshot); it's the stable
+  // id that stream/reveal/download/delete reference, and it survives the folders-first sort below.
+  for (const file of files) {
     const segments = file.path.split(/[/\\]/).filter(Boolean)
     const parts = segments[0] === rootName ? segments.slice(1) : segments
     const leafName = parts.length ? parts[parts.length - 1] : file.name
@@ -86,12 +137,13 @@ export function buildFileTree(files: TorrentFile[], rootName: string): TreeNode[
     node.children.push({
       type: "file",
       name: leafName,
-      index,
+      index: file.index,
+      deselected: file.deselected,
       length: file.length,
       downloaded: file.downloaded,
       progress: file.progress,
     })
-  })
+  }
   // Bottom-up: aggregate each folder's size/downloaded from its children, then sort folders-first.
   const finalize = (folder: FolderNode) => {
     for (const c of folder.children) if (c.type === "folder") finalize(c)
@@ -177,6 +229,9 @@ function TreeRow({
   onFocusRow,
   onToggle,
   onPlay,
+  onReveal,
+  onDelete,
+  onDownload,
 }: {
   row: FlatRow
   // The parent grid's visible after-Name columns, so this row's cells sit under the real columns.
@@ -193,11 +248,20 @@ function TreeRow({
   onToggle: () => void
   // Play a video/audio file (by its `torrent.files` index). A no-op for non-playable files.
   onPlay: (fileIndex: number, name: string) => void
+  // Reveal a file in the OS file manager (the action for non-playable files).
+  onReveal: (fileIndex: number) => void
+  // Ask to delete a file from disk (the parent shows a confirm).
+  onDelete: (fileIndex: number, name: string) => void
+  // Re-download a previously-deleted file.
+  onDownload: (fileIndex: number) => void
 }) {
   const { node } = row
   const isFolder = node.type === "folder"
   const progress = isFolder ? (node.length ? node.downloaded / node.length : 0) : node.progress
   const Icon = isFolder ? RiFolderLine : iconForFile(node.name)
+  // A deleted file stays in the tree but disabled: greyed out, no play/open, with a download to
+  // fetch it back.
+  const deselected = node.type === "file" && node.deselected
 
   return (
     <div
@@ -209,6 +273,17 @@ function TreeRow({
       tabIndex={active ? 0 : -1}
       onFocus={onFocusRow}
       onClick={() => (row.hasChildren ? onToggle() : onFocusRow())}
+      // Double-click a file runs its primary action: download it if deleted, else play (playable)
+      // or reveal on disk (non-playable).
+      onDoubleClick={
+        node.type === "file"
+          ? () => {
+              if (deselected) onDownload(node.index)
+              else if (isPlayable(node.name)) onPlay(node.index, node.name)
+              else onReveal(node.index)
+            }
+          : undefined
+      }
       style={rowStyle(row.depth)}
       className={cn(
         // Same 32px height as the parent grid rows.
@@ -218,8 +293,13 @@ function TreeRow({
       )}
     >
       {/* Name cluster fills the Name column (flex), pushing the trailing cells under the real
-          Progress/Size/... columns of the parent grid. */}
-      <div className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-2">
+          Progress/Size/... columns of the parent grid. Greyed out when the file is deleted. */}
+      <div
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2",
+          deselected && "opacity-50",
+        )}
+      >
         {isFolder ? (
           <RiArrowRightSLine
             className={cn(
@@ -230,28 +310,9 @@ function TreeRow({
         ) : showDisclosure ? (
           <span className="size-4 shrink-0" aria-hidden />
         ) : null}
-        {node.type === "file" && isPlayable(node.name) ? (
-          // The file icon doubles as a Play button (swaps to ▶ on hover). tabIndex=-1 keeps the
-          // tree's roving focus intact.
-          <button
-            type="button"
-            tabIndex={-1}
-            onClick={(e) => {
-              e.stopPropagation()
-              onPlay(node.index, node.name)
-            }}
-            title={`Play ${node.name}`}
-            aria-label={`Play ${node.name}`}
-            className="group/play text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
-          >
-            <Icon className="size-4 group-hover/play:hidden" />
-            <RiPlayFill className="hidden size-4 group-hover/play:block" />
-          </button>
-        ) : (
-          <Icon className="text-muted-foreground size-4 shrink-0" />
-        )}
+        <Icon className="text-muted-foreground size-4 shrink-0" />
         <span
-          className={cn("min-w-0 flex-1 truncate text-sm", isFolder && "font-medium")}
+          className={cn("min-w-0 flex-1 truncate text-[13px]", isFolder && "font-medium")}
           title={node.name}
         >
           {node.name}
@@ -282,6 +343,44 @@ function TreeRow({
             <span className="text-muted-foreground font-mono text-xs tabular-nums">
               {formatBytes(node.length)}
             </span>
+          ) : col.id === "actions" && node.type === "file" ? (
+            // Per-file actions in three fixed slots that line up under the torrent row's own actions:
+            // slot 1 = download (only for a deleted file), slot 2 = play/open, slot 3 = delete. A null
+            // action renders a same-size spacer so every row's icons stay column-aligned.
+            <div className="flex w-full items-center justify-end gap-1">
+              {/* Slot 1: re-download a deleted file (re-select + resume). */}
+              <FileActionButton
+                title="Download"
+                onClick={deselected ? () => onDownload(node.index) : null}
+              >
+                <RiDownloadFill className={cn("size-4", STATUS_ICON.Downloading)} />
+              </FileActionButton>
+              {/* Slot 2: play a playable file, else reveal it on disk (empty for a deleted file). */}
+              {isPlayable(node.name) ? (
+                <FileActionButton
+                  title="Play"
+                  onClick={deselected ? null : () => onPlay(node.index, node.name)}
+                >
+                  <RiPlayFill
+                    className={cn(
+                      "size-4",
+                      progress >= 1 ? STATUS_ICON.Completed : STATUS_ICON.Downloading,
+                    )}
+                  />
+                </FileActionButton>
+              ) : (
+                <FileActionButton
+                  title="Open in folder"
+                  onClick={deselected ? null : () => onReveal(node.index)}
+                >
+                  <RiFolderOpenFill className="text-muted-foreground size-4" />
+                </FileActionButton>
+              )}
+              {/* Slot 3: delete this file's data. */}
+              <FileActionButton title="Delete file" onClick={() => onDelete(node.index, node.name)}>
+                <RiDeleteBinFill className="text-destructive size-4" />
+              </FileActionButton>
+            </div>
           ) : null}
         </div>
       ))}
@@ -348,6 +447,52 @@ export function TorrentFileTree({
     [infoHash],
   )
 
+  const queryClient = useQueryClient()
+  // Reveal a single file in the OS file manager (the primary action for non-playable files).
+  const revealFile = useCallback(
+    (fileIndex: number) => {
+      void unwrap(
+        apiClient.torrents[":infoHash"].files[":fileIdx"].reveal.$post({
+          param: { infoHash, fileIdx: String(fileIndex) },
+        }),
+      ).then(({ error }) => {
+        if (error) toast.error(error.message)
+      })
+    },
+    [infoHash],
+  )
+  // Re-download a previously-deleted file, then refresh so it flips out of the disabled state.
+  const downloadFile = useCallback(
+    (fileIndex: number) => {
+      void unwrap(
+        apiClient.torrents[":infoHash"].files[":fileIdx"].download.$post({
+          param: { infoHash, fileIdx: String(fileIndex) },
+        }),
+      ).then(({ error }) => {
+        if (error) toast.error(error.message)
+        else queryClient.invalidateQueries({ queryKey: TORRENTS_QUERY_KEY })
+      })
+    },
+    [infoHash, queryClient],
+  )
+  // Delete a file from disk (confirmed via the dialog below), then refresh so it disappears.
+  const [pendingDelete, setPendingDelete] = useState<{ index: number; name: string } | null>(null)
+  const deleteFile = useMutation({
+    mutationFn: async (fileIndex: number) => {
+      const { error } = await unwrap(
+        apiClient.torrents[":infoHash"].files[":fileIdx"].$delete({
+          param: { infoHash, fileIdx: String(fileIndex) },
+        }),
+      )
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TORRENTS_QUERY_KEY })
+      toast.success("File deleted")
+    },
+    onError: (e) => toast.error(e.message),
+  })
+
   const rowEls = useRef(new Map<string, HTMLDivElement>())
   const focusRow = useCallback((path: string | null | undefined) => {
     if (!path) return
@@ -411,10 +556,14 @@ export function TorrentFileTree({
           e.preventDefault()
           e.stopPropagation()
           toggle(row.path)
-        } else if (row.node.type === "file" && isPlayable(row.node.name)) {
+        } else if (row.node.type === "file") {
+          // Same primary action as a double-click: download a deleted file, else play it
+          // (playable) or reveal it on disk.
           e.preventDefault()
           e.stopPropagation()
-          playFile(row.node.index, row.node.name)
+          if (row.node.deselected) downloadFile(row.node.index)
+          else if (isPlayable(row.node.name)) playFile(row.node.index, row.node.name)
+          else revealFile(row.node.index)
         }
         break
     }
@@ -450,9 +599,35 @@ export function TorrentFileTree({
               toggle(row.path)
             }}
             onPlay={playFile}
+            onReveal={revealFile}
+            onDelete={(index, name) => setPendingDelete({ index, name })}
+            onDownload={downloadFile}
           />
         ))}
       </div>
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete file?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete <span className="text-foreground font-medium">{pendingDelete?.name}</span> from
+              disk. It stays in the list, disabled - download it from its row to fetch it back.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (pendingDelete) deleteFile.mutate(pendingDelete.index)
+                setPendingDelete(null)
+              }}
+            >
+              Delete file
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {playing &&
         (isMacDesktopApp() ? (
           // macOS desktop: native mpv (hardware decode of every codec + real subtitle rendering).
