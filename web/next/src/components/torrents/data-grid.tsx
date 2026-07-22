@@ -474,7 +474,8 @@ export function DataGrid<T>({
         search.onSubmit &&
         search.value.trim() !== "" && (
           <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2">
-            <RiCornerDownLeftFill className="size-4" />
+            <RiCornerDownLeftFill className="size-4" aria-hidden />
+            <span className="sr-only">Press Enter to search</span>
           </span>
         )
       )}
