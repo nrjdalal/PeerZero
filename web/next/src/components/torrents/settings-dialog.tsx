@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import { UpdaterSetting } from "@/components/common/updater-setting"
 import {
   Accordion,
   AccordionContent,
@@ -126,7 +127,7 @@ export function SettingsDialog() {
           <Accordion>
             <AccordionItem value="advanced">
               <AccordionTrigger>Advanced</AccordionTrigger>
-              <AccordionContent>
+              <AccordionContent className="flex flex-col gap-4">
                 <Field orientation="horizontal">
                   <FieldContent>
                     <FieldLabel htmlFor="enable-search">Enable Search</FieldLabel>
@@ -140,6 +141,7 @@ export function SettingsDialog() {
                     onCheckedChange={setEnableSearch}
                   />
                 </Field>
+                <UpdaterSetting />
               </AccordionContent>
             </AccordionItem>
           </Accordion>
