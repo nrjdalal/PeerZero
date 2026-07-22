@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.0.21
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.20...v0.0.21)
+
+### 🚀 Enhancements
+
+- **search:** Search on Enter with hint, 2.5s auto debounce ([#78](https://github.com/nrjdalal/PeerZero/pull/78))
+- **desktop:** Per-file actions in the file tree (play/open/download/delete) ([#77](https://github.com/nrjdalal/PeerZero/pull/77))
+
+### 💅 Refactors
+
+- **search:** Name MIN_QUERY_LEN + isMagnetUri, label the Enter hint ([#82](https://github.com/nrjdalal/PeerZero/pull/82))
+- **player:** MacOS-native-only playback, remove the libmedia player ([#83](https://github.com/nrjdalal/PeerZero/pull/83))
+
+### 📖 Documentation
+
+- **notes:** Add competitive audit vs qBittorrent/Transmission/Deluge/webtorrent ([#81](https://github.com/nrjdalal/PeerZero/pull/81))
+
+### 🏡 Chore
+
+- **skills:** Remediate drift, worktree-named test builds, release skill ([#79](https://github.com/nrjdalal/PeerZero/pull/79))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.20
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.19...v0.0.20)
