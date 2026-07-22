@@ -174,10 +174,13 @@ export function MpvPlayer({
                 const c = curRef.current
                 const d = durRef.current
                 const nearEnd = !(d > 0) || c >= d - FINISHED_TAIL_S
-                // Genuine end of file (or unknown duration): stop. The end-file handler decides whether to
-                // forget the resume position (a real finish) or keep it (a mid-file stall).
+                // Genuine end of file (or unknown duration): stop, and settle the resume position now.
+                // keep-open=yes can suppress the end-file event at a real EOF, so the clear-on-finish must
+                // not rely on it: endOfFile() forgets the position when finished (near the end) or keeps
+                // it on a mid-file stall (same call the end-file handler makes; a double call is a no-op).
                 if (nearEnd || !playingRef.current) {
                   setPlaying(false)
+                  endOfFile()
                   break
                 }
                 // Mid-file EOF while meant to be playing: a forward seek outran the download and mpv gave
