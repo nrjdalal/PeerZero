@@ -124,11 +124,15 @@ export function MpvPlayer({
   // Take keyboard focus on mount (for the key controls), and restore it to whatever opened the player
   // when it closes (a11y: focus should return to the trigger, not be dropped on <body>). Captured
   // before we steal focus, so `prev` is the opener - this replaces an `autoFocus` that could not.
+  // Gate on `mounted`: the portal (and thus rootRef) does not exist until the client-mount render, so
+  // a []-deps effect would fire one render too early (rootRef null) and the arrow/space controls would
+  // stay dead until the first click. Running once `mounted` flips true focuses the real node.
   useEffect(() => {
+    if (!mounted) return
     const prev = document.activeElement as HTMLElement | null
     rootRef.current?.focus()
     return () => prev?.focus?.()
-  }, [])
+  }, [mounted])
 
   // Subscribe to the backend's mpv property/lifecycle events, load the stream, and always stop playback
   // on unmount so closing halts decode + audio. Effect depends only on src (stable for a given file).
