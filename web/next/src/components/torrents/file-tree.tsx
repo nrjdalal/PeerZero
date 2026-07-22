@@ -352,30 +352,45 @@ function TreeRow({
           )}
         >
           {col.id === "progress" ? (
-            <Badge
-              className={cn(
-                "w-36 justify-center border-[0.5px] font-normal tabular-nums",
-                progress >= 1 ? STATUS_BADGE.Completed : STATUS_BADGE.Downloading,
-              )}
-            >
-              {formatPercent(progress)}
-            </Badge>
+            deselected ? (
+              // A deleted file's bytes are freed, so a "0%" bar is misleading - offer to restore it
+              // instead. Muted (like Paused/Syncing) because the file is parked, not downloading; this
+              // cell sits outside the name cluster's `opacity-50`, so the button stays fully legible.
+              <Button
+                variant="ghost"
+                size="sm"
+                tabIndex={-1}
+                className="text-muted-foreground h-6"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDownload(node.index)
+                }}
+              >
+                <RiDownloadFill className="size-4" />
+                Download
+              </Button>
+            ) : (
+              <Badge
+                className={cn(
+                  "w-36 justify-center border-[0.5px] font-normal tabular-nums",
+                  progress >= 1 ? STATUS_BADGE.Completed : STATUS_BADGE.Downloading,
+                )}
+              >
+                {formatPercent(progress)}
+              </Badge>
+            )
           ) : col.id === "length" ? (
             <span className="text-muted-foreground font-mono text-xs tabular-nums">
               {formatBytes(node.length)}
             </span>
           ) : col.id === "actions" && node.type === "file" ? (
             // Per-file actions in three fixed slots that line up under the torrent row's own actions:
-            // slot 1 = download (only for a deleted file), slot 2 = play/open, slot 3 = delete. A null
-            // action renders a same-size spacer so every row's icons stay column-aligned.
+            // slot 1 = spacer, slot 2 = play/open, slot 3 = delete. A null action renders a same-size
+            // spacer so every row's icons stay column-aligned.
             <div className="flex w-full items-center justify-end gap-1">
-              {/* Slot 1: re-download a deleted file (re-select + resume). */}
-              <FileActionButton
-                title="Download"
-                onClick={deselected ? () => onDownload(node.index) : null}
-              >
-                <RiDownloadFill className={cn("size-4", STATUS_ICON.Downloading)} />
-              </FileActionButton>
+              {/* Slot 1: spacer. A deleted file's re-download now lives in the Progress cell (centered),
+                  so this slot only preserves the three-slot alignment with the torrent row's actions. */}
+              <span className="size-7 shrink-0" aria-hidden />
               {/* Slot 2: play a playable file (macOS native only), else reveal it on disk - also the
                   off-macOS path, where there is no in-app player (empty for a deleted file). */}
               {filePrimaryAction(node, canPlay) === "play" ? (
