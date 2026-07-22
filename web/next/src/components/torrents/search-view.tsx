@@ -157,6 +157,11 @@ const columns: ColumnDef<SearchResult>[] = [
 // Debounce before auto-firing a search; long because each search fans out to ~10 providers and
 // Enter searches immediately (see submit), so the debounce is only the "stopped typing" fallback.
 const SEARCH_DEBOUNCE_MS = 2500
+// Minimum query length before a search fires (shorter is noise across the ~10 providers).
+const MIN_QUERY_LEN = 2
+
+// A pasted magnet is added, not searched.
+const isMagnetUri = (s: string) => s.toLowerCase().startsWith("magnet:")
 
 // The Search tab: the same DataGrid as Transfers, fed by live search results. The search box
 // here searches inline - debounced, or immediately on Enter (with the return-key hint) - rather
@@ -166,7 +171,7 @@ export function SearchView() {
   const query = usePrefs((s) => s.search)
   const setQuery = usePrefs((s) => s.setSearch)
   const [debounced, setDebounced] = useState(query.trim())
-  const isMagnet = query.trim().toLowerCase().startsWith("magnet:")
+  const isMagnet = isMagnetUri(query.trim())
 
   // Seed the persisted query from a ?q= deep link (the Transfers box navigates here).
   const searchParams = useSearchParams()
@@ -179,7 +184,7 @@ export function SearchView() {
   // results and the spinner don't linger.
   useEffect(() => {
     const trimmed = query.trim()
-    if (trimmed.length < 2) {
+    if (trimmed.length < MIN_QUERY_LEN) {
       setDebounced(trimmed)
       return
     }
@@ -189,7 +194,7 @@ export function SearchView() {
 
   const { data, isFetching } = useQuery({
     queryKey: ["search", debounced],
-    enabled: debounced.length >= 2 && !debounced.toLowerCase().startsWith("magnet:"),
+    enabled: debounced.length >= MIN_QUERY_LEN && !isMagnetUri(debounced),
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const { data, error } = await unwrap(
@@ -223,11 +228,11 @@ export function SearchView() {
   const submit = () => {
     const trimmed = query.trim()
     if (!trimmed) return
-    if (trimmed.toLowerCase().startsWith("magnet:")) {
+    if (isMagnetUri(trimmed)) {
       addMagnet.mutate(trimmed)
       return
     }
-    if (trimmed.length >= 2) setDebounced(trimmed)
+    if (trimmed.length >= MIN_QUERY_LEN) setDebounced(trimmed)
   }
 
   const results = useMemo(() => data?.results ?? [], [data])
@@ -250,9 +255,11 @@ export function SearchView() {
         <EmptyMedia variant="icon">
           <RiSearchFill />
         </EmptyMedia>
-        <EmptyTitle>{debounced.length < 2 ? "No search yet" : "No torrents found"}</EmptyTitle>
+        <EmptyTitle>
+          {debounced.length < MIN_QUERY_LEN ? "No search yet" : "No torrents found"}
+        </EmptyTitle>
         <EmptyDescription>
-          {debounced.length < 2 ? (
+          {debounced.length < MIN_QUERY_LEN ? (
             <>
               Head to the <Link href="/">Transfers</Link> tab to manage torrents.
             </>
