@@ -36,7 +36,7 @@ no Homebrew paths remain. Output: `desktop/src-tauri/target/<triple>/release/bun
 The Bun sidecar cross-compiles for any OS (no native addons), e.g.
 `bun desktop/backend/build.ts out bun-windows-x64`.
 
-The signed **`.dmg` + updater** are produced by CI (`.github/workflows/desktop-release.yml`), which
+The signed **`.dmg` + updater** are produced by CI (`.github/workflows/desktop-release-macos.yml`), which
 runs `fetch-libmpv.sh` on the runner and passes the frameworks config to the Tauri build - so the
 installers come out self-contained straight from `tauri build` (no post-processing, no updater
 re-signing): the closure is copied into the `.app` **during** bundling, before the updater tarball is
@@ -71,16 +71,17 @@ those; see `.github/notes/libmedia-player.md` for how it worked and how to bring
 
 ## Release via CI
 
-Desktop installers are built **automatically as part of a release**. When the auto-created
+The desktop app is built **automatically as part of a release**. When the auto-created
 `canary -> main` PR is merged, `auto-release.yml` bumps the version, tags `v<x.y.z>`, and
-creates the GitHub release, then it calls `desktop-release.yml` (a reusable workflow) which
-builds macOS (arm64), Windows, and Linux in parallel and attaches the installers to
-that release. It runs as a called job in the same run rather than on a separate `on: release`
-event, because a release created with `GITHUB_TOKEN` cannot trigger another workflow.
+creates the GitHub release, then it calls `desktop-release-macos.yml` (a reusable workflow) which
+builds the macOS (arm64) `.dmg` + updater artifacts and attaches them to that release. It runs as
+a called job in the same run rather than on a separate `on: release` event, because a release
+created with `GITHUB_TOKEN` cannot trigger another workflow. PeerZero ships macOS-only (native
+libmpv playback, personal Mac tool), so there is no Windows/Linux build - those run from source.
 
 The desktop app version is synced to the release tag at build time, so no separate version
-bump is needed here. To (re)build installers for an existing tag by hand: **Actions ->
-Desktop Release -> Run workflow**, and enter the tag (e.g. `v0.0.2`).
+bump is needed here. To (re)build the installer for an existing tag by hand: **Actions ->
+Desktop Release (macOS) -> Run workflow**, and enter the tag (e.g. `v0.0.2`).
 
 ## GitHub secrets
 
@@ -89,11 +90,10 @@ Desktop Release -> Run workflow**, and enter the tag (e.g. `v0.0.2`).
 | `TAURI_SIGNING_PRIVATE_KEY`          | updater artifacts | Contents of `desktop/.keys/peerzero-updater.key`. The matching public key is committed in `tauri.conf.json`. |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | updater artifacts | Empty (the key was generated without a password).                                                            |
 
-Only the updater key is wired, so builds are currently **unsigned**: macOS is ad-hoc (first
-launch needs right-click -> Open), Windows triggers SmartScreen, Linux needs no signing. To
-enable signed + notarized macOS later, add the Apple Developer ID secrets (`APPLE_CERTIFICATE`,
-`APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`,
-`APPLE_TEAM_ID`) and pass them through in `desktop-release.yml`.
+Only the updater key is wired, so the build is currently **unsigned**: macOS is ad-hoc (first
+launch needs right-click -> Open). To enable signed + notarized macOS later, add the Apple
+Developer ID secrets (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
+`APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`) and pass them through in `desktop-release-macos.yml`.
 
 ## Auto-updater
 
