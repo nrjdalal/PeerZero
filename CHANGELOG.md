@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.0.22
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.21...v0.0.22)
+
+### 🚀 Enhancements
+
+- **transfers:** Deleted file shows a Download button in the progress cell ([#84](https://github.com/nrjdalal/PeerZero/pull/84))
+
+### 🩹 Fixes
+
+- **player:** Forward seeks no longer end playback; hover time + no-seek while downloading ([#85](https://github.com/nrjdalal/PeerZero/pull/85))
+
+### 📖 Documentation
+
+- **player:** Drop stale libmedia mention in resume comment ([#87](https://github.com/nrjdalal/PeerZero/pull/87))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.21
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.20...v0.0.21)
