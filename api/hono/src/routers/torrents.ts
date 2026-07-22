@@ -60,6 +60,9 @@ export const torrentsRouter = new Hono()
           c.req.param("infoHash"),
           c.req.param("fileIdx"),
           c.req.header("range"),
+          // The request's abort signal: fires when the player disconnects (a seek closes the old Range
+          // request, or the player closes), so the engine can destroy that read and free its pieces.
+          c.req.raw.signal,
         )
       } catch (err) {
         return handleEngineError(c, err)

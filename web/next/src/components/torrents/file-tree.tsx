@@ -461,7 +461,14 @@ export function TorrentFileTree({
   // Highlight the active row only while the tree holds focus, so a freshly expanded row's tree
   // never renders its first item as "selected" before the user navigates into it.
   const [hasFocus, setHasFocus] = useState(false)
-  const [playing, setPlaying] = useState<{ url: string; name: string; key: string } | null>(null)
+  const [playing, setPlaying] = useState<{
+    url: string
+    name: string
+    key: string
+    // Index into `files`, so the player can read this file's LIVE progress and only allow seeking once
+    // it has fully downloaded (seeking into not-yet-downloaded data would stall).
+    index: number
+  } | null>(null)
   // In-app playback is macOS-native-only (see isMacDesktopApp). Resolved after mount so the static
   // export doesn't hydrate-mismatch; false everywhere else, where playable files reveal on disk.
   const [canPlay, setCanPlay] = useState(false)
@@ -482,7 +489,12 @@ export function TorrentFileTree({
   const playFile = useCallback(
     (fileIndex: number, name: string) => {
       // key: stable per video for resume-playback (the stream URL's ephemeral port is not).
-      setPlaying({ url: streamUrl(infoHash, fileIndex), name, key: `${infoHash}:${fileIndex}` })
+      setPlaying({
+        url: streamUrl(infoHash, fileIndex),
+        name,
+        key: `${infoHash}:${fileIndex}`,
+        index: fileIndex,
+      })
     },
     [infoHash],
   )
@@ -678,6 +690,9 @@ export function TorrentFileTree({
           src={playing.url}
           name={playing.name}
           resumeKey={playing.key}
+          // Live: seeking unlocks only once this file has fully downloaded (defaults to seekable if the
+          // file dropped out of the list). Re-evaluated as progress advances, so it flips on at 100%.
+          seekable={(files[playing.index]?.progress ?? 1) >= 1}
           onClose={() => setPlaying(null)}
           onError={() => {
             handoff(playing.url, playing.name)
