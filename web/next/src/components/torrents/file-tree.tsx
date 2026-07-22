@@ -243,6 +243,7 @@ function TreeRow({
   showDisclosure,
   registerEl,
   onFocusRow,
+  onHover,
   onToggle,
   canPlay,
   onPlay,
@@ -262,6 +263,9 @@ function TreeRow({
   showDisclosure: boolean
   registerEl: (el: HTMLDivElement | null) => void
   onFocusRow: () => void
+  // Focus this row on pointer hover, so the highlight follows the mouse and keyboard nav resumes
+  // from wherever the pointer last was (not only from the keyboard-driven position).
+  onHover: () => void
   onToggle: () => void
   // Whether in-app playback is available (macOS native). When false, a playable file reveals on disk
   // instead of playing, and its action slot shows Open-in-folder rather than Play.
@@ -292,6 +296,7 @@ function TreeRow({
       aria-selected={highlighted}
       tabIndex={active ? 0 : -1}
       onFocus={onFocusRow}
+      onMouseEnter={onHover}
       onClick={() => (row.hasChildren ? onToggle() : onFocusRow())}
       // Double-click a file runs its primary action: download it if deleted, else play (playable)
       // or reveal on disk (non-playable).
@@ -385,12 +390,18 @@ function TreeRow({
             </span>
           ) : col.id === "actions" && node.type === "file" ? (
             // Per-file actions in three fixed slots that line up under the torrent row's own actions:
-            // slot 1 = spacer, slot 2 = play/open, slot 3 = delete. A null action renders a same-size
-            // spacer so every row's icons stay column-aligned.
+            // slot 1 = download (deleted files only), slot 2 = play/open, slot 3 = delete. A null action
+            // renders a same-size spacer so every row's icons stay column-aligned.
             <div className="flex w-full items-center justify-end gap-1">
-              {/* Slot 1: spacer. A deleted file's re-download now lives in the Progress cell (centered),
-                  so this slot only preserves the three-slot alignment with the torrent row's actions. */}
-              <span className="size-7 shrink-0" aria-hidden />
+              {/* Slot 1: re-download a deleted file (re-select + resume). Also offered, centered, in the
+                  Progress cell; here it mirrors the torrent row's download action (blue = Downloading, the
+                  state it returns the file to). A live file renders a same-size spacer. */}
+              <FileActionButton
+                title="Download"
+                onClick={deselected ? () => onDownload(node.index) : null}
+              >
+                <RiDownloadFill className={cn("size-4", STATUS_ICON.Downloading)} />
+              </FileActionButton>
               {/* Slot 2: play a playable file (macOS native only), else reveal it on disk - also the
                   off-macOS path, where there is no in-app player (empty for a deleted file). */}
               {filePrimaryAction(node, canPlay) === "play" ? (
@@ -546,11 +557,16 @@ export function TorrentFileTree({
   })
 
   const rowEls = useRef(new Map<string, HTMLDivElement>())
-  const focusRow = useCallback((path: string | null | undefined) => {
-    if (!path) return
-    setActivePath(path)
-    rowEls.current.get(path)?.focus()
-  }, [])
+  // preventScroll is for hover: the pointer is already on the row, so don't yank the list to it.
+  // Keyboard nav omits the option so an off-screen target still scrolls into view.
+  const focusRow = useCallback(
+    (path: string | null | undefined, opts?: { preventScroll?: boolean }) => {
+      if (!path) return
+      setActivePath(path)
+      rowEls.current.get(path)?.focus({ preventScroll: opts?.preventScroll })
+    },
+    [],
+  )
 
   const toggle = useCallback((path: string) => {
     setOpen((prev) => {
@@ -647,6 +663,7 @@ export function TorrentFileTree({
               else rowEls.current.delete(row.path)
             }}
             onFocusRow={() => setActivePath(row.path)}
+            onHover={() => focusRow(row.path, { preventScroll: true })}
             onToggle={() => {
               setActivePath(row.path)
               toggle(row.path)
