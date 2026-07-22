@@ -1,0 +1,103 @@
+name: Desktop Release (macOS)
+
+# Builds the PeerZero desktop app for macOS (Apple Silicon) and attaches the installer +
+# Tauri updater artifacts to an EXISTING GitHub release (the one auto-release.yml creates).
+#
+# PeerZero ships macOS-only: in-app playback is native (libmpv) and macOS-only, and the app is a
+# personal Mac tool, so releases build just the Apple Silicon .dmg. (Windows/Linux can still be
+# built from source; there is no official installer for them.) Runs as a reusable job called from
+# auto-release.yml right after it publishes a release, so every `v*` release gets a macOS build.
+# Also runnable manually against any existing tag. The updater signature comes from repo secrets
+# (see desktop/README.md); builds run unsigned (no Apple secrets are wired here yet).
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to build and attach to (e.g. v0.0.2)
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build and attach to (e.g. v0.0.2)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    # Apple Silicon (arm64) only. Intel (macos-13) runners are scarce, so that job sat queued
+    # indefinitely and, holding a concurrent-macOS slot, blocked the next release's Mac build.
+    # Dropped rather than let it stall releases (Intel Macs are EOL).
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      # Native mpv player: fetch the pinned, prebuilt libmpv closure into vendor/libmpv (or produce
+      # it from Homebrew when no artifact is published yet) and emit libmpv.frameworks.json. build.rs
+      # links against the closure; Tauri bundles it via macOS.frameworks (the --config below), so the
+      # .dmg + updater come out self-contained with no post-processing or re-signing.
+      - name: Fetch/prebuild libmpv (macOS native player)
+        run: bash desktop/scripts/fetch-libmpv.sh
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./desktop/src-tauri -> target
+
+      - name: Install JS dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Sync versions to the release tag
+        shell: bash
+        run: |
+          VERSION="${{ inputs.tag }}"
+          VERSION="${VERSION#v}"
+          bunx json -I -f desktop/src-tauri/tauri.conf.json -e "this.version='$VERSION'"
+          # The release tag is cut before auto-release bumps package.json, so the tagged commit
+          # still holds the previous version. Sync it here too, since the backend build version
+          # (@packages/env, baked into the Hono bundle) reads the root package.json.
+          bunx json -I -f package.json -e "this.version='$VERSION'"
+
+      - name: Build backend bundle, static UI, and the Bun sidecar
+        shell: bash
+        env:
+          NODE_ENV: production
+          # Emit the static SPA (only the desktop build does this; the web deploy stays standalone).
+          NEXT_OUTPUT: export
+          # Bake the sidecar's loopback API url so the webview reaches it (127.0.0.1, not
+          # localhost, to avoid an IPv6 miss against the IPv4-bound sidecar).
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:9336
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:9336
+        run: |
+          bunx turbo run build --filter=@api/hono
+          bunx turbo run build --filter=@web/next
+          mkdir -p desktop/src-tauri/binaries
+          bun desktop/backend/build.ts "desktop/src-tauri/binaries/peerzero-backend-aarch64-apple-darwin"
+
+      - name: Build app + upload installer to the release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Auto-updater signature (required for the updater artifacts; see desktop/README.md).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: desktop
+          # The release already exists (auto-release.yml created it); tauri-action finds it
+          # by tag and uploads the installer + updater artifacts as assets.
+          tagName: ${{ inputs.tag }}
+          # Bundle the prebuilt libmpv closure via Tauri's macOS.frameworks (fetch-libmpv writes it).
+          args: --target aarch64-apple-darwin --config src-tauri/libmpv.frameworks.json
