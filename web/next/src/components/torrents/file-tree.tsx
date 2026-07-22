@@ -188,6 +188,15 @@ export function isPlayable(name: string): boolean {
   return VIDEO.has(ext) || AUDIO.has(ext)
 }
 
+// A file row's primary action, decided in one place so the double-click, Enter/Space, and the slot-2
+// button never drift: re-download a deleted file, play it (macOS-native only, gated by `canPlay`), else
+// reveal it on disk.
+function filePrimaryAction(file: FileLeaf, canPlay: boolean): "download" | "play" | "reveal" {
+  if (file.deselected) return "download"
+  if (canPlay && isPlayable(file.name)) return "play"
+  return "reveal"
+}
+
 // A flattened, currently-visible tree row. `path` is the node's unique slash-joined path from the
 // root; the keyboard nav and rendering key off it.
 type FlatRow = {
@@ -289,8 +298,9 @@ function TreeRow({
       onDoubleClick={
         node.type === "file"
           ? () => {
-              if (deselected) onDownload(node.index)
-              else if (canPlay && isPlayable(node.name)) onPlay(node.index, node.name)
+              const action = filePrimaryAction(node, canPlay)
+              if (action === "download") onDownload(node.index)
+              else if (action === "play") onPlay(node.index, node.name)
               else onReveal(node.index)
             }
           : undefined
@@ -368,7 +378,7 @@ function TreeRow({
               </FileActionButton>
               {/* Slot 2: play a playable file (macOS native only), else reveal it on disk - also the
                   off-macOS path, where there is no in-app player (empty for a deleted file). */}
-              {canPlay && isPlayable(node.name) ? (
+              {filePrimaryAction(node, canPlay) === "play" ? (
                 <FileActionButton
                   title="Play"
                   onClick={deselected ? null : () => onPlay(node.index, node.name)}
@@ -572,12 +582,13 @@ export function TorrentFileTree({
           e.stopPropagation()
           toggle(row.path)
         } else if (row.node.type === "file") {
-          // Same primary action as a double-click: download a deleted file, else play it (playable,
-          // macOS native) or reveal it on disk.
+          // Same primary action as a double-click (see filePrimaryAction): download a deleted file,
+          // else play it (playable, macOS native) or reveal it on disk.
           e.preventDefault()
           e.stopPropagation()
-          if (row.node.deselected) downloadFile(row.node.index)
-          else if (canPlay && isPlayable(row.node.name)) playFile(row.node.index, row.node.name)
+          const action = filePrimaryAction(row.node, canPlay)
+          if (action === "download") downloadFile(row.node.index)
+          else if (action === "play") playFile(row.node.index, row.node.name)
           else revealFile(row.node.index)
         }
         break

@@ -1,4 +1,4 @@
-/* Netflix-style player controls, shared by the video player overlay (mpv-player.tsx). */
+/* Netflix-style player controls for the video player overlay (mpv-player.tsx). */
 
 /* Scrubber: red (#E50914) played fill, translucent unplayed track, red knob. Chrome/Safari need the
    ::-webkit pseudos with a JS-driven --played gradient; Firefox has ::-moz-range-progress. */
