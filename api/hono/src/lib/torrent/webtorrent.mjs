@@ -216,16 +216,38 @@ function snapshot(t) {
   // the pieces are actually verified (and self-corrects if the files turned out to be gone).
   const restored = t.ready ? null : m.restored
   const syncing = !!restored
+  // Files the user deleted stay in the list, flagged `deselected` (data gone, won't re-download
+  // until the user hits download) - webtorrent can't drop a file from a torrent's metadata.
+  const files = t.ready ? t.files.map((f, i) => fileSnapshot(f, i, m.removed?.has(i))) : []
+  const length = t.length || restored?.length || 0
+  // Deleting a file frees its bytes on disk, but webtorrent never re-scans, so its in-memory
+  // t.downloaded/t.progress stay stale-high (they still count the freed file as present). When the
+  // user has deleted files, derive the torrent's downloaded/progress by summing the per-file
+  // snapshots (a deleted file reports 0) so the main bar tracks delete/download the same way the file
+  // rows do. Untouched torrents keep webtorrent's own numbers (no drift for the common case).
+  const hasDeleted = t.ready && (m.removed?.size ?? 0) > 0
+  const downloaded = restored
+    ? restored.downloaded
+    : hasDeleted
+      ? files.reduce((sum, f) => sum + f.downloaded, 0)
+      : t.downloaded || 0
+  const progress = restored
+    ? restored.progress
+    : hasDeleted
+      ? length
+        ? Math.min(1, downloaded / length)
+        : 0
+      : t.progress || 0
   return {
     infoHash: t.infoHash,
     name: t.name || restored?.name || t.infoHash,
     magnetURI: t.magnetURI,
-    length: t.length || restored?.length || 0,
-    downloaded: restored ? restored.downloaded : t.downloaded || 0,
+    length,
+    downloaded,
     uploaded: t.uploaded || 0,
     downloadSpeed: t.downloadSpeed || 0,
     uploadSpeed: t.uploadSpeed || 0,
-    progress: restored ? restored.progress : t.progress || 0,
+    progress,
     numPeers: t.numPeers || 0,
     seeders: seederCount(t),
     // webtorrent reports ms; NaN/Infinity before metadata -> null so JSON stays clean.
@@ -237,9 +259,7 @@ function snapshot(t) {
     paused: m.paused ?? false,
     addedAt: m.addedAt ?? 0,
     downloadDir: t.path || downloadDir,
-    // Files the user deleted stay in the list, flagged `deselected` (data gone, won't re-download
-    // until the user hits download) - webtorrent can't drop a file from a torrent's metadata.
-    files: t.ready ? t.files.map((f, i) => fileSnapshot(f, i, m.removed?.has(i))) : [],
+    files,
   }
 }
 
