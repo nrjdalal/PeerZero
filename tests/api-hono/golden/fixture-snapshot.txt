@@ -22,7 +22,9 @@
     {
       "name": "peerzero-golden.bin",
       "path": "peerzero-golden.bin",
+      "index": 0,
       "length": 1024,
+      "deselected": false,
       "downloaded": 1024,
       "progress": 1
     }
