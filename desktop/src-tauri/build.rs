@@ -5,6 +5,8 @@ fn main() {
   tauri_build::try_build(
     tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
       "install_update",
+      "install_release",
+      "install_dmg",
       "mpv_load",
       "mpv_stop",
       "mpv_command",

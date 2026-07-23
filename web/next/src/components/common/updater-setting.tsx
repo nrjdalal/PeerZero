@@ -1,33 +1,49 @@
 "use client"
 
-import { RiDownloadLine, RiRefreshLine } from "@remixicon/react"
+import { RiCheckLine, RiDownloadLine, RiRefreshLine } from "@remixicon/react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { type Channel, useReleases } from "@/lib/use-releases"
+import { cn } from "@/lib/utils"
 
-// Minimal shape of the updater plugin's Update handle (avoids importing the type eagerly).
-type UpdateHandle = { version: string }
+// Paired light/dark badge colors, per the STATUS_BADGE convention in torrents-grid.tsx.
+const CANARY_BADGE =
+  "border-current bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+const CURRENT_BADGE =
+  "border-current bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
 
-type Status = "idle" | "checking" | "uptodate" | "available" | "installing"
+function fmtDate(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+}
 
-// Desktop-only manual update control for Settings > Advanced. It mirrors the corner UpdateNotice
-// badge, but is user-driven: it shows the running version and a "Check for updates" button; when the
-// Tauri updater reports a newer signed release (endpoint + pubkey in tauri.conf.json) the button
-// turns into "Update & restart", which runs the whole download + install + relaunch in Rust
-// (install_update) - replacing the .app kills the webview, so the relaunch can't be driven from JS.
-// In a plain browser (no Tauri) the button is inert with a hint, since updates only apply to the
-// installed app.
+// Desktop-only "Software update" control for Settings > Advanced. Lists published releases (stable +
+// canary) from GitHub and lets you install ANY of them. Same-channel rows do an in-place self-update
+// (install_release, which points the updater at that release's manifest and bypasses the newer-only
+// gate); a row on the OTHER channel installs SIDE-BY-SIDE instead (install_dmg copies its .app into
+// /Applications), since an in-place swap across bundle names would corrupt the app. The running
+// version is marked "Current". In a plain browser (no Tauri) this collapses to a one-line hint.
 export function UpdaterSetting() {
   const [desktop, setDesktop] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
-  const [next, setNext] = useState<string | null>(null)
-  const [status, setStatus] = useState<Status>("idle")
+  const [installing, setInstalling] = useState<string | null>(null)
 
-  // Resolve desktop + running version after mount (never during render) so the static export does
-  // not hydrate-mismatch on the window/Tauri globals.
+  // Resolve desktop + running version after mount (never during render) so the static export does not
+  // hydrate-mismatch on the window/Tauri globals.
   useEffect(() => {
     const isTauri = "isTauri" in window || "__TAURI_INTERNALS__" in window
     setDesktop(isTauri)
@@ -44,68 +60,158 @@ export function UpdaterSetting() {
     }
   }, [])
 
-  const checkNow = async () => {
-    setStatus("checking")
-    try {
-      const { check } = await import("@tauri-apps/plugin-updater")
-      const found = (await check()) as unknown as UpdateHandle | null
-      if (found) {
-        setNext(found.version)
-        setStatus("available")
-      } else {
-        setStatus("uptodate")
-      }
-    } catch (e) {
-      setStatus("idle")
-      toast.error(e instanceof Error ? e.message : "Could not check for updates")
-    }
-  }
+  const { data: releases, isLoading, isError, refetch, isFetching } = useReleases(desktop)
 
-  const install = async () => {
-    setStatus("installing")
+  // The running build's channel, inferred from its version (canary versions carry a prerelease
+  // suffix, e.g. "0.0.23-142"). Decides whether a row updates IN PLACE or installs side-by-side.
+  const currentChannel: Channel = version?.includes("-") ? "canary" : "stable"
+
+  // Same channel: an in-place self-update. Download + install + relaunch run in Rust
+  // (install_release); this invoke usually never resolves because the app relaunches out from under
+  // it, which is expected.
+  const installUpdate = async (tag: string) => {
+    if (installing) return
+    setInstalling(tag)
     try {
       const { invoke } = await import("@tauri-apps/api/core")
-      // The whole download + install + relaunch runs in Rust (install_update). It has to: replacing
-      // the .app bundle kills the webview, so no JS runs after the swap. This invoke typically never
-      // resolves (the app relaunches out from under it), which is expected.
-      await invoke("install_update")
+      await invoke("install_release", { tag })
     } catch (e) {
-      setStatus("available")
-      toast.error(e instanceof Error ? e.message : "Could not install the update")
+      setInstalling(null)
+      toast.error(e instanceof Error ? e.message : "Could not install that version")
     }
   }
 
-  const description = !desktop
-    ? "Updates are delivered through the desktop app."
-    : status === "checking"
-      ? "Checking for updates…"
-      : status === "installing"
-        ? "Downloading and installing the update…"
-        : status === "available"
-          ? `Version ${next} is available.`
-          : status === "uptodate"
-            ? `You're on the latest version${version ? ` (v${version})` : ""}.`
-            : version
-              ? `You're running v${version}.`
-              : "See whether a newer version is available."
+  // Other channel (e.g. canary from the stable app): install it as a SEPARATE app beside this one.
+  // Rust (install_dmg) downloads the .dmg, mounts it, copies the app into /Applications, and launches
+  // it; unlike an in-place update this resolves when done and the current app keeps running.
+  const installApp = async (tag: string, dmgUrl: string) => {
+    if (installing) return
+    setInstalling(tag)
+    try {
+      const { invoke } = await import("@tauri-apps/api/core")
+      await invoke("install_dmg", { url: dmgUrl })
+      setInstalling(null)
+      toast.success("Installed - launching it now")
+    } catch (e) {
+      setInstalling(null)
+      toast.error(e instanceof Error ? e.message : "Could not install that version")
+    }
+  }
 
   return (
-    <Field orientation="horizontal">
-      <FieldContent>
-        <FieldLabel>Software update</FieldLabel>
-        <FieldDescription>{description}</FieldDescription>
-      </FieldContent>
-      {status === "available" || status === "installing" ? (
-        <Button onClick={install} disabled={status === "installing"}>
-          {status === "installing" ? <Spinner /> : <RiDownloadLine />}
-          {status === "installing" ? "Updating…" : "Update & restart"}
-        </Button>
-      ) : (
-        <Button variant="outline" onClick={checkNow} disabled={!desktop || status === "checking"}>
-          {status === "checking" ? <Spinner /> : <RiRefreshLine />}
-          Check for updates
-        </Button>
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium">Software update</span>
+          <span className="text-muted-foreground text-sm">
+            {desktop
+              ? version
+                ? `You're running v${version}. Install any version below.`
+                : "Install any version below."
+              : "Updates are delivered through the desktop app."}
+          </span>
+        </div>
+        {desktop && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            aria-label="Refresh releases"
+          >
+            {isFetching ? <Spinner /> : <RiRefreshLine />}
+          </Button>
+        )}
+      </div>
+
+      {desktop && (
+        <div className="overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Version</TableHead>
+                <TableHead>Released</TableHead>
+                <TableHead className="text-right" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center">
+                    <Spinner className="mx-auto" />
+                  </TableCell>
+                </TableRow>
+              )}
+              {isError && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-muted-foreground text-center">
+                    Couldn&apos;t load releases.
+                  </TableCell>
+                </TableRow>
+              )}
+              {releases?.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-muted-foreground text-center">
+                    No releases available.
+                  </TableCell>
+                </TableRow>
+              )}
+              {releases?.map((r) => {
+                const isCurrent = version != null && r.version === version
+                const sameChannel = r.channel === currentChannel
+                return (
+                  <TableRow key={r.tag}>
+                    <TableCell className="font-medium tabular-nums">
+                      <span className="flex items-center gap-2">
+                        v{r.version}
+                        {r.channel === "canary" && (
+                          <Badge className={cn("border-[0.5px] font-normal", CANARY_BADGE)}>
+                            canary
+                          </Badge>
+                        )}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {fmtDate(r.publishedAt)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {isCurrent ? (
+                        <Badge className={cn("border-[0.5px] font-normal", CURRENT_BADGE)}>
+                          <RiCheckLine />
+                          Current
+                        </Badge>
+                      ) : sameChannel ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => installUpdate(r.tag)}
+                          disabled={installing != null}
+                        >
+                          {installing === r.tag ? <Spinner /> : <RiDownloadLine />}
+                          {installing === r.tag ? "Installing…" : "Install"}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => r.dmgUrl && installApp(r.tag, r.dmgUrl)}
+                          disabled={installing != null || !r.dmgUrl}
+                          title={
+                            r.dmgUrl ? "Install as a separate app" : "No installer for this release"
+                          }
+                        >
+                          {installing === r.tag ? <Spinner /> : <RiDownloadLine />}
+                          {installing === r.tag ? "Installing…" : "Install"}
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
       )}
-    </Field>
+    </div>
   )
 }

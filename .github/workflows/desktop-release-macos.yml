@@ -17,12 +17,42 @@ on:
         description: Release tag to build and attach to (e.g. v0.0.2)
         required: true
         type: string
+      version:
+        description: App semver to bake (defaults to the tag minus a leading v). Canary passes e.g. 0.0.23-canary.5 since its tag is not a plain vX.Y.Z.
+        required: false
+        type: string
+        default: ""
+      config:
+        description: Extra Tauri --config overlay (e.g. src-tauri/canary.conf.json for the amber canary identity). Empty for stable.
+        required: false
+        type: string
+        default: ""
+      channel:
+        description: env.style ENV_STYLES_ENV - production (stable, black logo), preview (canary, amber). Drives the logo/favicon tint.
+        required: false
+        type: string
+        default: production
   workflow_dispatch:
     inputs:
       tag:
         description: Existing release tag to build and attach to (e.g. v0.0.2)
         required: true
         type: string
+      version:
+        description: App semver to bake (defaults to the tag minus a leading v)
+        required: false
+        type: string
+        default: ""
+      config:
+        description: Extra Tauri --config overlay (e.g. src-tauri/canary.conf.json)
+        required: false
+        type: string
+        default: ""
+      channel:
+        description: env.style ENV_STYLES_ENV (production | preview)
+        required: false
+        type: string
+        default: production
 
 permissions:
   contents: write
@@ -63,8 +93,10 @@ jobs:
       - name: Sync versions to the release tag
         shell: bash
         run: |
-          VERSION="${{ inputs.tag }}"
-          VERSION="${VERSION#v}"
+          # Prefer an explicit semver (canary passes 0.0.23-canary.N, since its tag is canary-v...);
+          # otherwise derive from a plain vX.Y.Z tag.
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then VERSION="${{ inputs.tag }}"; VERSION="${VERSION#v}"; fi
           bunx json -I -f desktop/src-tauri/tauri.conf.json -e "this.version='$VERSION'"
           # The release tag is cut before auto-release bumps package.json, so the tagged commit
           # still holds the previous version. Sync it here too, since the backend build version
@@ -77,6 +109,9 @@ jobs:
           NODE_ENV: production
           # Emit the static SPA (only the desktop build does this; the web deploy stays standalone).
           NEXT_OUTPUT: export
+          # env.style channel: production (stable, black logo) or preview (canary, amber). next.config
+          # derives NEXT_PUBLIC_APP_CHANNEL from it, tinting the in-app logo + favicon to match.
+          ENV_STYLES_ENV: ${{ inputs.channel }}
           # Bake the sidecar's loopback API url so the webview reaches it (127.0.0.1, not
           # localhost, to avoid an IPv6 miss against the IPv4-bound sidecar).
           NEXT_PUBLIC_API_URL: http://127.0.0.1:9336
@@ -99,5 +134,6 @@ jobs:
           # The release already exists (auto-release.yml created it); tauri-action finds it
           # by tag and uploads the installer + updater artifacts as assets.
           tagName: ${{ inputs.tag }}
-          # Bundle the prebuilt libmpv closure via Tauri's macOS.frameworks (fetch-libmpv writes it).
-          args: --target aarch64-apple-darwin --config src-tauri/libmpv.frameworks.json
+          # Bundle the prebuilt libmpv closure via Tauri's macOS.frameworks (fetch-libmpv writes it),
+          # plus any channel overlay (canary passes src-tauri/canary.conf.json for the amber identity).
+          args: --target aarch64-apple-darwin --config src-tauri/libmpv.frameworks.json ${{ inputs.config && format('--config {0}', inputs.config) || '' }}

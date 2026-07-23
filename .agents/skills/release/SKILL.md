@@ -51,3 +51,4 @@ The GitHub release + tag land first; the installer assets attach as the desktop 
 - **Nothing to release** = canary not ahead of main, or only `ci(changelog)` commits since the last tag (the workflow skips those and just backfills a missing GitHub release for the current tag).
 - The release captures **canary at merge time**; feature PRs not yet merged into canary are excluded.
 - Installed desktop apps auto-update from the updater artifacts (`.app.tar.gz` + `.sig` + `latest.json`); let CI produce them, never hand-roll.
+- **Canary channel** is separate: `desktop-release-canary.yml` auto-publishes an amber pre-release on **every push to canary** (tagged `canary-v<base>-<run>`, which does NOT start with `v` so it never disturbs this stable `--match "v*"` bump). It reuses `desktop-release-macos.yml` with `config: src-tauri/canary.conf.json` + `channel: preview`, keeps the newest 10, and is separate from cutting a stable release.

@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.0.24
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.23...v0.0.24)
+
+### 🚀 Enhancements
+
+- **transfers:** Slot-1 file Download + hover-to-focus in the file tree ([#90](https://github.com/nrjdalal/PeerZero/pull/90))
+
+### 🏡 Chore
+
+- **registry:** Refresh committed data ([beadf8f](https://github.com/nrjdalal/PeerZero/commit/beadf8f))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.23
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.22...v0.0.23)

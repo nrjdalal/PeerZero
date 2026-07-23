@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into the canary bundle's generated Info.plist (bundle.macOS.infoPlist in canary.conf.json).
+     The canary app's bundle FILE is PeerZeroCanary.app (a distinct productName, so it installs beside
+     the stable PeerZero.app), but its user-visible name in the Dock/Finder stays "PeerZero" - the two
+     are told apart by the amber icon, not the name. -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleDisplayName</key>
+  <string>PeerZero</string>
+  <key>CFBundleName</key>
+  <string>PeerZero</string>
+</dict>
+</plist>
