@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
+import { appChannel } from "@/lib/channel"
 
 // Minimal shape of the updater plugin's Update handle (avoids importing the type eagerly).
 type UpdateHandle = { version: string; downloadAndInstall: () => Promise<void> }
@@ -13,6 +14,11 @@ type UpdateHandle = { version: string; downloadAndInstall: () => Promise<void> }
 // (endpoint + pubkey live in tauri.conf.json). If one does, a clickable rose badge in the corner
 // offers to install it (downloads, swaps in the new version, relaunches). If the app is up to date,
 // a blue badge shows the running version instead. No-op in the browser.
+//
+// The config endpoint tracks the newest STABLE release (GitHub's `releases/latest` alias skips
+// pre-releases), so the auto-check only runs on the stable channel. A canary build would otherwise
+// be offered a stable version here and cross-install it; canary users move between canary builds from
+// the Settings release table (install_release) instead, so we just show its version badge.
 export function UpdateNotice() {
   const [update, setUpdate] = useState<UpdateHandle | null>(null)
   const [version, setVersion] = useState<string | null>(null)
@@ -29,12 +35,15 @@ export function UpdateNotice() {
         if (!cancelled) setVersion(v)
       })
       .catch(() => {})
-    import("@tauri-apps/plugin-updater")
-      .then(({ check }) => check())
-      .then((found) => {
-        if (!cancelled && found) setUpdate(found as unknown as UpdateHandle)
-      })
-      .catch(() => {})
+    // Only the stable channel auto-checks (the config endpoint is stable's latest.json).
+    if (appChannel === "stable") {
+      import("@tauri-apps/plugin-updater")
+        .then(({ check }) => check())
+        .then((found) => {
+          if (!cancelled && found) setUpdate(found as unknown as UpdateHandle)
+        })
+        .catch(() => {})
+    }
     return () => {
       cancelled = true
     }

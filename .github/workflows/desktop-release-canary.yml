@@ -1,0 +1,84 @@
+name: Desktop Release (canary)
+
+# Publishes a CANARY pre-release on every push to the canary branch: an amber PeerZero build that
+# installs beside stable (distinct bundle id, see desktop/src-tauri/canary.conf.json) and updates on
+# its own channel. Users move between canary builds from the app's Settings -> Advanced release table
+# (install_release). Also runnable on demand.
+#
+# Tag scheme: canary-v<base>-<run_number> (e.g. canary-v0.0.23-5). It deliberately starts with
+# `canary-`, NOT `v`, so auto-release.yml's `git describe --tags --match "v*"` never picks it up and
+# the stable version bump is unaffected. The baked app version is the semver <base>-<run_number>
+# (e.g. 0.0.23-5), which lines up with the release table's displayVersion (strips `canary-v`).
+
+on:
+  push:
+    branches: ["canary"]
+  workflow_dispatch:
+
+# One canary build at a time: a newer push cancels the in-flight run instead of queueing a build per
+# commit (each is a ~5-8 min macOS build).
+concurrency:
+  group: canary-release
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Cut canary pre-release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Compute version + create the pre-release
+        id: v
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BASE=$(bun -e 'console.log(JSON.parse(await Bun.file("package.json").text()).version)')
+          RUN="${{ github.run_number }}"
+          VERSION="${BASE}-${RUN}"        # baked app semver (prerelease), e.g. 0.0.23-5
+          TAG="canary-v${BASE}-${RUN}"    # not vX.Y.Z -> excluded from the stable `--match v*` bump
+          SHORT="${GITHUB_SHA:0:7}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          NOTES="Canary build from canary@${SHORT}. Amber icon; installs beside stable PeerZero. Switch to it from Settings -> Advanced -> the release table."
+          # Tag is created at this commit; the build job checks it out and attaches the .dmg + updater.
+          gh release create "$TAG" --prerelease --target "$GITHUB_SHA" --title "$TAG" --notes "$NOTES"
+
+  build:
+    name: Build canary installer
+    needs: prepare
+    uses: ./.github/workflows/desktop-release-macos.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+      version: ${{ needs.prepare.outputs.version }}
+      config: src-tauri/canary.conf.json
+      channel: preview
+    secrets: inherit
+
+  prune:
+    name: Prune old canary pre-releases
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Keep only the newest 10 canary releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Delete canary pre-releases (+ their tags) beyond the newest 10, so the release list and
+          # the in-app table stay tidy. Stable releases (v*) are never touched.
+          gh release list --repo "$REPO" --limit 100 --json tagName,createdAt,isPrerelease \
+            --jq '[.[] | select(.isPrerelease and (.tagName | startswith("canary-")))] | sort_by(.createdAt) | reverse | .[10:] | .[].tagName' \
+            | while read -r t; do
+                [ -n "$t" ] || continue
+                echo "pruning $t"
+                gh release delete "$t" --repo "$REPO" --yes --cleanup-tag
+              done
