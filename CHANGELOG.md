@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.26
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.25...v0.0.26)
+
+### 🩹 Fixes
+
+- **logo:** Main build defaults to stable black, not local blue ([#100](https://github.com/nrjdalal/PeerZero/pull/100))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.25
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.24...v0.0.25)
