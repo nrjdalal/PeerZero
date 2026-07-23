@@ -56,6 +56,22 @@ Delete a block (and its `overrides` entry) once the parent ships a version that 
 - **Exit criteria:** Remove the `sharp` override once `next` ships a release whose optional `sharp`
   requirement includes `>= 0.35.0`.
 
+### postcss → ^8.5.16
+
+- **Advisory:** [GHSA-6g55-p6wh-862q](https://github.com/advisories/GHSA-6g55-p6wh-862q) - PostCSS
+  arbitrary file read / information disclosure via an attacker-controlled `sourceMappingURL` in a CSS
+  comment (high). Affects `postcss <= 8.5.11`; patched in `8.5.12`.
+- **Path:** `@web/next > next@16.2.11 > postcss@8.4.31`. The rest of the tree (our direct
+  `@tailwindcss/postcss`, `shadcn`) already resolves the patched `8.5.16`; only next's exact-pinned copy
+  pulled the vulnerable `8.4.31`.
+- **Why an override:** `next@16.2.11` is the latest release and **exact-pins** `postcss: "8.4.31"` (not a
+  range), so no next bump lifts it. Overriding `postcss` to `^8.5.16` forces next's copy to the same
+  patched line the rest of the tree already resolves to.
+- **Risk:** Low. postcss 8.5.x is API-compatible with next's CSS pipeline (verified by `bun run build`);
+  the 8.4 -> 8.5 change is a minor within the same major that carries the fix. Local-only app.
+- **Exit criteria:** Remove the `postcss` override once `next` ships a release that pins
+  `postcss >= 8.5.12`.
+
 ## Accepted advisories (`--ignore`)
 
 Advisories that cannot be lifted by any dependency update and are suppressed with a matching

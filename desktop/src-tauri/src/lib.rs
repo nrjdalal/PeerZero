@@ -2,6 +2,8 @@ use std::sync::Mutex;
 
 #[cfg(target_os = "macos")]
 use tauri::TitleBarStyle;
+#[cfg(target_os = "macos")]
+use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
@@ -13,6 +15,10 @@ use tauri_plugin_shell::ShellExt;
 mod mpv;
 #[cfg(target_os = "macos")]
 mod mpv_render;
+// Native launch splash drawn on the main window itself (see splash.rs). macOS only: it exists to cover
+// the transparent WKWebView's load, which is a macOS-specific paint behaviour.
+#[cfg(target_os = "macos")]
+mod splash;
 
 // Holds the backend sidecar process so we can kill it when the window closes; without this
 // the Hono API + in-process WebTorrent engine would keep running after the app quits.
@@ -46,32 +52,49 @@ fn create_main_window(app: &AppHandle, port: u16) {
     .inner_size(1080.0, 720.0)
     .min_inner_size(1080.0, 720.0)
     .resizable(true)
+    .center()
     .initialization_script(script.as_str());
   // macOS only: transparent so the native mpv surface behind the webview shows through the video area
   // (the app paints an opaque background otherwise, so it is invisible until the player opts in), plus
   // the overlaid traffic-light title bar. Other platforms have no video surface behind the window, so
-  // a transparent window there would only risk shadow/compositor glitches for no benefit.
+  // a transparent window there would only risk shadow/compositor glitches for no benefit. We also hang
+  // the native launch splash's teardown off this window's page-load event (macOS only, where the splash
+  // exists): once the heavy page finishes loading, remove the overlay to reveal the app. It fires once
+  // on the initial load (SPA route changes are pushState, not page loads); a setup fallback removes it
+  // anyway if a broken load never fires this. Dispatched to the main thread, as AppKit requires.
   #[cfg(target_os = "macos")]
   let builder = builder
     .transparent(true)
     .title_bar_style(TitleBarStyle::Overlay)
-    .hidden_title(true);
+    .hidden_title(true)
+    .on_page_load(|window, payload| {
+      if matches!(payload.event(), PageLoadEvent::Finished) {
+        let _ = window.app_handle().run_on_main_thread(splash::hide);
+      }
+    });
   match builder.build() {
     Ok(_window) => {
-      // Insert the native mpv GL layer behind this window's webview (macOS). Runs on the main thread
-      // (create_main_window is dispatched there), as AppKit requires.
+      // macOS setup on the one NSWindow (resolved once): paint the backing opaque BLACK, insert the mpv
+      // GL layer if mpv is available, and overlay the native launch splash. The window is transparent so
+      // the mpv surface shows through the webview; the cost is that during the ~seconds the webview
+      // spends loading the UI - before it paints anything - it is see-through to the desktop plus the
+      // traffic lights (the "empty transparent window on launch" bug). The black backing is the floor
+      // (the mpv video layer sits IN FRONT of it, so video still shows through), and the splash overlay
+      // (splash.rs) sits ON TOP, giving branded feedback during the load; it is removed on page load.
       #[cfg(target_os = "macos")]
-      if let Some(handle) = app.try_state::<mpv::MpvHandle>() {
-        if let Some(mpv) = handle.mpv.clone() {
-          match _window.ns_window() {
-            Ok(ns_window) => {
+      match _window.ns_window() {
+        Ok(ns_window) => {
+          mpv_render::set_window_background_black(ns_window);
+          if let Some(handle) = app.try_state::<mpv::MpvHandle>() {
+            if let Some(mpv) = handle.mpv.clone() {
               if let Err(err) = mpv_render::attach(mpv, ns_window) {
                 log::error!("[mpv] attach render layer failed: {err}");
               }
             }
-            Err(err) => log::error!("[mpv] ns_window unavailable: {err}"),
           }
+          splash::show(ns_window);
         }
+        Err(err) => log::error!("[mpv] ns_window unavailable: {err}"),
       }
     }
     Err(err) => log::error!("failed to create the main window: {err}"),
@@ -330,18 +353,21 @@ pub fn run() {
         }
       });
 
-      // Safety net: if the sidecar never reports a port (e.g. it crashes at boot), still open a
-      // window after a grace period so the app is not invisibly stuck. create_main_window is a
-      // no-op once the window exists, and injecting the default port matches the baked fallback.
+      // Safety net: after a grace period, make the app usable no matter what failed at boot. If the
+      // sidecar never reported a port, open the main window with the baked URL; and remove the native
+      // launch splash overlay so it can never cover the app forever if the page-load event never fired.
+      // Both are idempotent, so this is harmless when the normal path already ran.
       let fallback_handle = app.handle().clone();
       std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_secs(20));
-        let handle_for_window = fallback_handle.clone();
+        let handle = fallback_handle.clone();
         let _ = fallback_handle.run_on_main_thread(move || {
-          if handle_for_window.get_webview_window("main").is_none() {
+          if handle.get_webview_window("main").is_none() {
             log::warn!("backend never reported PZ_API_PORT; opening with the baked API url");
-            create_main_window(&handle_for_window, 9336);
+            create_main_window(&handle, 9336);
           }
+          #[cfg(target_os = "macos")]
+          splash::hide();
         });
       });
 
