@@ -214,6 +214,13 @@ pub fn run() {
       // the WebView spawn Web Workers (tauri:// can't) so decode runs off the main thread.
       let frontend_dir = app.path().resource_dir().map(|dir| dir.join("frontend")).ok();
       let mut sidecar = app.shell().sidecar("peerzero-backend")?;
+      // Isolate the canary channel's data. The canary build ships the same sidecar but a distinct
+      // bundle id (com.peerzero.desktop.canary); tell the sidecar so it uses ~/.peerzero-canary +
+      // ~/Downloads/PeerZero Canary instead of the stable dirs (see webtorrent.mjs), so the two apps
+      // never share a torrent list, settings, or downloads.
+      if app.config().identifier.ends_with(".canary") {
+        sidecar = sidecar.env("PZ_CHANNEL", "canary");
+      }
       if let Some(dir) = &frontend_dir {
         sidecar = sidecar.env("PZ_FRONTEND_DIR", dir.to_string_lossy().to_string());
       }

@@ -32,17 +32,25 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 // api/hono/src/lib/torrent -> repo root (only used for the legacy .downloads migration in dev).
 const REPO_ROOT = resolve(__dirname, "../../../../..")
 
+// Data channel. The canary desktop build (bundle id ...canary) runs the SAME sidecar binary, but the
+// Rust shell hands it PZ_CHANNEL=canary (see desktop/src-tauri/src/lib.rs). That gives canary its own
+// state dir + default download folder, so the canary app and the stable app never share a torrent
+// list, settings, resume DB, or downloads. An explicit env override (TORRENT_DOWNLOAD_DIR) still wins.
+const CHANNEL = process.env.PZ_CHANNEL === "canary" ? "canary" : "stable"
+
 // Where new torrents download by default (overridable in Settings; env wins as the hard default).
 const DEFAULT_DOWNLOAD_DIR = resolve(
-  process.env.TORRENT_DOWNLOAD_DIR || resolve(homedir(), "Downloads", "PeerZero"),
+  process.env.TORRENT_DOWNLOAD_DIR ||
+    resolve(homedir(), "Downloads", CHANNEL === "canary" ? "PeerZero Canary" : "PeerZero"),
 )
 // Current download dir for NEW torrents. Loaded from persisted settings on boot; existing
 // torrents keep whatever folder they were added with (stored per-torrent in state).
 let downloadDir = DEFAULT_DOWNLOAD_DIR
 
 // State lives in a fixed app dir so it survives changing the download location. Older builds
-// kept it inside the repo's .downloads; loadState() migrates from there on first boot.
-const STATE_DIR = resolve(homedir(), ".peerzero")
+// kept it inside the repo's .downloads; loadState() migrates from there on first boot. Canary uses a
+// separate dir (~/.peerzero-canary) so its state never mixes with a stable install's.
+const STATE_DIR = resolve(homedir(), CHANNEL === "canary" ? ".peerzero-canary" : ".peerzero")
 const STATE_FILE = resolve(STATE_DIR, "state.json")
 const LEGACY_DOWNLOAD_DIR = resolve(`${REPO_ROOT}/.downloads`)
 const LEGACY_STATE_FILE = resolve(LEGACY_DOWNLOAD_DIR, ".zero-torrent-state.json")

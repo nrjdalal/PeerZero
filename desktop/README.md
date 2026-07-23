@@ -52,6 +52,13 @@ distinct `identifier` `com.peerzero.desktop.canary`, the amber `icons-canary/`, 
 still read "PeerZero"). The result installs **side-by-side** with stable, distinguished by its amber
 icon. The canary icon set is generated from the "0" mark on an amber tile via `tauri icon`.
 
+**Isolated data.** The canary app runs the _same_ sidecar binary, but because its bundle id ends in
+`.canary`, the Rust shell hands the sidecar `PZ_CHANNEL=canary` (`src-tauri/src/lib.rs`). The engine
+(`api/hono/.../webtorrent.mjs`) then uses `~/.peerzero-canary` for state/settings and
+`~/Downloads/PeerZero Canary` for downloads, so canary and stable **never share** a torrent list,
+settings, resume DB, or download folder - you can run both at once as true sandboxes. (An explicit
+`TORRENT_DOWNLOAD_DIR` still overrides the default.)
+
 The signed **`.dmg` + updater** are produced by CI (`.github/workflows/desktop-release-macos.yml`), which
 runs `fetch-libmpv.sh` on the runner and passes the frameworks config to the Tauri build - so the
 installers come out self-contained straight from `tauri build` (no post-processing, no updater
