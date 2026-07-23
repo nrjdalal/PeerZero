@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.0.25
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.24...v0.0.25)
+
+### 🚀 Enhancements
+
+- **settings:** Update to any release from a version table ([#94](https://github.com/nrjdalal/PeerZero/pull/94))
+- **desktop:** Canary channel identity + per-channel logo tint ([#96](https://github.com/nrjdalal/PeerZero/pull/96))
+- **desktop:** Isolate canary data from stable ([#98](https://github.com/nrjdalal/PeerZero/pull/98))
+- **settings:** One-click install for cross-channel releases ([#99](https://github.com/nrjdalal/PeerZero/pull/99))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.24
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.23...v0.0.24)
