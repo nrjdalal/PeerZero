@@ -17,6 +17,7 @@
     "process:default",
     "allow-install-update",
     "allow-install-release",
+    "allow-install-dmg",
     "allow-mpv-load",
     "allow-mpv-stop",
     "allow-mpv-command",

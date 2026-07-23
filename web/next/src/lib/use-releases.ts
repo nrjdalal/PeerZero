@@ -14,8 +14,11 @@ export type Release = {
   version: string // display version, e.g. "0.0.23" or "0.0.23-142"
   channel: Channel
   publishedAt: string // ISO date
-  url: string // release page (html_url), for cross-channel "Get"
+  url: string // release page (html_url)
+  dmgUrl: string | null // the .dmg asset URL, for a cross-channel side-by-side install (install_dmg)
 }
+
+type GhAsset = { name: string; browser_download_url: string }
 
 type GhRelease = {
   tag_name: string
@@ -24,6 +27,7 @@ type GhRelease = {
   draft: boolean
   published_at: string | null
   created_at: string
+  assets: GhAsset[]
 }
 
 // The numeric [major, minor, patch] embedded in a tag, for the floor filter + ordering. Handles both
@@ -69,6 +73,7 @@ export function useReleases(enabled: boolean) {
           channel: (r.prerelease ? "canary" : "stable") as Channel,
           publishedAt: r.published_at ?? r.created_at,
           url: r.html_url,
+          dmgUrl: r.assets?.find((a) => a.name.endsWith(".dmg"))?.browser_download_url ?? null,
         }))
     },
   })
