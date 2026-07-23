@@ -1,6 +1,6 @@
 "use client"
 
-import { RiCheckLine, RiDownloadLine, RiExternalLinkLine, RiRefreshLine } from "@remixicon/react"
+import { RiCheckLine, RiDownloadLine, RiRefreshLine } from "@remixicon/react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
@@ -32,11 +32,11 @@ function fmtDate(iso: string): string {
 }
 
 // Desktop-only "Software update" control for Settings > Advanced. Lists published releases (stable +
-// canary) from GitHub and lets you install ANY of them - forward or back - via the Rust
-// install_release command, which points the updater at that release's own manifest and bypasses the
-// newer-only gate. The running version is marked "Current". A release on the OTHER channel can't be
-// swapped in place (its .app bundle name differs), so it links out to its release page instead. In a
-// plain browser (no Tauri) this collapses to a one-line hint.
+// canary) from GitHub and lets you install ANY of them. Same-channel rows do an in-place self-update
+// (install_release, which points the updater at that release's manifest and bypasses the newer-only
+// gate); a row on the OTHER channel installs SIDE-BY-SIDE instead (install_dmg copies its .app into
+// /Applications), since an in-place swap across bundle names would corrupt the app. The running
+// version is marked "Current". In a plain browser (no Tauri) this collapses to a one-line hint.
 export function UpdaterSetting() {
   const [desktop, setDesktop] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
@@ -63,17 +63,35 @@ export function UpdaterSetting() {
   const { data: releases, isLoading, isError, refetch, isFetching } = useReleases(desktop)
 
   // The running build's channel, inferred from its version (canary versions carry a prerelease
-  // suffix, e.g. "0.0.23-142"). Decides which rows update in place vs link out.
+  // suffix, e.g. "0.0.23-142"). Decides whether a row updates IN PLACE or installs side-by-side.
   const currentChannel: Channel = version?.includes("-") ? "canary" : "stable"
 
-  const install = async (tag: string) => {
+  // Same channel: an in-place self-update. Download + install + relaunch run in Rust
+  // (install_release); this invoke usually never resolves because the app relaunches out from under
+  // it, which is expected.
+  const installUpdate = async (tag: string) => {
     if (installing) return
     setInstalling(tag)
     try {
       const { invoke } = await import("@tauri-apps/api/core")
-      // Download + install + relaunch run in Rust (install_release); this invoke usually never
-      // resolves because the app relaunches out from under it. That is expected.
       await invoke("install_release", { tag })
+    } catch (e) {
+      setInstalling(null)
+      toast.error(e instanceof Error ? e.message : "Could not install that version")
+    }
+  }
+
+  // Other channel (e.g. canary from the stable app): install it as a SEPARATE app beside this one.
+  // Rust (install_dmg) downloads the .dmg, mounts it, copies the app into /Applications, and launches
+  // it; unlike an in-place update this resolves when done and the current app keeps running.
+  const installApp = async (tag: string, dmgUrl: string) => {
+    if (installing) return
+    setInstalling(tag)
+    try {
+      const { invoke } = await import("@tauri-apps/api/core")
+      await invoke("install_dmg", { url: dmgUrl })
+      setInstalling(null)
+      toast.success("Installed - launching it now")
     } catch (e) {
       setInstalling(null)
       toast.error(e instanceof Error ? e.message : "Could not install that version")
@@ -166,7 +184,7 @@ export function UpdaterSetting() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => install(r.tag)}
+                          onClick={() => installUpdate(r.tag)}
                           disabled={installing != null}
                         >
                           {installing === r.tag ? <Spinner /> : <RiDownloadLine />}
@@ -174,12 +192,16 @@ export function UpdaterSetting() {
                         </Button>
                       ) : (
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
-                          render={<a href={r.url} target="_blank" rel="noreferrer" />}
+                          onClick={() => r.dmgUrl && installApp(r.tag, r.dmgUrl)}
+                          disabled={installing != null || !r.dmgUrl}
+                          title={
+                            r.dmgUrl ? "Install as a separate app" : "No installer for this release"
+                          }
                         >
-                          <RiExternalLinkLine />
-                          Get
+                          {installing === r.tag ? <Spinner /> : <RiDownloadLine />}
+                          {installing === r.tag ? "Installing…" : "Install"}
                         </Button>
                       )}
                     </TableCell>
