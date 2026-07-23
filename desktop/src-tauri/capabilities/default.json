@@ -16,6 +16,7 @@
     "updater:default",
     "process:default",
     "allow-install-update",
+    "allow-install-release",
     "allow-mpv-load",
     "allow-mpv-stop",
     "allow-mpv-command",

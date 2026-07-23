@@ -127,6 +127,38 @@ async fn install_update(app: AppHandle) -> Result<(), String> {
   Ok(())
 }
 
+// Update to a SPECIFIC release, chosen from the Settings release table - any version, forward OR
+// back. Unlike install_update (which reads the config `latest.json` and only installs a NEWER
+// release), this points the updater at that tag's own per-release manifest and bypasses the
+// "remote must be newer" gate via a version_comparator that always returns true, so the user can
+// move to the exact version they picked. The artifact is still verified against the bundled pubkey
+// (updater_builder() is pre-seeded from config), and the download + install + relaunch run in the
+// main process for the same reason as install_update (the .app swap kills the webview).
+#[tauri::command]
+async fn install_release(app: AppHandle, tag: String) -> Result<(), String> {
+  use tauri_plugin_updater::UpdaterExt;
+  let manifest = format!("https://github.com/nrjdalal/PeerZero/releases/download/{tag}/latest.json");
+  let url = tauri::Url::parse(&manifest).map_err(|e| e.to_string())?;
+  let pending = app
+    .updater_builder()
+    .endpoints(vec![url])
+    .map_err(|e| e.to_string())?
+    .version_comparator(|_current, _remote| true)
+    .build()
+    .map_err(|e| e.to_string())?
+    .check()
+    .await
+    .map_err(|e| e.to_string())?;
+  if let Some(update) = pending {
+    update
+      .download_and_install(|_, _| {}, || {})
+      .await
+      .map_err(|e| e.to_string())?;
+    restart_now(&app); // never returns
+  }
+  Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let builder = tauri::Builder::default()
@@ -140,13 +172,14 @@ pub fn run() {
   #[cfg(target_os = "macos")]
   let builder = builder.invoke_handler(tauri::generate_handler![
     install_update,
+    install_release,
     mpv::mpv_load,
     mpv::mpv_stop,
     mpv::mpv_command,
     mpv::mpv_set_property,
   ]);
   #[cfg(not(target_os = "macos"))]
-  let builder = builder.invoke_handler(tauri::generate_handler![install_update]);
+  let builder = builder.invoke_handler(tauri::generate_handler![install_update, install_release]);
 
   builder
     .setup(|app| {
