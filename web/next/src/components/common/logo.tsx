@@ -1,9 +1,12 @@
+import { channelColor } from "@/lib/channel"
 import { cn } from "@/lib/utils"
 
 // The PeerZero "0" brand mark. Inlined (the brand colors are part of the mark, like
 // an OG image) so it renders crisply with no asset request. The rounded border
-// (matching the tile's 22.5% corner radius) keeps the near-black tile legible
-// against the navbar in both themes.
+// (matching the tile's 22.5% corner radius) keeps the tile legible against the navbar
+// in both themes. The tile background is tinted per build channel (channelColor):
+// near-black on stable, amber on canary, blue on a local/dev build - so which build
+// you're running is obvious, matching env.style's per-environment favicon tint.
 export function Logo({ className }: { className?: string }) {
   return (
     <svg
@@ -12,7 +15,7 @@ export function Logo({ className }: { className?: string }) {
       role="img"
       aria-label="PeerZero"
     >
-      <rect width="512" height="512" rx="115" fill="#0a0a0a" />
+      <rect width="512" height="512" rx="115" fill={channelColor} />
       <svg x="163" y="106" width="186" height="300" viewBox="27 48 186 300">
         <path
           fill="#fafafa"

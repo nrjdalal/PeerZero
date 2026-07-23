@@ -36,6 +36,22 @@ no Homebrew paths remain. Output: `desktop/src-tauri/target/<triple>/release/bun
 The Bun sidecar cross-compiles for any OS (no native addons), e.g.
 `bun desktop/backend/build.ts out bun-windows-x64`.
 
+### Channels (stable / canary / local)
+
+The app ships in **channels**, told apart by the **logo/icon color**, not the name (they all read
+"PeerZero"). A single build signal - env.style's `ENV_STYLES_ENV` - drives both the favicon tint
+(env.style, wired in `web/next/next.config.ts`) and the in-app logo tile (`lib/channel.ts` ->
+`components/common/logo.tsx`): `production` = **stable** (brand black), `preview` = **canary**
+(amber `#f59e0b`), anything else incl. `bun run dev` = **local** (blue `#3b82f6`). So a dev build is
+never mistaken for a release.
+
+`build-app.sh --canary` builds the **canary** variant: it applies `src-tauri/canary.conf.json` (a
+distinct `identifier` `com.peerzero.desktop.canary`, the amber `icons-canary/`, and `productName`
+`PeerZeroCanary` so the bundle file is `PeerZeroCanary.app` and never collides with a stable
+`PeerZero.app`) plus `Info.canary.plist` (`CFBundleDisplayName` = `PeerZero`, so the Dock/Finder
+still read "PeerZero"). The result installs **side-by-side** with stable, distinguished by its amber
+icon. The canary icon set is generated from the "0" mark on an amber tile via `tauri icon`.
+
 The signed **`.dmg` + updater** are produced by CI (`.github/workflows/desktop-release-macos.yml`), which
 runs `fetch-libmpv.sh` on the runner and passes the frameworks config to the Tauri build - so the
 installers come out self-contained straight from `tauri build` (no post-processing, no updater
