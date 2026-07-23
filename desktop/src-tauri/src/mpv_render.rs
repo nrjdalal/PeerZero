@@ -260,3 +260,20 @@ pub fn attach(mpv: Arc<Mpv>, ns_window: *mut c_void) -> Result<(), String> {
     }
     Ok(())
 }
+
+// Paint the NSWindow's backing opaque black. The window is transparent (so the mpv layer behind the
+// webview shows through the video area), which means that during the seconds the webview takes to load
+// the UI - before it paints anything - the window is see-through to the desktop. An opaque black
+// backgroundColor fills that gap with black instead. It sits BEHIND the mpv sublayer and the opaque app
+// UI, so it only shows where nothing else is drawn: the initial load, never during playback or normal
+// use. `ns_window` is the *mut NSWindow from tauri's WebviewWindow::ns_window().
+pub fn set_window_background_black(ns_window: *mut c_void) {
+    if ns_window.is_null() {
+        return;
+    }
+    unsafe {
+        let window = ns_window as *mut AnyObject;
+        let black: *mut AnyObject = msg_send![objc2::class!(NSColor), blackColor];
+        let _: () = msg_send![window, setBackgroundColor: black];
+    }
+}
