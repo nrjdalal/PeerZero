@@ -24,16 +24,20 @@ Grab the desktop app from the **[latest release](https://github.com/nrjdalal/Pee
 | --------------------- | ------ |
 | macOS (Apple Silicon) | `.dmg` |
 
-The app self-updates on new releases (also from **Settings -> Advanced -> Check for updates**).
-Builds are unsigned for now, so first launch needs a one-time bypass: drag `PeerZero.app` to
-`Applications`, then run this once (macOS quarantines unsigned downloads and reports them as
-"damaged"; this clears the flag):
+The app self-updates on new releases; you can also jump to **any** version (forward or back) from
+**Settings -> Advanced -> the release table**. Builds are unsigned for now, so first launch needs a
+one-time bypass: drag `PeerZero.app` to `Applications`, then run this once (macOS quarantines unsigned
+downloads and reports them as "damaged"; this clears the flag):
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/PeerZero.app
 ```
 
 On Windows and Linux, run it from source (see below) - there is no official installer.
+
+**Canary builds.** Every push to `canary` publishes an early **[pre-release](https://github.com/nrjdalal/PeerZero/releases)**
+(an amber-iconed "PeerZero" that installs _beside_ the stable app, so you can run both). Install one,
+or switch between canary builds, from the same **Settings -> Advanced** release table.
 
 ---
 
