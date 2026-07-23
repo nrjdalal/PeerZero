@@ -7,14 +7,18 @@ getSafeEnv(env, "@web/next")
 
 // One build signal drives every per-environment cue: env.style's ENV_STYLES_ENV. We map it to the
 // app channel and expose it as NEXT_PUBLIC_APP_CHANNEL so the in-app logo tints to match env.style's
-// favicon tint (see lib/channel.ts + components/common/logo.tsx). production -> stable (brand black),
-// preview -> canary (amber), anything else (incl. `next dev`) -> local (blue).
+// favicon tint (see lib/channel.ts + components/common/logo.tsx). `preview` -> canary (amber);
+// `development` (build-app.sh's default) or a non-production build (`next dev`) -> local (blue);
+// everything else, i.e. ANY production build - stable release, hosted/main web, `bun run build`,
+// Docker - defaults to stable (brand black). So only a genuine dev/local build shows blue; the main
+// app never does.
+const es = process.env.ENV_STYLES_ENV
 const appChannel =
-  process.env.ENV_STYLES_ENV === "production"
-    ? "stable"
-    : process.env.ENV_STYLES_ENV === "preview"
-      ? "canary"
-      : "local"
+  es === "preview"
+    ? "canary"
+    : es === "development" || process.env.NODE_ENV !== "production"
+      ? "local"
+      : "stable"
 
 // Dev-only: Next 16 blocks cross-origin dev requests; behind portless the browser Host is a named .localhost subdomain, so allow the app's base domain and its subdomains.
 const appDevHost = (() => {
