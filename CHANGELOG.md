@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.0.27
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.26...v0.0.27)
+
+### 🩹 Fixes
+
+- **desktop:** Native in-window launch splash, no transparent-window flash ([#102](https://github.com/nrjdalal/PeerZero/pull/102))
+
+### 🏡 Chore
+
+- **registry:** Refresh committed data ([c841dc1](https://github.com/nrjdalal/PeerZero/commit/c841dc1))
+
+### ❤️ Contributors
+
+- Neeraj Dalal @nrjdalal
+
 ## v0.0.26
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.25...v0.0.26)
