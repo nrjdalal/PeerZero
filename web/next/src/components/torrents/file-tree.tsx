@@ -47,6 +47,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { apiClient, unwrap } from "@/lib/api/client"
 import { formatBytes, formatPercent } from "@/lib/format"
+import { isMacDesktopApp } from "@/lib/platform"
 import { openInExternalPlayer, streamUrl } from "@/lib/play-file"
 import { cn } from "@/lib/utils"
 
@@ -81,15 +82,6 @@ function FileActionButton({
     </Button>
   )
 }
-
-// In-app playback is macOS-native-only: the mpv render layer (src-tauri/src/mpv_render.rs) is macOS-only,
-// and there is no browser-codec fallback. Windows/Linux desktop and any plain browser have no in-app
-// player, so playable files reveal on disk instead. Read after mount (window/navigator) so the static
-// export never hydrate-mismatches.
-const isMacDesktopApp = () =>
-  typeof window !== "undefined" &&
-  ("__TAURI_INTERNALS__" in window || "isTauri" in window) &&
-  /Mac/i.test(navigator.userAgent)
 
 type TorrentFile = TorrentSnapshot["files"][number]
 
