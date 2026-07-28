@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { isDesktopApp, isMacDesktopApp } from "@/lib/platform"
 import { type Channel, useReleases } from "@/lib/use-releases"
 import { cn } from "@/lib/utils"
 
@@ -35,18 +36,24 @@ function fmtDate(iso: string): string {
 // canary) from GitHub and lets you install ANY of them. Same-channel rows do an in-place self-update
 // (install_release, which points the updater at that release's manifest and bypasses the newer-only
 // gate); a row on the OTHER channel installs SIDE-BY-SIDE instead (install_dmg copies its .app into
-// /Applications), since an in-place swap across bundle names would corrupt the app. The running
-// version is marked "Current". In a plain browser (no Tauri) this collapses to a one-line hint.
+// /Applications), since an in-place swap across bundle names would corrupt the app. Side-by-side is
+// macOS-only - canary ships no Windows/Linux build and install_dmg isn't registered there - so those
+// rows stay disabled off macOS. The running version is marked "Current". In a plain browser (no
+// Tauri) this collapses to a one-line hint.
 export function UpdaterSetting() {
   const [desktop, setDesktop] = useState(false)
+  // install_dmg is macOS-only (hdiutil/ditto into /Applications) and the Windows/Linux builds don't
+  // register it, so the cross-channel row offers no side-by-side install there.
+  const [canInstallSideBySide, setCanInstallSideBySide] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
   const [installing, setInstalling] = useState<string | null>(null)
 
   // Resolve desktop + running version after mount (never during render) so the static export does not
   // hydrate-mismatch on the window/Tauri globals.
   useEffect(() => {
-    const isTauri = "isTauri" in window || "__TAURI_INTERNALS__" in window
+    const isTauri = isDesktopApp()
     setDesktop(isTauri)
+    setCanInstallSideBySide(isMacDesktopApp())
     if (!isTauri) return
     let cancelled = false
     import("@tauri-apps/api/app")
@@ -194,10 +201,16 @@ export function UpdaterSetting() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => r.dmgUrl && installApp(r.tag, r.dmgUrl)}
-                          disabled={installing != null || !r.dmgUrl}
+                          onClick={() =>
+                            canInstallSideBySide && r.dmgUrl && installApp(r.tag, r.dmgUrl)
+                          }
+                          disabled={installing != null || !canInstallSideBySide || !r.dmgUrl}
                           title={
-                            r.dmgUrl ? "Install as a separate app" : "No installer for this release"
+                            !canInstallSideBySide
+                              ? "Installing the other channel side-by-side is macOS-only"
+                              : r.dmgUrl
+                                ? "Install as a separate app"
+                                : "No installer for this release"
                           }
                         >
                           {installing === r.tag ? <Spinner /> : <RiDownloadLine />}

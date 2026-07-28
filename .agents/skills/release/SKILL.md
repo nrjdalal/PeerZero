@@ -30,7 +30,8 @@ Merge the release PR (canary into main) with a **MERGE COMMIT, never a squash**.
 4. **`auto-release.yml` does the rest** (it triggers on that PR closing into main with head=canary):
    - `changelogen --bump` picks the version: a **patch bump** from the last tag (v0.0.19 -> v0.0.20) unless `package.json` `version` is hand-set *ahead* of the last tag, in which case it ships that exact version (a version not ahead fails the run loudly).
    - Writes `CHANGELOG.md`, commits `ci(changelog): ...` **back to canary**, tags `vX.Y.Z`, and creates the GitHub release with the changelog notes.
-   - The `desktop` job (`desktop-release-macos.yml`) then builds the macOS installer for the tag: the `.dmg` (aarch64), plus the Tauri updater artifacts (`PeerZero_aarch64.app.tar.gz` + `.sig`) and `latest.json`. About 5-8 minutes. PeerZero ships macOS-only (personal Mac tool, native libmpv playback); there is no Windows/Linux build.
+   - The `desktop` job (`desktop-release-macos.yml`) then builds the macOS installer for the tag: the `.dmg` (aarch64), plus the Tauri updater artifacts (`PeerZero_aarch64.app.tar.gz` + `.sig`) and `latest.json`. About 5-8 minutes.
+   - The `desktop-windows-linux` job (`desktop-release-windows-linux.yml`) runs **after** it and adds the Windows x64 `.exe`/`.msi` and the Linux x64 `.deb`, each with its updater `.sig`, merging their keys into the same `latest.json`. These builds link no libmpv and ship download-only (no in-app player). It is serialized after macOS on purpose: concurrent `tauri-action` uploads read-modify-write the shared `latest.json` and can clobber each other.
 
 ## Choosing the version
 
@@ -51,4 +52,4 @@ The GitHub release + tag land first; the installer assets attach as the desktop 
 - **Nothing to release** = canary not ahead of main, or only `ci(changelog)` commits since the last tag (the workflow skips those and just backfills a missing GitHub release for the current tag).
 - The release captures **canary at merge time**; feature PRs not yet merged into canary are excluded.
 - Installed desktop apps auto-update from the updater artifacts (`.app.tar.gz` + `.sig` + `latest.json`); let CI produce them, never hand-roll.
-- **Canary channel** is separate: `desktop-release-canary.yml` auto-publishes an amber pre-release on **every push to canary** (tagged `canary-v<base>-<run>`, which does NOT start with `v` so it never disturbs this stable `--match "v*"` bump). It reuses `desktop-release-macos.yml` with `config: src-tauri/canary.conf.json` + `channel: preview`, keeps the newest 10, and is separate from cutting a stable release.
+- **Canary channel** is separate: `desktop-release-canary.yml` auto-publishes an amber pre-release on **every push to canary** (tagged `canary-v<base>-<run>`, which does NOT start with `v` so it never disturbs this stable `--match "v*"` bump). It reuses `desktop-release-macos.yml` with `config: src-tauri/canary.conf.json` + `channel: preview`, keeps the newest 10, and is separate from cutting a stable release. Canary is **macOS-only** - it never calls the Windows/Linux workflow, so there is no canary `.exe`.
