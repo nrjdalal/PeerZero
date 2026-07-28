@@ -1,6 +1,6 @@
 {
   "name": "peerzero",
-  "version": "0.0.26",
+  "version": "0.0.27",
   "private": true,
   "workspaces": [
     "api/*",
@@ -49,8 +49,9 @@
     "turbo": "catalog:"
   },
   "overrides": {
+    "brace-expansion": "^5.0.8",
     "fast-uri": "^3.1.4",
-    "postcss": "^8.5.16",
+    "postcss": "^8.5.18",
     "sharp": "^0.35.3",
     "shell-quote": "^1.10.0"
   },
