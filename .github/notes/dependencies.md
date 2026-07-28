@@ -56,21 +56,42 @@ Delete a block (and its `overrides` entry) once the parent ships a version that 
 - **Exit criteria:** Remove the `sharp` override once `next` ships a release whose optional `sharp`
   requirement includes `>= 0.35.0`.
 
-### postcss → ^8.5.16
+### postcss → ^8.5.18
 
-- **Advisory:** [GHSA-6g55-p6wh-862q](https://github.com/advisories/GHSA-6g55-p6wh-862q) - PostCSS
-  arbitrary file read / information disclosure via an attacker-controlled `sourceMappingURL` in a CSS
-  comment (high). Affects `postcss <= 8.5.11`; patched in `8.5.12`.
+- **Advisory:** [GHSA-r28c-9q8g-f849](https://github.com/advisories/GHSA-r28c-9q8g-f849) - PostCSS path
+  traversal in previous-source-map auto-loading (`sourceMappingURL`) leading to arbitrary `.map` file
+  disclosure (high). Affects `postcss <= 8.5.17`; patched in `8.5.18`. Supersedes
+  [GHSA-6g55-p6wh-862q](https://github.com/advisories/GHSA-6g55-p6wh-862q) (same class, affected
+  `<= 8.5.11`), which this floor also covers - the override floor was raised from `^8.5.16` to `^8.5.18`
+  when the newer advisory landed.
 - **Path:** `@web/next > next@16.2.11 > postcss@8.4.31`. The rest of the tree (our direct
-  `@tailwindcss/postcss`, `shadcn`) already resolves the patched `8.5.16`; only next's exact-pinned copy
+  `@tailwindcss/postcss`, `shadcn`) already resolves a patched 8.5.x; only next's exact-pinned copy
   pulled the vulnerable `8.4.31`.
 - **Why an override:** `next@16.2.11` is the latest release and **exact-pins** `postcss: "8.4.31"` (not a
-  range), so no next bump lifts it. Overriding `postcss` to `^8.5.16` forces next's copy to the same
-  patched line the rest of the tree already resolves to.
+  range), so no next bump lifts it. Overriding `postcss` to `^8.5.18` forces next's copy to the same
+  patched line the rest of the tree already resolves to (currently `8.5.24`).
 - **Risk:** Low. postcss 8.5.x is API-compatible with next's CSS pipeline (verified by `bun run build`);
   the 8.4 -> 8.5 change is a minor within the same major that carries the fix. Local-only app.
 - **Exit criteria:** Remove the `postcss` override once `next` ships a release that pins
-  `postcss >= 8.5.12`.
+  `postcss >= 8.5.18`.
+
+### brace-expansion → ^5.0.8
+
+- **Advisory:** [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg) -
+  brace-expansion: denial of service via unbounded expansion length causing an out-of-memory process
+  crash (high). Affects `brace-expansion <= 5.0.7`; patched in `5.0.8`.
+- **Path:** `ts-morph > @ts-morph/common@0.29.0 > minimatch@10.2.5 > brace-expansion@5.0.7` (dev-only).
+- **Why an override:** `ts-morph@28.0.0` is the latest release and `@ts-morph/common@0.29.0` requires
+  `minimatch: "^10.0.1"`, which the lockfile had resolved to `10.2.5` - and `10.2.5` requires
+  `brace-expansion: "^5.0.5"`, so the vulnerable `5.0.7` sits inside its range. `minimatch@10.2.6` does
+  require the patched `^5.0.8`, but bun keeps the already-resolved nested copy, so no parent bump
+  reliably lifts it. Pinning `brace-expansion` to `^5.0.8` is the narrowest deterministic fix and
+  collapses the tree back to a single copy.
+- **Risk:** Low. `brace-expansion` is dev-only here: it reaches us through `ts-morph`'s glob matching,
+  which only ever expands our own source-file patterns, never attacker-controlled input. The override is
+  a genuine patch, not a suppression.
+- **Exit criteria:** Remove the `brace-expansion` override once `@ts-morph/common` (via `ts-morph`) ships
+  a release resolving `minimatch >= 10.2.6`, which itself requires `brace-expansion >= 5.0.8`.
 
 ## Accepted advisories (`--ignore`)
 
