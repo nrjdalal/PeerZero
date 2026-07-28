@@ -10,9 +10,8 @@
 
 A local-only **BitTorrent client with a built-in video player for macOS**. Search, paste a
 magnet link, or drop a `.torrent`, then watch it download live - and play the video right in the
-app, even before it finishes. PeerZero is a personal Mac tool, so official builds are macOS-only;
-Windows and Linux can still run it from source (download-only, no in-app player). No account, no
-cloud, nothing hosted - it all runs on your own machine.
+app, even before it finishes. The in-app player is macOS-only; the Windows and Linux builds are
+download-only. No account, no cloud, nothing hosted - it all runs on your own machine.
 
 ---
 
@@ -20,24 +19,30 @@ cloud, nothing hosted - it all runs on your own machine.
 
 Grab the desktop app from the **[latest release](https://github.com/nrjdalal/PeerZero/releases/latest)**:
 
-| OS                    | File   |
-| --------------------- | ------ |
-| macOS (Apple Silicon) | `.dmg` |
+| OS                    | File                    | In-app player     |
+| --------------------- | ----------------------- | ----------------- |
+| macOS (Apple Silicon) | `.dmg`                  | Yes (native mpv)  |
+| Windows (x64)         | `.exe` setup, or `.msi` | No, download-only |
+| Linux (x64)           | `.deb`                  | No, download-only |
+
+On Windows and Linux everything except in-app playback works the same - search, download, the file
+tree, reveal-on-disk, and self-update; finished files open in your own player.
 
 The app self-updates on new releases; you can also jump to **any** version (forward or back) from
-**Settings -> Advanced -> the release table**. Builds are unsigned for now, so first launch needs a
-one-time bypass: drag `PeerZero.app` to `Applications`, then run this once (macOS quarantines unsigned
-downloads and reports them as "damaged"; this clears the flag):
+**Settings -> Advanced -> the release table**. Builds are unsigned for now, so on macOS the first
+launch needs a one-time bypass: drag `PeerZero.app` to `Applications`, then run this once (macOS
+quarantines unsigned downloads and reports them as "damaged"; this clears the flag):
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/PeerZero.app
 ```
 
-On Windows and Linux, run it from source (see below) - there is no official installer.
+Windows SmartScreen will likewise warn on an unsigned installer: choose **More info -> Run anyway**.
 
 **Canary builds.** Every push to `canary` publishes an early **[pre-release](https://github.com/nrjdalal/PeerZero/releases)**
 (an amber-iconed "PeerZero" that installs _beside_ the stable app, so you can run both). Install one,
-or switch between canary builds, from the same **Settings -> Advanced** release table.
+or switch between canary builds, from the same **Settings -> Advanced** release table. Canary is
+**macOS-only** - Windows and Linux ship on stable releases only.
 
 ---
 
@@ -54,8 +59,8 @@ or switch between canary builds, from the same **Settings -> Advanced** release 
   refuses - **MKV, HEVC/H.265, AV1, AC3/E-AC3** - with embedded subtitles rendered natively. No
   external player like VLC, and nothing to install: libmpv ships inside the app. Reopen a video and
   it **resumes a few seconds before where you left off** (remembered per file, across restarts).
-  Run from source on Windows/Linux and it is download-only (no in-app player); open finished files
-  in your own player.
+  The Windows and Linux builds are download-only (no in-app player); open finished files in your
+  own player.
 - **Browse every file.** Expand a torrent to see its file tree with per-file progress; play
   or reveal any single file.
 - **Stays a downloader.** Completed torrents auto-stop instead of seeding.
@@ -119,9 +124,9 @@ trackers over TCP. The engine sits behind a small typed seam
 **The video player** is **native [mpv](https://mpv.io)** (libmpv), macOS-only: mpv renders through its
 OpenGL render API into a native layer behind the transparent webview, with the HTML control overlay on
 top (see `desktop/README.md`), for hardware decode + native subtitle rendering. libmpv is bundled into
-the app, so there is nothing to install. Windows/Linux desktop and any plain browser have no in-app
-player - PeerZero is a personal, Mac-first tool, so those are download-only (a playable file reveals on
-disk instead). A cross-platform WebAssembly player once filled that gap; see
+the app, so there is nothing to install. The Windows/Linux builds and any plain browser have no in-app
+player - PeerZero is Mac-first, so those are download-only (a playable file reveals on disk instead).
+A cross-platform WebAssembly player once filled that gap; see
 `.github/notes/libmedia-player.md` for how it worked and how to bring it back. The API serves each file
 over an HTTP **Range** endpoint (`/api/torrents/:infoHash/stream/:fileIdx`), so playback starts while the
 download is still in flight.

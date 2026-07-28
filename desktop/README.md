@@ -73,9 +73,12 @@ mpv runs headless (`vo=libmpv`) and is rendered through the libmpv **OpenGL rend
 `CAOpenGLLayer` inserted **behind the transparent webview** (`src-tauri/src/mpv_render.rs`,
 macOS); the HTML control overlay (`web/.../mpv-player.tsx`) composites on top. The Rust side
 (`src-tauri/src/mpv.rs`) exposes `mpv_*` commands + re-emits mpv properties as `mpv://property`
-events. There is no in-app player off macOS: Windows/Linux desktop and a plain browser are
-download-only (a playable file reveals on disk). A cross-platform WebAssembly player once covered
-those; see `.github/notes/libmedia-player.md` for how it worked and how to bring it back.
+events. There is no in-app player off macOS: the Windows/Linux builds and a plain browser are
+download-only (a playable file reveals on disk). Those builds link no libmpv at all - the deps are
+gated behind `[target.'cfg(target_os = "macos")']` in `src-tauri/Cargo.toml`, the `mpv` modules
+behind `#[cfg(target_os = "macos")]`, and the UI hides the Play action via `isMacDesktopApp()`
+(`web/next/src/lib/platform.ts`). A cross-platform WebAssembly player once covered those; see
+`.github/notes/libmedia-player.md` for how it worked and how to bring it back.
 
 **libmpv is prebuilt, pinned, and bundled - not linked from live Homebrew** (see
 [`.github/notes/libmpv.md`](../.github/notes/libmpv.md) for the why, backed by research):
@@ -96,15 +99,27 @@ those; see `.github/notes/libmedia-player.md` for how it worked and how to bring
 
 The desktop app is built **automatically as part of a release**. When the auto-created
 `canary -> main` PR is merged, `auto-release.yml` bumps the version, tags `v<x.y.z>`, and
-creates the GitHub release, then it calls `desktop-release-macos.yml` (a reusable workflow) which
-builds the macOS (arm64) `.dmg` + updater artifacts and attaches them to that release. It runs as
-a called job in the same run rather than on a separate `on: release` event, because a release
-created with `GITHUB_TOKEN` cannot trigger another workflow. PeerZero ships macOS-only (native
-libmpv playback, personal Mac tool), so there is no Windows/Linux build - those run from source.
+creates the GitHub release, then it calls two reusable workflows which attach the installers to it:
+
+| Workflow                            | Builds                                      | Channels        |
+| ----------------------------------- | ------------------------------------------- | --------------- |
+| `desktop-release-macos.yml`         | macOS arm64 `.dmg` + updater artifacts      | stable + canary |
+| `desktop-release-windows-linux.yml` | Windows x64 `.exe`/`.msi`, Linux x64 `.deb` | stable only     |
+
+They run as called jobs in the same run rather than on a separate `on: release` event, because a
+release created with `GITHUB_TOKEN` cannot trigger another workflow. macOS is split out because it
+alone needs the libmpv fetch + `macOS.frameworks` bundling; the Windows/Linux builds link no libmpv
+and ship download-only. Canary pre-releases stay macOS-only to keep the per-push build fast.
+
+The Windows/Linux job **`needs:` the macOS job** rather than running beside it. Every `tauri-action`
+upload read-modify-writes the release's shared `latest.json` to merge in its platform keys, so
+concurrent jobs can clobber one another's entry; serializing costs wall-clock but keeps the updater
+manifest deterministic.
 
 The desktop app version is synced to the release tag at build time, so no separate version
-bump is needed here. To (re)build the installer for an existing tag by hand: **Actions ->
-Desktop Release (macOS) -> Run workflow**, and enter the tag (e.g. `v0.0.2`).
+bump is needed here. To (re)build the installers for an existing tag by hand: **Actions ->
+Desktop Release (macOS)** or **Desktop Release (Windows/Linux) -> Run workflow**, and enter the tag
+(e.g. `v0.0.2`).
 
 ## GitHub secrets
 

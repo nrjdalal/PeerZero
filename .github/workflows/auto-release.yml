@@ -130,13 +130,28 @@ jobs:
 
   # After a release is published, build the macOS installer + updater artifacts and attach them
   # to that release. A reusable workflow (workflow_call) so it runs in THIS run - a release
-  # created with GITHUB_TOKEN can't trigger a separate `on: release` workflow. macOS-only:
-  # PeerZero ships as a personal Mac tool (native libmpv playback), so no Windows/Linux build.
+  # created with GITHUB_TOKEN can't trigger a separate `on: release` workflow. macOS is its own
+  # workflow because it alone needs the libmpv fetch + frameworks bundling for native playback.
   desktop:
-    name: Desktop installer
+    name: Desktop installer (macOS)
     needs: update-changelog
     if: needs.update-changelog.outputs.tag != ''
     uses: ./.github/workflows/desktop-release-macos.yml
+    with:
+      tag: ${{ needs.update-changelog.outputs.tag }}
+    secrets: inherit
+
+  # The Windows (.exe/.msi) and Linux (.deb) installers for the same release. These builds link no
+  # libmpv and ship download-only (no in-app player) - see desktop-release-windows-linux.yml.
+  #
+  # Runs AFTER the macOS job rather than beside it: every tauri-action upload read-modify-writes the
+  # release's shared latest.json to merge in its platform keys, so concurrent jobs can clobber each
+  # other's entry. Serializing costs wall-clock but makes the updater manifest deterministic.
+  desktop-windows-linux:
+    name: Desktop installers (Windows/Linux)
+    needs: [update-changelog, desktop]
+    if: needs.update-changelog.outputs.tag != ''
+    uses: ./.github/workflows/desktop-release-windows-linux.yml
     with:
       tag: ${{ needs.update-changelog.outputs.tag }}
     secrets: inherit
