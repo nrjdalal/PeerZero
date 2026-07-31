@@ -13,9 +13,11 @@ import {
   RiSpeedUpLine,
   RiVolumeMuteFill,
   RiVolumeUpFill,
+  RiPictureInPictureLine,
+  RiPictureInPictureExitLine,
 } from "@remixicon/react"
+import { invoke } from "@tauri-apps/api/core"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { createPortal } from "react-dom"
 
 import { Spinner } from "@/components/ui/spinner"
 import { mpv } from "@/lib/mpv"
@@ -71,6 +73,7 @@ export function MpvPlayer({
   const [muted, setMuted] = useState(false)
   const [rate, setRate] = useState(1)
   const [fs, setFs] = useState(false)
+  const [pip, setPip] = useState(false)
   const [uiVisible, setUiVisible] = useState(true)
   const [speedOpen, setSpeedOpen] = useState(false)
   const [subOpen, setSubOpen] = useState(false)
@@ -78,8 +81,6 @@ export function MpvPlayer({
   const [activeSub, setActiveSub] = useState<number>(-1)
   // Scrubber hover preview: fraction (0..1) of the bar the cursor is over, or null when not hovering.
   const [hoverFrac, setHoverFrac] = useState<number | null>(null)
-  // createPortal targets document.body, which does not exist during Next's static prerender. Render
-  // nothing until mounted on the client so the export does not crash (and the portal is client-only).
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
@@ -353,6 +354,15 @@ export function MpvPlayer({
     poke()
   }, [poke])
 
+  const togglePip = useCallback(() => {
+    void (async () => {
+      const next = !pip
+      await invoke("toggle_pip", { active: next })
+      setPip(next)
+    })().catch(() => {})
+    poke()
+  }, [pip, poke])
+
   const onKey = useCallback(
     (e: React.KeyboardEvent) => {
       // Let app-global accelerators through (⌘K opens the command palette, etc.); without this the
@@ -383,6 +393,9 @@ export function MpvPlayer({
         case "m":
           toggleMute()
           break
+        case "p":
+          togglePip()
+          break
         case "f":
           toggleFs()
           break
@@ -396,11 +409,11 @@ export function MpvPlayer({
 
   const played = dur > 0 ? `${(cur / dur) * 100}%` : "0%"
 
-  // Rendered into a <body>-level portal (a sibling of #pz-app-shell) so it stays visible while the
-  // shell is hidden by .mpv-active. Transparent everywhere except the control gradients, so the mpv
+  // Rendered directly inside the page since this player now runs in its own window.
+  // Transparent everywhere except the control gradients, so the mpv
   // surface behind the webview shows the video.
   if (!mounted) return null
-  return createPortal(
+  return (
     // biome-ignore lint/a11y: keyboard handled via onKeyDown; this is a media surface, not a button
     <div
       ref={rootRef}
@@ -614,6 +627,13 @@ export function MpvPlayer({
                 </div>
               )}
             </div>
+            <button type="button" onClick={togglePip} aria-label="PiP" className={CTRL}>
+              {pip ? (
+                <RiPictureInPictureExitLine className="size-10" />
+              ) : (
+                <RiPictureInPictureLine className="size-10" />
+              )}
+            </button>
             <button type="button" onClick={toggleFs} aria-label="Fullscreen" className={CTRL}>
               {fs ? (
                 <RiFullscreenExitLine className="size-10" />
@@ -624,7 +644,6 @@ export function MpvPlayer({
           </div>
         </div>
       </div>
-    </div>,
-    document.body,
+    </div>
   )
 }
