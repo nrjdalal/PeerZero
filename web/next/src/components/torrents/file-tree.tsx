@@ -18,6 +18,7 @@ import {
   type RemixiconComponentType,
 } from "@remixicon/react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { invoke } from "@tauri-apps/api/core"
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -30,7 +31,6 @@ import {
 import { toast } from "sonner"
 
 import type { SubRowColumn } from "@/components/torrents/data-grid"
-import { MpvPlayer } from "@/components/torrents/mpv-player"
 import { STATUS_BADGE, STATUS_ICON } from "@/components/torrents/torrents-grid"
 import { TORRENTS_QUERY_KEY } from "@/components/torrents/use-torrents-live"
 import {
@@ -464,14 +464,7 @@ export function TorrentFileTree({
   // Highlight the active row only while the tree holds focus, so a freshly expanded row's tree
   // never renders its first item as "selected" before the user navigates into it.
   const [hasFocus, setHasFocus] = useState(false)
-  const [playing, setPlaying] = useState<{
-    url: string
-    name: string
-    key: string
-    // Index into `files`, so the player can read this file's LIVE progress and only allow seeking once
-    // it has fully downloaded (seeking into not-yet-downloaded data would stall).
-    index: number
-  } | null>(null)
+
   // In-app playback is macOS-native-only (see isMacDesktopApp). Resolved after mount so the static
   // export doesn't hydrate-mismatch; false everywhere else, where playable files reveal on disk.
   const [canPlay, setCanPlay] = useState(false)
@@ -488,18 +481,26 @@ export function TorrentFileTree({
     })
   }, [])
   // Play a file in the native mpv player (macOS only; gated by canPlay at every call site). The VLC
-  // handoff is the fallback only if mpv can't init/load the stream (see the MpvPlayer onError below).
+  // handoff is the fallback only if mpv can't init/load the stream.
   const playFile = useCallback(
     (fileIndex: number, name: string) => {
-      // key: stable per video for resume-playback (the stream URL's ephemeral port is not).
-      setPlaying({
-        url: streamUrl(infoHash, fileIndex),
+      const url = streamUrl(infoHash, fileIndex)
+      const key = `${infoHash}:${fileIndex}`
+      const seekable = (files[fileIndex]?.progress ?? 1) >= 1
+      const query = new URLSearchParams({
+        src: url,
         name,
-        key: `${infoHash}:${fileIndex}`,
-        index: fileIndex,
+        resumeKey: key,
+        seekable: seekable.toString(),
+      }).toString()
+      const fullUrl = `${window.location.origin}/player?${query}`
+
+      invoke("open_player_window", { url: fullUrl }).catch((e) => {
+        console.error("Failed to open player window", e)
+        handoff(url, name)
       })
     },
-    [infoHash],
+    [infoHash, files, handoff],
   )
 
   const queryClient = useQueryClient()
@@ -691,24 +692,6 @@ export function TorrentFileTree({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {/* macOS desktop only: native mpv (hardware decode of every codec + real subtitle rendering).
-          Playback is gated to macOS (canPlay), so `playing` is only ever set there. Falls back to the
-          VLC handoff if mpv can't init/load. See mpv-player.tsx. */}
-      {playing && (
-        <MpvPlayer
-          src={playing.url}
-          name={playing.name}
-          resumeKey={playing.key}
-          // Live: seeking unlocks only once this file has fully downloaded (defaults to seekable if the
-          // file dropped out of the list). Re-evaluated as progress advances, so it flips on at 100%.
-          seekable={(files[playing.index]?.progress ?? 1) >= 1}
-          onClose={() => setPlaying(null)}
-          onError={() => {
-            handoff(playing.url, playing.name)
-            setPlaying(null)
-          }}
-        />
-      )}
     </>
   )
 }

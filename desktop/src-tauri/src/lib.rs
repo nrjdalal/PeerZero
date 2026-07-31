@@ -85,13 +85,6 @@ fn create_main_window(app: &AppHandle, port: u16) {
       match _window.ns_window() {
         Ok(ns_window) => {
           mpv_render::set_window_background_black(ns_window);
-          if let Some(handle) = app.try_state::<mpv::MpvHandle>() {
-            if let Some(mpv) = handle.mpv.clone() {
-              if let Err(err) = mpv_render::attach(mpv, ns_window) {
-                log::error!("[mpv] attach render layer failed: {err}");
-              }
-            }
-          }
           splash::show(ns_window);
         }
         Err(err) => log::error!("[mpv] ns_window unavailable: {err}"),
@@ -263,6 +256,66 @@ fn install_dmg_blocking(url: &str) -> Result<(), String> {
   result
 }
 
+#[cfg(target_os = "macos")]
+#[tauri::command]
+async fn open_player_window(app: AppHandle, url: String) -> Result<(), String> {
+  let parsed_url = tauri::Url::parse(&url).map_err(|e| e.to_string())?;
+  
+  if let Some(win) = app.get_webview_window("player") {
+    let _ = win.close();
+  }
+
+  let script = format!("window.__PEERZERO_API_URL__ = '{}';", parsed_url.origin().ascii_serialization());
+
+  let builder = WebviewWindowBuilder::new(&app, "player", WebviewUrl::External(parsed_url))
+    .title("PeerZero Player")
+    .inner_size(1080.0, 720.0)
+    .min_inner_size(400.0, 225.0)
+    .resizable(true)
+    .center()
+    .initialization_script(script.as_str())
+    .transparent(true)
+    .title_bar_style(TitleBarStyle::Overlay)
+    .hidden_title(true);
+
+  match builder.build() {
+    Ok(window) => {
+      if let Ok(ns_window) = window.ns_window() {
+        mpv_render::set_window_background_black(ns_window);
+        if let Some(handle) = app.try_state::<mpv::MpvHandle>() {
+          if let Some(mpv) = handle.mpv.clone() {
+            if let Err(err) = mpv_render::attach(mpv, ns_window) {
+              log::error!("[mpv] attach render layer failed: {err}");
+            }
+          }
+        }
+      }
+      Ok(())
+    }
+    Err(e) => Err(e.to_string()),
+  }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+async fn open_player_window(_app: AppHandle, _url: String) -> Result<(), String> {
+  Err("Player is macOS only".to_string())
+}
+
+#[tauri::command]
+async fn toggle_pip(app: AppHandle, active: bool) -> Result<(), String> {
+  if let Some(window) = app.get_webview_window("player") {
+    let _ = window.set_always_on_top(active);
+    if active {
+      let _ = window.set_size(tauri::LogicalSize::new(400.0, 225.0));
+    } else {
+      let _ = window.set_size(tauri::LogicalSize::new(1080.0, 720.0));
+      let _ = window.center();
+    }
+  }
+  Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let builder = tauri::Builder::default()
@@ -278,13 +331,15 @@ pub fn run() {
     install_update,
     install_release,
     install_dmg,
+    open_player_window,
+    toggle_pip,
     mpv::mpv_load,
     mpv::mpv_stop,
     mpv::mpv_command,
     mpv::mpv_set_property,
   ]);
   #[cfg(not(target_os = "macos"))]
-  let builder = builder.invoke_handler(tauri::generate_handler![install_update, install_release]);
+  let builder = builder.invoke_handler(tauri::generate_handler![install_update, install_release, open_player_window, toggle_pip]);
 
   builder
     .setup(|app| {
