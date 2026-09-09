@@ -8,6 +8,8 @@ import {
   RiFullscreenExitLine,
   RiFullscreenLine,
   RiPauseFill,
+  RiPictureInPictureExitLine,
+  RiPictureInPictureLine,
   RiPlayFill,
   RiReplay10Line,
   RiSpeedUpLine,
@@ -71,6 +73,8 @@ export function MpvPlayer({
   const [muted, setMuted] = useState(false)
   const [rate, setRate] = useState(1)
   const [fs, setFs] = useState(false)
+  const [pip, setPip] = useState(false)
+  const [origGeom, setOrigGeom] = useState<{ size: any; pos: any } | null>(null)
   const [uiVisible, setUiVisible] = useState(true)
   const [speedOpen, setSpeedOpen] = useState(false)
   const [subOpen, setSubOpen] = useState(false)
@@ -82,6 +86,33 @@ export function MpvPlayer({
   // nothing until mounted on the client so the export does not crash (and the portal is client-only).
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+
+  const pipRef = useRef(false)
+  const origGeomRef = useRef(origGeom)
+  useEffect(() => {
+    pipRef.current = pip
+  }, [pip])
+  useEffect(() => {
+    origGeomRef.current = origGeom
+  }, [origGeom])
+
+  useEffect(() => {
+    return () => {
+      if (pipRef.current) {
+        void (async () => {
+          const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window")
+          const win = getCurrentWindow()
+          await win.setAlwaysOnTop(false)
+          if (origGeomRef.current) {
+            await win.setSize(origGeomRef.current.size)
+            await win.setPosition(origGeomRef.current.pos)
+          } else {
+            await win.setSize(new LogicalSize(1080, 720))
+          }
+        })().catch(() => {})
+      }
+    }
+  }, [])
 
   const playingRef = useRef(false)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -353,6 +384,32 @@ export function MpvPlayer({
     poke()
   }, [poke])
 
+  const togglePip = useCallback(() => {
+    void (async () => {
+      const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window")
+      const win = getCurrentWindow()
+      if (!pip) {
+        const currentSize = await win.outerSize()
+        const currentPos = await win.outerPosition()
+        setOrigGeom({ size: currentSize, pos: currentPos })
+
+        await win.setAlwaysOnTop(true)
+        await win.setSize(new LogicalSize(480, 270))
+        setPip(true)
+      } else {
+        await win.setAlwaysOnTop(false)
+        if (origGeom) {
+          await win.setSize(origGeom.size)
+          await win.setPosition(origGeom.pos)
+        } else {
+          await win.setSize(new LogicalSize(1080, 720))
+        }
+        setPip(false)
+      }
+    })().catch(() => {})
+    poke()
+  }, [pip, origGeom, poke])
+
   const onKey = useCallback(
     (e: React.KeyboardEvent) => {
       // Let app-global accelerators through (⌘K opens the command palette, etc.); without this the
@@ -383,6 +440,9 @@ export function MpvPlayer({
         case "m":
           toggleMute()
           break
+        case "p":
+          togglePip()
+          break
         case "f":
           toggleFs()
           break
@@ -391,7 +451,7 @@ export function MpvPlayer({
           break
       }
     },
-    [togglePlay, skip, changeVol, vol, toggleMute, toggleFs, onClose],
+    [togglePlay, skip, changeVol, vol, toggleMute, togglePip, toggleFs, onClose],
   )
 
   const played = dur > 0 ? `${(cur / dur) * 100}%` : "0%"
@@ -418,7 +478,11 @@ export function MpvPlayer({
     >
       {/* Transparent click surface over the video (mpv draws behind). Click toggles play. */}
       {/* biome-ignore lint/a11y: click-to-pause over the media area, keyboard handled on the root */}
-      <div className="absolute inset-0" onClick={togglePlay} />
+      <div
+        className="absolute inset-0"
+        onClick={togglePlay}
+        data-tauri-drag-region={pip ? true : undefined}
+      />
 
       {(buffering || !ready) && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
@@ -430,23 +494,27 @@ export function MpvPlayer({
       <div
         data-tauri-drag-region
         className={cn(
-          "absolute inset-x-0 top-0 z-30 flex items-start bg-gradient-to-b from-black/70 to-transparent px-6 py-8 pb-20 transition-opacity duration-200",
+          "absolute inset-x-0 top-0 z-30 flex items-start bg-gradient-to-b from-black/70 to-transparent transition-opacity duration-200",
+          pip ? "px-4 py-4 pb-10" : "px-6 py-8 pb-20",
           uiVisible ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
-        <button type="button" onClick={onClose} aria-label="Back" className={CTRL}>
-          <RiArrowLeftLine className="size-10" />
-        </button>
+        {!pip && (
+          <button type="button" onClick={onClose} aria-label="Back" className={CTRL}>
+            <RiArrowLeftLine className="size-10" />
+          </button>
+        )}
       </div>
 
       {/* Bottom controls. */}
       <div
         className={cn(
-          "absolute inset-x-0 bottom-0 z-30 flex flex-col gap-3 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-6 pt-24 pb-8 text-white transition-opacity duration-200",
+          "absolute inset-x-0 bottom-0 z-30 flex flex-col bg-gradient-to-t from-black/90 via-black/50 to-transparent text-white transition-opacity duration-200",
+          pip ? "gap-1 px-4 pt-12 pb-4" : "gap-3 px-6 pt-24 pb-8",
           uiVisible ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
-        <div className="flex items-center gap-4 pt-8">
+        <div className={cn("flex items-center", pip ? "gap-2 pt-2" : "gap-4 pt-8")}>
           {/* biome-ignore lint/a11y/noStaticElementInteractions: decorative hover preview; the range
               input below owns keyboard + pointer seeking, this only positions the timestamp bubble */}
           <div
@@ -484,20 +552,29 @@ export function MpvPlayer({
               </div>
             )}
           </div>
-          <span className="w-20 shrink-0 text-right text-lg text-white/90 tabular-nums">
+          <span
+            className={cn(
+              "shrink-0 text-right tabular-nums",
+              pip ? "w-12 text-sm text-white/80" : "w-20 text-lg text-white/90",
+            )}
+          >
             {fmtTime(dur - cur)}
           </span>
         </div>
 
         <div className="relative flex items-center justify-between">
-          <div className="flex items-center gap-8">
+          <div className={cn("flex items-center", pip ? "gap-4" : "gap-8")}>
             <button
               type="button"
               onClick={togglePlay}
               aria-label={playing ? "Pause" : "Play"}
               className={CTRL}
             >
-              {playing ? <RiPauseFill className="size-12" /> : <RiPlayFill className="size-12" />}
+              {playing ? (
+                <RiPauseFill className={pip ? "size-8" : "size-12"} />
+              ) : (
+                <RiPlayFill className={pip ? "size-8" : "size-12"} />
+              )}
             </button>
             <button
               type="button"
@@ -506,7 +583,7 @@ export function MpvPlayer({
               aria-label="Back 10 seconds"
               className={cn(CTRL, "disabled:pointer-events-none disabled:opacity-40")}
             >
-              <RiReplay10Line className="size-10" />
+              <RiReplay10Line className={pip ? "size-6" : "size-10"} />
             </button>
             <button
               type="button"
@@ -515,40 +592,44 @@ export function MpvPlayer({
               aria-label="Forward 10 seconds"
               className={cn(CTRL, "disabled:pointer-events-none disabled:opacity-40")}
             >
-              <RiForward10Line className="size-10" />
+              <RiForward10Line className={pip ? "size-6" : "size-10"} />
             </button>
-            <div className="group flex items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleMute}
-                aria-label={muted ? "Unmute" : "Mute"}
-                className={CTRL}
-              >
-                {muted || vol === 0 ? (
-                  <RiVolumeMuteFill className="size-10" />
-                ) : (
-                  <RiVolumeUpFill className="size-10" />
-                )}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={muted ? 0 : vol}
-                onChange={(e) => changeVol(Number(e.target.value))}
-                aria-label="Volume"
-                className="nf-volume w-0 opacity-0 transition-all group-hover:w-20 group-hover:opacity-100"
-              />
+            {!pip && (
+              <div className="group flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  aria-label={muted ? "Unmute" : "Mute"}
+                  className={CTRL}
+                >
+                  {muted || vol === 0 ? (
+                    <RiVolumeMuteFill className="size-10" />
+                  ) : (
+                    <RiVolumeUpFill className="size-10" />
+                  )}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={muted ? 0 : vol}
+                  onChange={(e) => changeVol(Number(e.target.value))}
+                  aria-label="Volume"
+                  className="nf-volume w-0 opacity-0 transition-all group-hover:w-20 group-hover:opacity-100"
+                />
+              </div>
+            )}
+          </div>
+
+          {!pip && (
+            <div className="pointer-events-none absolute left-1/2 max-w-[40%] -translate-x-1/2 truncate text-center text-xl font-semibold text-white">
+              {name}
             </div>
-          </div>
+          )}
 
-          <div className="pointer-events-none absolute left-1/2 max-w-[40%] -translate-x-1/2 truncate text-center text-xl font-semibold text-white">
-            {name}
-          </div>
-
-          <div className="flex items-center gap-8">
-            {subs.length > 0 && (
+          <div className={cn("flex items-center", pip ? "gap-4" : "gap-8")}>
+            {!pip && subs.length > 0 && (
               <div className="relative">
                 <button
                   type="button"
@@ -587,38 +668,52 @@ export function MpvPlayer({
                 )}
               </div>
             )}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setSpeedOpen((o) => !o)}
-                aria-label="Playback speed"
-                className={CTRL}
-              >
-                <RiSpeedUpLine className="size-10" />
-              </button>
-              {speedOpen && (
-                <div className="absolute right-0 bottom-10 min-w-32 overflow-hidden rounded-md bg-[#262626] py-1 text-sm shadow-lg">
-                  {SPEEDS.map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => changeRate(r)}
-                      className={cn(
-                        "block w-full cursor-pointer px-4 py-1.5 text-left hover:bg-white/10",
-                        rate === r && "text-[#e50914]",
-                      )}
-                    >
-                      {r === 1 ? "Normal" : `${r}x`}
-                    </button>
-                  ))}
-                </div>
+            {!pip && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSpeedOpen((o) => !o)}
+                  aria-label="Playback speed"
+                  className={CTRL}
+                >
+                  <RiSpeedUpLine className="size-10" />
+                </button>
+                {speedOpen && (
+                  <div className="absolute right-0 bottom-10 min-w-32 overflow-hidden rounded-md bg-[#262626] py-1 text-sm shadow-lg">
+                    {SPEEDS.map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => changeRate(r)}
+                        className={cn(
+                          "block w-full cursor-pointer px-4 py-1.5 text-left hover:bg-white/10",
+                          rate === r && "text-[#e50914]",
+                        )}
+                      >
+                        {r === 1 ? "Normal" : `${r}x`}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={togglePip}
+              aria-label="Picture in Picture"
+              className={CTRL}
+            >
+              {pip ? (
+                <RiPictureInPictureExitLine className={pip ? "size-6" : "size-10"} />
+              ) : (
+                <RiPictureInPictureLine className={pip ? "size-6" : "size-10"} />
               )}
-            </div>
+            </button>
             <button type="button" onClick={toggleFs} aria-label="Fullscreen" className={CTRL}>
               {fs ? (
-                <RiFullscreenExitLine className="size-10" />
+                <RiFullscreenExitLine className={pip ? "size-6" : "size-10"} />
               ) : (
-                <RiFullscreenLine className="size-10" />
+                <RiFullscreenLine className={pip ? "size-6" : "size-10"} />
               )}
             </button>
           </div>

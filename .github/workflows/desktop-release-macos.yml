@@ -122,6 +122,17 @@ jobs:
           mkdir -p desktop/src-tauri/binaries
           bun desktop/backend/build.ts "desktop/src-tauri/binaries/peerzero-backend-aarch64-apple-darwin"
 
+      - name: Check for signing key
+        id: check_key
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "skip_updater=--config '{\"bundle\":{\"createUpdaterArtifacts\":false}}'" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_updater=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build app + upload installer to the release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -136,4 +147,4 @@ jobs:
           tagName: ${{ inputs.tag }}
           # Bundle the prebuilt libmpv closure via Tauri's macOS.frameworks (fetch-libmpv writes it),
           # plus any channel overlay (canary passes src-tauri/canary.conf.json for the amber identity).
-          args: --target aarch64-apple-darwin --config src-tauri/libmpv.frameworks.json ${{ inputs.config && format('--config {0}', inputs.config) || '' }}
+          args: --target aarch64-apple-darwin --config src-tauri/libmpv.frameworks.json ${{ inputs.config && format('--config {0}', inputs.config) || '' }} ${{ steps.check_key.outputs.skip_updater }}
