@@ -349,6 +349,10 @@ export function DataGrid<T>({
   // the file tree, a menu).
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // The native mpv player opens over the (hidden, still mounted) grid and owns the keyboard
+      // (.mpv-active on <html>). Without this its keys would also reach a row still under the grid's
+      // cursor: P (picture in picture) would pause that torrent, Space select it, Backspace remove it.
+      if (document.documentElement.classList.contains("mpv-active")) return
       const el = e.target as HTMLElement | null
       const inField =
         !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)

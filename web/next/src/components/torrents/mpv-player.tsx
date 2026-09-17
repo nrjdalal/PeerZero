@@ -24,6 +24,7 @@ import { mpv } from "@/lib/mpv"
 // Pure track + time helpers live in @/lib/mpv-tracks so the subtitle default-pick order and time
 // formatting are unit-tested in isolation (tests/web-next/mpv-tracks.test.ts).
 import { fmtTime, label, type MpvTrack, pickDefaultSub, type Sub } from "@/lib/mpv-tracks"
+import { usePlayerWindow } from "@/lib/use-player-window"
 import { FINISHED_TAIL_S, useResumePosition } from "@/lib/use-resume-position"
 import { useScrubbing } from "@/lib/use-scrubbing"
 import { cn } from "@/lib/utils"
@@ -72,9 +73,9 @@ export function MpvPlayer({
   const [vol, setVol] = useState(1)
   const [muted, setMuted] = useState(false)
   const [rate, setRate] = useState(1)
-  const [fs, setFs] = useState(false)
-  const [pip, setPip] = useState(false)
-  const [origGeom, setOrigGeom] = useState<{ size: any; pos: any } | null>(null)
+  // Native fullscreen + picture-in-picture (the window itself becomes a floating mini player), both
+  // serialized through one queue in use-player-window.ts.
+  const { pip, fullscreen, togglePip, toggleFullscreen } = usePlayerWindow()
   const [uiVisible, setUiVisible] = useState(true)
   const [speedOpen, setSpeedOpen] = useState(false)
   const [subOpen, setSubOpen] = useState(false)
@@ -86,33 +87,6 @@ export function MpvPlayer({
   // nothing until mounted on the client so the export does not crash (and the portal is client-only).
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
-
-  const pipRef = useRef(false)
-  const origGeomRef = useRef(origGeom)
-  useEffect(() => {
-    pipRef.current = pip
-  }, [pip])
-  useEffect(() => {
-    origGeomRef.current = origGeom
-  }, [origGeom])
-
-  useEffect(() => {
-    return () => {
-      if (pipRef.current) {
-        void (async () => {
-          const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window")
-          const win = getCurrentWindow()
-          await win.setAlwaysOnTop(false)
-          if (origGeomRef.current) {
-            await win.setSize(origGeomRef.current.size)
-            await win.setPosition(origGeomRef.current.pos)
-          } else {
-            await win.setSize(new LogicalSize(1080, 720))
-          }
-        })().catch(() => {})
-      }
-    }
-  }, [])
 
   const playingRef = useRef(false)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -373,42 +347,20 @@ export function MpvPlayer({
     [poke],
   )
   const toggleFs = useCallback(() => {
-    // WKWebView does not enable the HTML Fullscreen API, so toggle the native Tauri window instead.
-    void (async () => {
-      const { getCurrentWindow } = await import("@tauri-apps/api/window")
-      const win = getCurrentWindow()
-      const next = !(await win.isFullscreen())
-      await win.setFullscreen(next)
-      setFs(next)
-    })().catch(() => {})
+    toggleFullscreen()
     poke()
-  }, [poke])
+  }, [toggleFullscreen, poke])
 
-  const togglePip = useCallback(() => {
-    void (async () => {
-      const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window")
-      const win = getCurrentWindow()
-      if (!pip) {
-        const currentSize = await win.outerSize()
-        const currentPos = await win.outerPosition()
-        setOrigGeom({ size: currentSize, pos: currentPos })
-
-        await win.setAlwaysOnTop(true)
-        await win.setSize(new LogicalSize(480, 270))
-        setPip(true)
-      } else {
-        await win.setAlwaysOnTop(false)
-        if (origGeom) {
-          await win.setSize(origGeom.size)
-          await win.setPosition(origGeom.pos)
-        } else {
-          await win.setSize(new LogicalSize(1080, 720))
-        }
-        setPip(false)
-      }
-    })().catch(() => {})
+  const onTogglePip = useCallback(() => {
+    // The mini player has no room for the subtitle/speed menus. Its layout also drops controls that may
+    // hold focus (Back, volume, the menus, fullscreen); a removed focused control drops focus to <body>,
+    // where the keyboard controls on the root no longer fire, so keep focus on the root.
+    setSubOpen(false)
+    setSpeedOpen(false)
+    rootRef.current?.focus({ preventScroll: true })
+    togglePip()
     poke()
-  }, [pip, origGeom, poke])
+  }, [togglePip, poke])
 
   const onKey = useCallback(
     (e: React.KeyboardEvent) => {
@@ -440,18 +392,20 @@ export function MpvPlayer({
         case "m":
           toggleMute()
           break
+        // Holding P or F would otherwise flip the window mode on every key repeat.
         case "p":
-          togglePip()
+          if (!e.repeat) onTogglePip()
           break
         case "f":
-          toggleFs()
+          // A no-op in PiP (see toggleFullscreen): exit the mini player first.
+          if (!e.repeat) toggleFs()
           break
         case "Escape":
           onClose()
           break
       }
     },
-    [togglePlay, skip, changeVol, vol, toggleMute, togglePip, toggleFs, onClose],
+    [togglePlay, skip, changeVol, vol, toggleMute, onTogglePip, toggleFs, onClose],
   )
 
   const played = dur > 0 ? `${(cur / dur) * 100}%` : "0%"
@@ -476,12 +430,16 @@ export function MpvPlayer({
         !uiVisible && playing && "cursor-none",
       )}
     >
-      {/* Transparent click surface over the video (mpv draws behind). Click toggles play. */}
+      {/* Transparent click surface over the video (mpv draws behind). Click toggles play. In PiP the
+          top drag band is tiny and hides with the controls, so the video becomes the window's drag
+          handle instead, like a native PiP window (the bottom controls' empty space too, below). A
+          press there starts a window drag, so it does not also toggle play; play/pause stays on the
+          button and Space. */}
       {/* biome-ignore lint/a11y: click-to-pause over the media area, keyboard handled on the root */}
       <div
         className="absolute inset-0"
-        onClick={togglePlay}
-        data-tauri-drag-region={pip ? true : undefined}
+        onClick={pip ? undefined : togglePlay}
+        data-tauri-drag-region={pip || undefined}
       />
 
       {(buffering || !ready) && (
@@ -490,7 +448,9 @@ export function MpvPlayer({
         </div>
       )}
 
-      {/* Top scrim + back. data-tauri-drag-region makes this band the window drag handle on desktop. */}
+      {/* Top scrim + back. data-tauri-drag-region makes this band the window drag handle on desktop. In
+          PiP there is no back arrow: on the small window the traffic lights sit right there, and the
+          PiP button (or Esc) is the way out. */}
       <div
         data-tauri-drag-region
         className={cn(
@@ -506,8 +466,10 @@ export function MpvPlayer({
         )}
       </div>
 
-      {/* Bottom controls. */}
+      {/* Bottom controls. In PiP they cover the lower half of the small window, so their empty space
+          (not the buttons or the scrubber, which drag.js leaves clickable) drags the window too. */}
       <div
+        data-tauri-drag-region={pip ? "deep" : undefined}
         className={cn(
           "absolute inset-x-0 bottom-0 z-30 flex flex-col bg-gradient-to-t from-black/90 via-black/50 to-transparent text-white transition-opacity duration-200",
           pip ? "gap-1 px-4 pt-12 pb-4" : "gap-3 px-6 pt-24 pb-8",
@@ -554,8 +516,8 @@ export function MpvPlayer({
           </div>
           <span
             className={cn(
-              "shrink-0 text-right tabular-nums",
-              pip ? "w-12 text-sm text-white/80" : "w-20 text-lg text-white/90",
+              "shrink-0 text-right text-white/90 tabular-nums",
+              pip ? "w-16 text-sm" : "w-20 text-lg",
             )}
           >
             {fmtTime(dur - cur)}
@@ -699,23 +661,25 @@ export function MpvPlayer({
             )}
             <button
               type="button"
-              onClick={togglePip}
-              aria-label="Picture in Picture"
+              onClick={onTogglePip}
+              aria-label={pip ? "Exit picture in picture" : "Picture in picture"}
               className={CTRL}
             >
               {pip ? (
-                <RiPictureInPictureExitLine className={pip ? "size-6" : "size-10"} />
+                <RiPictureInPictureExitLine className="size-6" />
               ) : (
-                <RiPictureInPictureLine className={pip ? "size-6" : "size-10"} />
+                <RiPictureInPictureLine className="size-10" />
               )}
             </button>
-            <button type="button" onClick={toggleFs} aria-label="Fullscreen" className={CTRL}>
-              {fs ? (
-                <RiFullscreenExitLine className={pip ? "size-6" : "size-10"} />
-              ) : (
-                <RiFullscreenLine className={pip ? "size-6" : "size-10"} />
-              )}
-            </button>
+            {!pip && (
+              <button type="button" onClick={toggleFs} aria-label="Fullscreen" className={CTRL}>
+                {fullscreen ? (
+                  <RiFullscreenExitLine className="size-10" />
+                ) : (
+                  <RiFullscreenLine className="size-10" />
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

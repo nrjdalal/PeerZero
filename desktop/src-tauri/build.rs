@@ -11,6 +11,7 @@ fn main() {
       "mpv_stop",
       "mpv_command",
       "mpv_set_property",
+      "set_fullscreen_allowed",
     ])),
   )
   .expect("failed to run tauri-build");

@@ -22,11 +22,12 @@
     "allow-mpv-stop",
     "allow-mpv-command",
     "allow-mpv-set-property",
+    "allow-set-fullscreen-allowed",
     "core:window:allow-set-always-on-top",
+    "core:window:allow-set-visible-on-all-workspaces",
+    "core:window:allow-set-maximizable",
+    "core:window:allow-set-min-size",
     "core:window:allow-set-size",
-    "core:window:allow-outer-size",
-    "core:window:allow-set-position",
-    "core:window:allow-outer-position",
-    "core:window:allow-current-monitor"
+    "core:window:allow-set-position"
   ]
 }
