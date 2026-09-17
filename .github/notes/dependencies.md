@@ -25,73 +25,49 @@ Delete a block (and its `overrides` entry) once the parent ships a version that 
 - **Exit criteria:** Remove the `shell-quote` override once `concurrently` ships a release that pins
   `shell-quote >= 1.9.0` (or drops it).
 
-### fast-uri → ^3.1.4
+### fast-uri → ^3.1.6
 
-- **Advisory:** [GHSA-v2hh-gcrm-f6hx](https://github.com/advisories/GHSA-v2hh-gcrm-f6hx) - fast-uri host
-  confusion via a literal backslash authority delimiter (high). Affects `fast-uri >=3.0.0 <=3.1.3`;
-  patched in `3.1.4`.
+- **Advisory:** fast-uri host confusion and SSRF via URI normalization (all high), affecting
+  `fast-uri >=3.0.0 <3.1.6` and patched in `3.1.6`:
+  [GHSA-5jgf-p345-68v8](https://github.com/advisories/GHSA-5jgf-p345-68v8) (skipped IDN
+  canonicalization on scheme-relative references),
+  [GHSA-f65p-4m7j-42xc](https://github.com/advisories/GHSA-f65p-4m7j-42xc) (malformed IPv6
+  normalization), [GHSA-fph4-wmhf-6fwf](https://github.com/advisories/GHSA-fph4-wmhf-6fwf) (repeated
+  hostname percent-decoding), [GHSA-jqff-g426-hqxp](https://github.com/advisories/GHSA-jqff-g426-hqxp)
+  (percent-encoded scheme normalization), and
+  [GHSA-7p8r-x3mc-p8w7](https://github.com/advisories/GHSA-7p8r-x3mc-p8w7) (backslash authority
+  introducer, `<3.1.5`). The floor was raised from `^3.1.4` (which covered
+  [GHSA-v2hh-gcrm-f6hx](https://github.com/advisories/GHSA-v2hh-gcrm-f6hx), `<=3.1.3`) when these landed.
 - **Path:** `@commitlint/cli > @commitlint/load > @commitlint/config-validator > ajv@8.20.0 > fast-uri`
   and `@web/next > shadcn@4.13.0 > @modelcontextprotocol/sdk > ajv > fast-uri` (both dev-only).
 - **Why an override:** `ajv@8.20.0` is the latest 8.x and requires `fast-uri ^3.0.1`; the vulnerable
   range sits inside that caret and no newer `ajv` / `@commitlint/*` / `shadcn` release moves off it.
-  `fast-uri@4.x` is a major bump `ajv` does not accept, so pinning the 3.x line to the patched `^3.1.4`
-  is the narrowest fix.
+  `fast-uri@4.x` is a major bump `ajv` does not accept, so pinning the 3.x line to the patched `^3.1.6`
+  is the narrowest fix (currently resolves `3.1.8`).
 - **Risk:** Low. Both consumers (commitlint config loading, the shadcn CLI) are dev-only and parse our
   own trusted schema/registry URLs, never attacker input. The override is a genuine patch, not a suppression.
 - **Exit criteria:** Remove the `fast-uri` override once `ajv` (via `@commitlint/*` and `shadcn`) ships a
-  release that requires `fast-uri >= 3.1.4`.
+  release that requires `fast-uri >= 3.1.6`.
 
-### sharp → ^0.35.3
+### brace-expansion → ^5.0.9
 
-- **Advisory:** [GHSA-f88m-g3jw-g9cj](https://github.com/advisories/GHSA-f88m-g3jw-g9cj) - sharp inherited
-  libvips vulnerabilities (CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591) (high). Affects
-  `sharp <0.35.0`; patched in `0.35.0`.
-- **Path:** `@web/next > next@16.2.10 > sharp@0.34.5` (optional). Our own direct `sharp` already uses the
-  patched line (catalog `^0.35.3`); only next's bundled optional copy pulled the vulnerable `0.34.5`.
-- **Why an override:** `next@16.2.10` is the latest release and declares its optional `sharp` as `^0.34.5`
-  (`>=0.34.5 <0.35.0`), so no next bump lifts it to the patched libvips. Overriding `sharp` to `^0.35.3`
-  forces next's optional copy to the same patched version our direct dependency already resolves to.
-- **Risk:** Low. sharp 0.35.x is API-compatible with next's image-optimization usage (verified by
-  `bun run build`); the 0.34 -> 0.35 change is the libvips bump that carries the fix. Local-only app.
-- **Exit criteria:** Remove the `sharp` override once `next` ships a release whose optional `sharp`
-  requirement includes `>= 0.35.0`.
-
-### postcss → ^8.5.18
-
-- **Advisory:** [GHSA-r28c-9q8g-f849](https://github.com/advisories/GHSA-r28c-9q8g-f849) - PostCSS path
-  traversal in previous-source-map auto-loading (`sourceMappingURL`) leading to arbitrary `.map` file
-  disclosure (high). Affects `postcss <= 8.5.17`; patched in `8.5.18`. Supersedes
-  [GHSA-6g55-p6wh-862q](https://github.com/advisories/GHSA-6g55-p6wh-862q) (same class, affected
-  `<= 8.5.11`), which this floor also covers - the override floor was raised from `^8.5.16` to `^8.5.18`
-  when the newer advisory landed.
-- **Path:** `@web/next > next@16.2.11 > postcss@8.4.31`. The rest of the tree (our direct
-  `@tailwindcss/postcss`, `shadcn`) already resolves a patched 8.5.x; only next's exact-pinned copy
-  pulled the vulnerable `8.4.31`.
-- **Why an override:** `next@16.2.11` is the latest release and **exact-pins** `postcss: "8.4.31"` (not a
-  range), so no next bump lifts it. Overriding `postcss` to `^8.5.18` forces next's copy to the same
-  patched line the rest of the tree already resolves to (currently `8.5.24`).
-- **Risk:** Low. postcss 8.5.x is API-compatible with next's CSS pipeline (verified by `bun run build`);
-  the 8.4 -> 8.5 change is a minor within the same major that carries the fix. Local-only app.
-- **Exit criteria:** Remove the `postcss` override once `next` ships a release that pins
-  `postcss >= 8.5.18`.
-
-### brace-expansion → ^5.0.8
-
-- **Advisory:** [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg) -
-  brace-expansion: denial of service via unbounded expansion length causing an out-of-memory process
-  crash (high). Affects `brace-expansion <= 5.0.7`; patched in `5.0.8`.
-- **Path:** `ts-morph > @ts-morph/common@0.29.0 > minimatch@10.2.5 > brace-expansion@5.0.7` (dev-only).
+- **Advisory:** [GHSA-rgw5-rvv9-x895](https://github.com/advisories/GHSA-rgw5-rvv9-x895) -
+  brace-expansion: denial of service via unbounded intermediate arrays, bypassing the CVE-2026-14257
+  mitigation (high). Affects `brace-expansion >=4.0.0 <5.0.9`; patched in `5.0.9`. Supersedes
+  [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg) (same class, `<= 5.0.7`),
+  which this floor also covers - the override floor was raised from `^5.0.8` when the newer advisory
+  landed.
+- **Path:** `ts-morph > @ts-morph/common@0.29.0 > minimatch > brace-expansion` (dev-only).
 - **Why an override:** `ts-morph@28.0.0` is the latest release and `@ts-morph/common@0.29.0` requires
-  `minimatch: "^10.0.1"`, which the lockfile had resolved to `10.2.5` - and `10.2.5` requires
-  `brace-expansion: "^5.0.5"`, so the vulnerable `5.0.7` sits inside its range. `minimatch@10.2.6` does
-  require the patched `^5.0.8`, but bun keeps the already-resolved nested copy, so no parent bump
-  reliably lifts it. Pinning `brace-expansion` to `^5.0.8` is the narrowest deterministic fix and
-  collapses the tree back to a single copy.
+  `minimatch: "^10.0.1"`. Even the latest `minimatch@10.2.6` only requires `brace-expansion: "^5.0.8"`,
+  so the vulnerable `5.0.8` sits inside every parent's range and no parent bump can lift it. Pinning
+  `brace-expansion` to `^5.0.9` is the narrowest deterministic fix and keeps the tree on a single copy
+  (currently resolves `5.0.12`).
 - **Risk:** Low. `brace-expansion` is dev-only here: it reaches us through `ts-morph`'s glob matching,
   which only ever expands our own source-file patterns, never attacker-controlled input. The override is
   a genuine patch, not a suppression.
-- **Exit criteria:** Remove the `brace-expansion` override once `@ts-morph/common` (via `ts-morph`) ships
-  a release resolving `minimatch >= 10.2.6`, which itself requires `brace-expansion >= 5.0.8`.
+- **Exit criteria:** Remove the `brace-expansion` override once `minimatch` (via `@ts-morph/common` /
+  `ts-morph`) ships a release that requires `brace-expansion >= 5.0.9`.
 
 ## Accepted advisories (`--ignore`)
 

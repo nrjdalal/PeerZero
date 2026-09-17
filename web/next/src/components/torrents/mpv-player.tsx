@@ -8,6 +8,8 @@ import {
   RiFullscreenExitLine,
   RiFullscreenLine,
   RiPauseFill,
+  RiPictureInPictureExitLine,
+  RiPictureInPictureLine,
   RiPlayFill,
   RiReplay10Line,
   RiSpeedUpLine,
@@ -22,6 +24,7 @@ import { mpv } from "@/lib/mpv"
 // Pure track + time helpers live in @/lib/mpv-tracks so the subtitle default-pick order and time
 // formatting are unit-tested in isolation (tests/web-next/mpv-tracks.test.ts).
 import { fmtTime, label, type MpvTrack, pickDefaultSub, type Sub } from "@/lib/mpv-tracks"
+import { usePlayerWindow } from "@/lib/use-player-window"
 import { FINISHED_TAIL_S, useResumePosition } from "@/lib/use-resume-position"
 import { useScrubbing } from "@/lib/use-scrubbing"
 import { cn } from "@/lib/utils"
@@ -70,7 +73,9 @@ export function MpvPlayer({
   const [vol, setVol] = useState(1)
   const [muted, setMuted] = useState(false)
   const [rate, setRate] = useState(1)
-  const [fs, setFs] = useState(false)
+  // Native fullscreen + picture-in-picture (the window itself becomes a floating mini player), both
+  // serialized through one queue in use-player-window.ts.
+  const { pip, fullscreen, togglePip, toggleFullscreen } = usePlayerWindow()
   const [uiVisible, setUiVisible] = useState(true)
   const [speedOpen, setSpeedOpen] = useState(false)
   const [subOpen, setSubOpen] = useState(false)
@@ -342,16 +347,20 @@ export function MpvPlayer({
     [poke],
   )
   const toggleFs = useCallback(() => {
-    // WKWebView does not enable the HTML Fullscreen API, so toggle the native Tauri window instead.
-    void (async () => {
-      const { getCurrentWindow } = await import("@tauri-apps/api/window")
-      const win = getCurrentWindow()
-      const next = !(await win.isFullscreen())
-      await win.setFullscreen(next)
-      setFs(next)
-    })().catch(() => {})
+    toggleFullscreen()
     poke()
-  }, [poke])
+  }, [toggleFullscreen, poke])
+
+  const onTogglePip = useCallback(() => {
+    // The mini player has no room for the subtitle/speed menus. Its layout also drops controls that may
+    // hold focus (Back, volume, the menus, fullscreen); a removed focused control drops focus to <body>,
+    // where the keyboard controls on the root no longer fire, so keep focus on the root.
+    setSubOpen(false)
+    setSpeedOpen(false)
+    rootRef.current?.focus({ preventScroll: true })
+    togglePip()
+    poke()
+  }, [togglePip, poke])
 
   const onKey = useCallback(
     (e: React.KeyboardEvent) => {
@@ -383,15 +392,20 @@ export function MpvPlayer({
         case "m":
           toggleMute()
           break
+        // Holding P or F would otherwise flip the window mode on every key repeat.
+        case "p":
+          if (!e.repeat) onTogglePip()
+          break
         case "f":
-          toggleFs()
+          // A no-op in PiP (see toggleFullscreen): exit the mini player first.
+          if (!e.repeat) toggleFs()
           break
         case "Escape":
           onClose()
           break
       }
     },
-    [togglePlay, skip, changeVol, vol, toggleMute, toggleFs, onClose],
+    [togglePlay, skip, changeVol, vol, toggleMute, onTogglePip, toggleFs, onClose],
   )
 
   const played = dur > 0 ? `${(cur / dur) * 100}%` : "0%"
@@ -416,9 +430,17 @@ export function MpvPlayer({
         !uiVisible && playing && "cursor-none",
       )}
     >
-      {/* Transparent click surface over the video (mpv draws behind). Click toggles play. */}
+      {/* Transparent click surface over the video (mpv draws behind). Click toggles play. In PiP the
+          top drag band is tiny and hides with the controls, so the video becomes the window's drag
+          handle instead, like a native PiP window (the bottom controls' empty space too, below). A
+          press there starts a window drag, so it does not also toggle play; play/pause stays on the
+          button and Space. */}
       {/* biome-ignore lint/a11y: click-to-pause over the media area, keyboard handled on the root */}
-      <div className="absolute inset-0" onClick={togglePlay} />
+      <div
+        className="absolute inset-0"
+        onClick={pip ? undefined : togglePlay}
+        data-tauri-drag-region={pip || undefined}
+      />
 
       {(buffering || !ready) && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
@@ -426,27 +448,35 @@ export function MpvPlayer({
         </div>
       )}
 
-      {/* Top scrim + back. data-tauri-drag-region makes this band the window drag handle on desktop. */}
+      {/* Top scrim + back. data-tauri-drag-region makes this band the window drag handle on desktop. In
+          PiP there is no back arrow: on the small window the traffic lights sit right there, and the
+          PiP button (or Esc) is the way out. */}
       <div
         data-tauri-drag-region
         className={cn(
-          "absolute inset-x-0 top-0 z-30 flex items-start bg-gradient-to-b from-black/70 to-transparent px-6 py-8 pb-20 transition-opacity duration-200",
+          "absolute inset-x-0 top-0 z-30 flex items-start bg-gradient-to-b from-black/70 to-transparent transition-opacity duration-200",
+          pip ? "px-4 py-4 pb-10" : "px-6 py-8 pb-20",
           uiVisible ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
-        <button type="button" onClick={onClose} aria-label="Back" className={CTRL}>
-          <RiArrowLeftLine className="size-10" />
-        </button>
+        {!pip && (
+          <button type="button" onClick={onClose} aria-label="Back" className={CTRL}>
+            <RiArrowLeftLine className="size-10" />
+          </button>
+        )}
       </div>
 
-      {/* Bottom controls. */}
+      {/* Bottom controls. In PiP they cover the lower half of the small window, so their empty space
+          (not the buttons or the scrubber, which drag.js leaves clickable) drags the window too. */}
       <div
+        data-tauri-drag-region={pip ? "deep" : undefined}
         className={cn(
-          "absolute inset-x-0 bottom-0 z-30 flex flex-col gap-3 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-6 pt-24 pb-8 text-white transition-opacity duration-200",
+          "absolute inset-x-0 bottom-0 z-30 flex flex-col bg-gradient-to-t from-black/90 via-black/50 to-transparent text-white transition-opacity duration-200",
+          pip ? "gap-1 px-4 pt-12 pb-4" : "gap-3 px-6 pt-24 pb-8",
           uiVisible ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
-        <div className="flex items-center gap-4 pt-8">
+        <div className={cn("flex items-center", pip ? "gap-2 pt-2" : "gap-4 pt-8")}>
           {/* biome-ignore lint/a11y/noStaticElementInteractions: decorative hover preview; the range
               input below owns keyboard + pointer seeking, this only positions the timestamp bubble */}
           <div
@@ -484,20 +514,29 @@ export function MpvPlayer({
               </div>
             )}
           </div>
-          <span className="w-20 shrink-0 text-right text-lg text-white/90 tabular-nums">
+          <span
+            className={cn(
+              "shrink-0 text-right text-white/90 tabular-nums",
+              pip ? "w-16 text-sm" : "w-20 text-lg",
+            )}
+          >
             {fmtTime(dur - cur)}
           </span>
         </div>
 
         <div className="relative flex items-center justify-between">
-          <div className="flex items-center gap-8">
+          <div className={cn("flex items-center", pip ? "gap-4" : "gap-8")}>
             <button
               type="button"
               onClick={togglePlay}
               aria-label={playing ? "Pause" : "Play"}
               className={CTRL}
             >
-              {playing ? <RiPauseFill className="size-12" /> : <RiPlayFill className="size-12" />}
+              {playing ? (
+                <RiPauseFill className={pip ? "size-8" : "size-12"} />
+              ) : (
+                <RiPlayFill className={pip ? "size-8" : "size-12"} />
+              )}
             </button>
             <button
               type="button"
@@ -506,7 +545,7 @@ export function MpvPlayer({
               aria-label="Back 10 seconds"
               className={cn(CTRL, "disabled:pointer-events-none disabled:opacity-40")}
             >
-              <RiReplay10Line className="size-10" />
+              <RiReplay10Line className={pip ? "size-6" : "size-10"} />
             </button>
             <button
               type="button"
@@ -515,40 +554,44 @@ export function MpvPlayer({
               aria-label="Forward 10 seconds"
               className={cn(CTRL, "disabled:pointer-events-none disabled:opacity-40")}
             >
-              <RiForward10Line className="size-10" />
+              <RiForward10Line className={pip ? "size-6" : "size-10"} />
             </button>
-            <div className="group flex items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleMute}
-                aria-label={muted ? "Unmute" : "Mute"}
-                className={CTRL}
-              >
-                {muted || vol === 0 ? (
-                  <RiVolumeMuteFill className="size-10" />
-                ) : (
-                  <RiVolumeUpFill className="size-10" />
-                )}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={muted ? 0 : vol}
-                onChange={(e) => changeVol(Number(e.target.value))}
-                aria-label="Volume"
-                className="nf-volume w-0 opacity-0 transition-all group-hover:w-20 group-hover:opacity-100"
-              />
+            {!pip && (
+              <div className="group flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  aria-label={muted ? "Unmute" : "Mute"}
+                  className={CTRL}
+                >
+                  {muted || vol === 0 ? (
+                    <RiVolumeMuteFill className="size-10" />
+                  ) : (
+                    <RiVolumeUpFill className="size-10" />
+                  )}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={muted ? 0 : vol}
+                  onChange={(e) => changeVol(Number(e.target.value))}
+                  aria-label="Volume"
+                  className="nf-volume w-0 opacity-0 transition-all group-hover:w-20 group-hover:opacity-100"
+                />
+              </div>
+            )}
+          </div>
+
+          {!pip && (
+            <div className="pointer-events-none absolute left-1/2 max-w-[40%] -translate-x-1/2 truncate text-center text-xl font-semibold text-white">
+              {name}
             </div>
-          </div>
+          )}
 
-          <div className="pointer-events-none absolute left-1/2 max-w-[40%] -translate-x-1/2 truncate text-center text-xl font-semibold text-white">
-            {name}
-          </div>
-
-          <div className="flex items-center gap-8">
-            {subs.length > 0 && (
+          <div className={cn("flex items-center", pip ? "gap-4" : "gap-8")}>
+            {!pip && subs.length > 0 && (
               <div className="relative">
                 <button
                   type="button"
@@ -587,40 +630,56 @@ export function MpvPlayer({
                 )}
               </div>
             )}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setSpeedOpen((o) => !o)}
-                aria-label="Playback speed"
-                className={CTRL}
-              >
-                <RiSpeedUpLine className="size-10" />
-              </button>
-              {speedOpen && (
-                <div className="absolute right-0 bottom-10 min-w-32 overflow-hidden rounded-md bg-[#262626] py-1 text-sm shadow-lg">
-                  {SPEEDS.map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => changeRate(r)}
-                      className={cn(
-                        "block w-full cursor-pointer px-4 py-1.5 text-left hover:bg-white/10",
-                        rate === r && "text-[#e50914]",
-                      )}
-                    >
-                      {r === 1 ? "Normal" : `${r}x`}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button type="button" onClick={toggleFs} aria-label="Fullscreen" className={CTRL}>
-              {fs ? (
-                <RiFullscreenExitLine className="size-10" />
+            {!pip && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSpeedOpen((o) => !o)}
+                  aria-label="Playback speed"
+                  className={CTRL}
+                >
+                  <RiSpeedUpLine className="size-10" />
+                </button>
+                {speedOpen && (
+                  <div className="absolute right-0 bottom-10 min-w-32 overflow-hidden rounded-md bg-[#262626] py-1 text-sm shadow-lg">
+                    {SPEEDS.map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => changeRate(r)}
+                        className={cn(
+                          "block w-full cursor-pointer px-4 py-1.5 text-left hover:bg-white/10",
+                          rate === r && "text-[#e50914]",
+                        )}
+                      >
+                        {r === 1 ? "Normal" : `${r}x`}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={onTogglePip}
+              aria-label={pip ? "Exit picture in picture" : "Picture in picture"}
+              className={CTRL}
+            >
+              {pip ? (
+                <RiPictureInPictureExitLine className="size-6" />
               ) : (
-                <RiFullscreenLine className="size-10" />
+                <RiPictureInPictureLine className="size-10" />
               )}
             </button>
+            {!pip && (
+              <button type="button" onClick={toggleFs} aria-label="Fullscreen" className={CTRL}>
+                {fullscreen ? (
+                  <RiFullscreenExitLine className="size-10" />
+                ) : (
+                  <RiFullscreenLine className="size-10" />
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

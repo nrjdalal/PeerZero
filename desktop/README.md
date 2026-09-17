@@ -71,7 +71,9 @@ On desktop, video plays through **native [mpv](https://mpv.io)** (via `libmpv`) 
 VLC/IINA-class playback: hardware decode of every codec and every embedded subtitle format.
 mpv runs headless (`vo=libmpv`) and is rendered through the libmpv **OpenGL render API** into a
 `CAOpenGLLayer` inserted **behind the transparent webview** (`src-tauri/src/mpv_render.rs`,
-macOS); the HTML control overlay (`web/.../mpv-player.tsx`) composites on top. The Rust side
+macOS); the HTML control overlay (`web/.../mpv-player.tsx`) composites on top. The layer
+reallocates its drawable on every resize (fullscreen, picture-in-picture, a user resize), so mpv
+always renders at the window's current size and aspect. The Rust side
 (`src-tauri/src/mpv.rs`) exposes `mpv_*` commands + re-emits mpv properties as `mpv://property`
 events. There is no in-app player off macOS: the Windows/Linux builds and a plain browser are
 download-only (a playable file reveals on disk). Those builds link no libmpv at all - the deps are

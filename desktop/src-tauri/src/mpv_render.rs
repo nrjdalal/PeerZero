@@ -15,7 +15,7 @@
 
 use std::cell::RefCell;
 use std::ffi::{c_void, CString};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use libmpv2::{
@@ -35,9 +35,24 @@ use objc2_quartz_core::CAOpenGLLayer;
 // the webview's own repaint (leaving the shell half-drawn) when the player closes. The overlay brackets
 // playback with mpv_load / mpv_stop, which flip this: draw only while a file is actually playing.
 static RENDER_ACTIVE: AtomicBool = AtomicBool::new(false);
+// The one video layer (attached once, kept for the app's life), as an address so it can be reached
+// from set_render_active. 0 until attach() runs.
+static LAYER: AtomicUsize = AtomicUsize::new(0);
 
 pub fn set_render_active(active: bool) {
     RENDER_ACTIVE.store(active, Ordering::Relaxed);
+    let layer = LAYER.load(Ordering::Relaxed);
+    if active && layer != 0 {
+        // A resize while idle still asks the layer to display (needsDisplayOnBoundsChange, below), and
+        // that display, refused by canDrawInCGLContext, leaves the async draw loop idle for seconds, so a
+        // player opened after it stayed black. Ask for a display now that drawing is allowed again.
+        unsafe {
+            let _: () = msg_send![layer as *mut AnyObject,
+                performSelectorOnMainThread: objc2::sel!(setNeedsDisplay),
+                withObject: std::ptr::null::<AnyObject>(),
+                waitUntilDone: false];
+        }
+    }
 }
 
 // GL enums we read in draw() to target the layer's real backing FBO (per IINA / render_gl.h).
@@ -216,6 +231,11 @@ impl PzVideoLayer {
         // time (redrawing the last if none is new). This decouples our render cadence from mpv's frame
         // timing, which is what keeps playback smooth (frame-driven approaches starved the loop).
         this.setAsynchronous(true);
+        // Reallocate the drawable when the layer resizes (fullscreen, picture-in-picture, a user resize).
+        // Asynchronous drawing alone never does: the GL viewport stayed at the size of the first draw,
+        // so mpv kept letterboxing for the old aspect and CA stretched that stale frame over the new
+        // bounds (a 16:9 video in the 16:9 PiP window showed black bars and a squashed picture).
+        this.setNeedsDisplayOnBoundsChange(true);
         this
     }
 }
@@ -256,6 +276,7 @@ pub fn attach(mpv: Arc<Mpv>, ns_window: *mut c_void) -> Result<(), String> {
         let _: () = msg_send![content_layer, insertSublayer: layer_ptr, atIndex: 0u32];
 
         // Keep the layer alive for the life of the app (it drives rendering via asynchronous CA draws).
+        LAYER.store(layer_ptr as usize, Ordering::Relaxed);
         std::mem::forget(layer);
     }
     Ok(())
