@@ -216,6 +216,11 @@ impl PzVideoLayer {
         // time (redrawing the last if none is new). This decouples our render cadence from mpv's frame
         // timing, which is what keeps playback smooth (frame-driven approaches starved the loop).
         this.setAsynchronous(true);
+        // Reallocate the drawable when the layer resizes (fullscreen, picture-in-picture, a user resize).
+        // Asynchronous drawing alone never does: the GL viewport stayed at the size of the first draw,
+        // so mpv kept letterboxing for the old aspect and CA stretched that stale frame over the new
+        // bounds (a 16:9 video in the 16:9 PiP window showed black bars and a squashed picture).
+        this.setNeedsDisplayOnBoundsChange(true);
         this
     }
 }
