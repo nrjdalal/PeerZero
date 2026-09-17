@@ -15,6 +15,9 @@ use tauri_plugin_shell::ShellExt;
 mod mpv;
 #[cfg(target_os = "macos")]
 mod mpv_render;
+// The player's picture-in-picture guard: forbid native fullscreen while the window is the mini player.
+#[cfg(target_os = "macos")]
+mod pip;
 // Native launch splash drawn on the main window itself (see splash.rs). macOS only: it exists to cover
 // the transparent WKWebView's load, which is a macOS-specific paint behaviour.
 #[cfg(target_os = "macos")]
@@ -282,6 +285,7 @@ pub fn run() {
     mpv::mpv_stop,
     mpv::mpv_command,
     mpv::mpv_set_property,
+    pip::set_fullscreen_allowed,
   ]);
   #[cfg(not(target_os = "macos"))]
   let builder = builder.invoke_handler(tauri::generate_handler![install_update, install_release]);

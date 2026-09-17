@@ -62,9 +62,12 @@ manual check, and this suite is its automated regression coverage.
 
 `tests/web-next/mpv-tracks.test.ts` unit-tests the native mpv player's pure logic
 (`web/next/src/lib/mpv-tracks.ts`): the subtitle default-pick preference order (CC > SDH > Default >
-Forced, English-only, never forcing a foreign sub) and the seconds-based time formatting. That
-module is dependency-free by design, so the suite imports it by relative path and needs no fixture,
-engine, or bunfig - it runs headless and fast.
+Forced, English-only, never forcing a foreign sub) and the seconds-based time formatting.
+`tests/web-next/pip-geometry.test.ts` covers the picture-in-picture placement math
+(`web/next/src/lib/pip-geometry.ts`): the bottom-right corner of the work area, shrinking on a small
+screen, and that `MAIN_MIN_SIZE` still mirrors the window's `min_inner_size` in `lib.rs`. Both
+modules are dependency-free by design, so the suites import them by relative path and need no
+fixture, engine, or bunfig - they run headless and fast.
 
 ```bash
 bun test web-next            # from tests/ (or the whole tree via `bun run test` at the repo root)
@@ -76,4 +79,8 @@ The player's other half - the libmpv OpenGL render layer and live playback - nee
 window, bundled libmpv, and a video file, so it cannot run in headless CI. It is verified manually:
 launch the packaged app, play a file, and confirm the video renders sharp (retina), play/pause
 toggles, controls auto-hide while playing and return on hover, and subtitles/speed/seek/fullscreen
-work. The HTTP streaming backbone that feeds it is covered by the api-hono `/stream` goldens above.
+work. For picture-in-picture, press `P`: the window floats as a 480x270 mini player in the
+bottom-right corner with the video filling it edge to edge (no letterbox bars on a 16:9 file), a
+double-click on it does not zoom it, and `P` again or Esc returns the window to its exact previous
+frame. `P` from fullscreen leaves fullscreen first, and exiting PiP then returns to the windowed
+frame, not to fullscreen.

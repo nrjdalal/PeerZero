@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.28
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.27...v0.0.28)
+
+### 🏡 Chore
+
+- **registry:** Refresh committed data ([78eab6f](https://github.com/nrjdalal/PeerZero/commit/78eab6f))
+- **registry:** Refresh committed data ([3240a64](https://github.com/nrjdalal/PeerZero/commit/3240a64))
+- **registry:** Refresh committed data ([6ba1fee](https://github.com/nrjdalal/PeerZero/commit/6ba1fee))
+- **registry:** Refresh committed data ([ee3f2d8](https://github.com/nrjdalal/PeerZero/commit/ee3f2d8))
+- **registry:** Refresh committed data ([85ad419](https://github.com/nrjdalal/PeerZero/commit/85ad419))
+
 ## v0.0.27
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.26...v0.0.27)
