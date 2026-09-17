@@ -1,5 +1,79 @@
 # Changelog
 
+## v0.0.29
+
+[compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.28...v0.0.29)
+
+### 🚀 Enhancements
+
+- **player:** Add picture-in-picture mode ([#107](https://github.com/nrjdalal/PeerZero/pull/107))
+
+### 🏡 Chore
+
+- **registry:** Refresh committed data ([73bd661](https://github.com/nrjdalal/PeerZero/commit/73bd661))
+- **registry:** Refresh committed data ([e94fd6a](https://github.com/nrjdalal/PeerZero/commit/e94fd6a))
+- **registry:** Refresh committed data ([d0fabd4](https://github.com/nrjdalal/PeerZero/commit/d0fabd4))
+- **registry:** Refresh committed data ([874a2fd](https://github.com/nrjdalal/PeerZero/commit/874a2fd))
+- **registry:** Refresh committed data ([e5aa300](https://github.com/nrjdalal/PeerZero/commit/e5aa300))
+- **registry:** Refresh committed data ([6c771db](https://github.com/nrjdalal/PeerZero/commit/6c771db))
+- **registry:** Refresh committed data ([1238dac](https://github.com/nrjdalal/PeerZero/commit/1238dac))
+- **registry:** Refresh committed data ([2ed1a8b](https://github.com/nrjdalal/PeerZero/commit/2ed1a8b))
+- **registry:** Refresh committed data ([c5dc330](https://github.com/nrjdalal/PeerZero/commit/c5dc330))
+- **registry:** Refresh committed data ([ff88581](https://github.com/nrjdalal/PeerZero/commit/ff88581))
+- **registry:** Refresh committed data ([d1ad8bc](https://github.com/nrjdalal/PeerZero/commit/d1ad8bc))
+- **registry:** Refresh committed data ([cd53206](https://github.com/nrjdalal/PeerZero/commit/cd53206))
+- **registry:** Refresh committed data ([68df4a4](https://github.com/nrjdalal/PeerZero/commit/68df4a4))
+- **registry:** Refresh committed data ([ab5b907](https://github.com/nrjdalal/PeerZero/commit/ab5b907))
+- **registry:** Refresh committed data ([24ebb74](https://github.com/nrjdalal/PeerZero/commit/24ebb74))
+- **registry:** Refresh committed data ([a468da4](https://github.com/nrjdalal/PeerZero/commit/a468da4))
+- **registry:** Refresh committed data ([0a75513](https://github.com/nrjdalal/PeerZero/commit/0a75513))
+- **registry:** Refresh committed data ([06a0a8a](https://github.com/nrjdalal/PeerZero/commit/06a0a8a))
+- **registry:** Refresh committed data ([e1659e6](https://github.com/nrjdalal/PeerZero/commit/e1659e6))
+- **registry:** Refresh committed data ([7568603](https://github.com/nrjdalal/PeerZero/commit/7568603))
+- **registry:** Refresh committed data ([054161d](https://github.com/nrjdalal/PeerZero/commit/054161d))
+- **registry:** Refresh committed data ([59a7587](https://github.com/nrjdalal/PeerZero/commit/59a7587))
+- **registry:** Refresh committed data ([9cb28b4](https://github.com/nrjdalal/PeerZero/commit/9cb28b4))
+- **registry:** Refresh committed data ([6ef284c](https://github.com/nrjdalal/PeerZero/commit/6ef284c))
+- **registry:** Refresh committed data ([58cb57f](https://github.com/nrjdalal/PeerZero/commit/58cb57f))
+- **registry:** Refresh committed data ([da0630d](https://github.com/nrjdalal/PeerZero/commit/da0630d))
+- **registry:** Refresh committed data ([60bfc1c](https://github.com/nrjdalal/PeerZero/commit/60bfc1c))
+- **registry:** Refresh committed data ([e5d869d](https://github.com/nrjdalal/PeerZero/commit/e5d869d))
+- **registry:** Refresh committed data ([6a4b71c](https://github.com/nrjdalal/PeerZero/commit/6a4b71c))
+- **registry:** Refresh committed data ([f576a6a](https://github.com/nrjdalal/PeerZero/commit/f576a6a))
+- **registry:** Refresh committed data ([6092501](https://github.com/nrjdalal/PeerZero/commit/6092501))
+- **registry:** Refresh committed data ([9f603d0](https://github.com/nrjdalal/PeerZero/commit/9f603d0))
+- **registry:** Refresh committed data ([159c2c0](https://github.com/nrjdalal/PeerZero/commit/159c2c0))
+- **registry:** Refresh committed data ([523e107](https://github.com/nrjdalal/PeerZero/commit/523e107))
+- **registry:** Refresh committed data ([beb630c](https://github.com/nrjdalal/PeerZero/commit/beb630c))
+- **registry:** Refresh committed data ([57a0c9e](https://github.com/nrjdalal/PeerZero/commit/57a0c9e))
+- **registry:** Refresh committed data ([cc232c4](https://github.com/nrjdalal/PeerZero/commit/cc232c4))
+- **registry:** Refresh committed data ([d155d2e](https://github.com/nrjdalal/PeerZero/commit/d155d2e))
+- **registry:** Refresh committed data ([31d20a4](https://github.com/nrjdalal/PeerZero/commit/31d20a4))
+- **registry:** Refresh committed data ([1d84600](https://github.com/nrjdalal/PeerZero/commit/1d84600))
+- **registry:** Refresh committed data ([e0e0e52](https://github.com/nrjdalal/PeerZero/commit/e0e0e52))
+- **registry:** Refresh committed data ([33ac9dc](https://github.com/nrjdalal/PeerZero/commit/33ac9dc))
+- **registry:** Refresh committed data ([1e31ebe](https://github.com/nrjdalal/PeerZero/commit/1e31ebe))
+- **registry:** Refresh committed data ([91d5177](https://github.com/nrjdalal/PeerZero/commit/91d5177))
+- **registry:** Refresh committed data ([b880a0a](https://github.com/nrjdalal/PeerZero/commit/b880a0a))
+- **registry:** Refresh committed data ([2e46760](https://github.com/nrjdalal/PeerZero/commit/2e46760))
+- **registry:** Refresh committed data ([92a48d5](https://github.com/nrjdalal/PeerZero/commit/92a48d5))
+- **registry:** Refresh committed data ([7af0f0e](https://github.com/nrjdalal/PeerZero/commit/7af0f0e))
+- **registry:** Refresh committed data ([fffc7a4](https://github.com/nrjdalal/PeerZero/commit/fffc7a4))
+- **registry:** Refresh committed data ([63b8a7a](https://github.com/nrjdalal/PeerZero/commit/63b8a7a))
+- **registry:** Refresh committed data ([dc2a821](https://github.com/nrjdalal/PeerZero/commit/dc2a821))
+- **registry:** Refresh committed data ([2515982](https://github.com/nrjdalal/PeerZero/commit/2515982))
+- **registry:** Refresh committed data ([c012132](https://github.com/nrjdalal/PeerZero/commit/c012132))
+- **registry:** Refresh committed data ([58e7933](https://github.com/nrjdalal/PeerZero/commit/58e7933))
+- **registry:** Refresh committed data ([3dae7f6](https://github.com/nrjdalal/PeerZero/commit/3dae7f6))
+- **registry:** Refresh committed data ([64a9ed2](https://github.com/nrjdalal/PeerZero/commit/64a9ed2))
+- **registry:** Refresh committed data ([487d0ce](https://github.com/nrjdalal/PeerZero/commit/487d0ce))
+- **registry:** Refresh committed data ([f395c23](https://github.com/nrjdalal/PeerZero/commit/f395c23))
+- **registry:** Refresh committed data ([980cc37](https://github.com/nrjdalal/PeerZero/commit/980cc37))
+
+### ❤️ Contributors
+
+- Avi Dwivedi @whoavidwivedi
+
 ## v0.0.28
 
 [compare changes](https://github.com/nrjdalal/PeerZero/compare/v0.0.27...v0.0.28)
